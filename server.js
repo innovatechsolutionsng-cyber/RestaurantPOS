@@ -1666,16 +1666,14 @@ function getConnectedTerminals() {
   return Array.from(connectedTerminals.values());
 }
 
-if (require.main === module) {
-  startAdminServer(process.env.PORT || 3000)
-    .then(() => {
-      console.log('🌐 Web app is ready to open in your browser');
-    })
-    .catch((err) => {
-      console.error('Failed to start web server:', err);
-      process.exit(1);
-    });
-}
+startAdminServer(process.env.PORT || 3000)
+  .then(() => {
+    console.log('🌐 Web app is ready to open in your browser');
+  })
+  .catch((err) => {
+    console.error('Failed to start web server:', err);
+    process.exit(1);
+  });
 
 module.exports = {
   startAdminServer,
