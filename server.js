@@ -420,9 +420,30 @@ async function startAdminServer(port = 3000) {
   const app = express();
 
   // Middleware
+  const isAllowedOrigin = (origin) => {
+    if (!origin) return true;
+
+    const normalizedOrigin = origin.trim().toLowerCase();
+
+    return ALLOWED_ORIGINS.some((allowedOrigin) => {
+      const normalizedAllowed = allowedOrigin.trim().toLowerCase();
+      if (normalizedAllowed === '*') return true;
+      if (normalizedAllowed.endsWith('.*')) {
+        const prefix = normalizedAllowed.slice(0, -1);
+        return normalizedOrigin.startsWith(prefix);
+      }
+      return normalizedOrigin === normalizedAllowed;
+    });
+  };
+
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      if (process.env.NODE_ENV === 'production' || process.env.ALLOW_ALL_ORIGINS === 'true') {
+        callback(null, true);
+        return;
+      }
+
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
         callback(new Error('CORS policy: origin not allowed'));
