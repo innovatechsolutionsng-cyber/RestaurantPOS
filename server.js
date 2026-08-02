@@ -386,6 +386,25 @@ async function initializeMySQL() {
   }
 }
 
+function resolveIndexFile() {
+  const candidates = [];
+
+  if (process.env.STATIC_DIR) {
+    candidates.push(path.join(__dirname, process.env.STATIC_DIR, 'index.html'));
+  }
+
+  candidates.push(path.join(__dirname, 'public', 'index.html'));
+  candidates.push(path.join(__dirname, 'index.html'));
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 async function startAdminServer(port = 3000) {
   
   // Try to initialize MySQL (optional but recommended)
@@ -412,9 +431,26 @@ async function startAdminServer(port = 3000) {
 
   const publicFolder = process.env.STATIC_DIR ? path.join(__dirname, process.env.STATIC_DIR) : path.join(__dirname, 'public');
   const staticFolder = fs.existsSync(publicFolder) ? publicFolder : path.join(__dirname);
-  const indexFile = fs.existsSync(path.join(staticFolder, 'index.html'))
-    ? path.join(staticFolder, 'index.html')
-    : path.join(__dirname, 'index.html');
+  const indexFile = resolveIndexFile();
+
+  const sendIndexPage = (res) => {
+    if (indexFile) {
+      return res.sendFile(indexFile);
+    }
+
+    return res.type('html').send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Restaurant POS</title>
+  </head>
+  <body>
+    <h1>Restaurant POS</h1>
+    <p>The application entry page is not available in this deployment.</p>
+  </body>
+</html>`);
+  };
 
   app.use(express.static(staticFolder, { index: false }));
   if (staticFolder !== path.join(__dirname)) {
@@ -422,7 +458,7 @@ async function startAdminServer(port = 3000) {
   }
 
   app.get('/', (req, res) => {
-    res.sendFile(indexFile);
+    sendIndexPage(res);
   });
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -1634,7 +1670,7 @@ async function startAdminServer(port = 3000) {
     if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
       return next();
     }
-    res.sendFile(indexFile);
+    sendIndexPage(res);
   });
 
   // Start server
