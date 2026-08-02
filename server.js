@@ -432,13 +432,7 @@ async function startAdminServer(port = 3000) {
   const publicFolder = process.env.STATIC_DIR ? path.join(__dirname, process.env.STATIC_DIR) : path.join(__dirname, 'public');
   const staticFolder = fs.existsSync(publicFolder) ? publicFolder : path.join(__dirname);
   const indexFile = resolveIndexFile();
-
-  const sendIndexPage = (res) => {
-    if (indexFile) {
-      return res.sendFile(indexFile);
-    }
-
-    return res.type('html').send(`<!doctype html>
+  const fallbackHtml = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -449,7 +443,20 @@ async function startAdminServer(port = 3000) {
     <h1>Restaurant POS</h1>
     <p>The application entry page is not available in this deployment.</p>
   </body>
-</html>`);
+</html>`;
+
+  const sendIndexPage = (res) => {
+    if (indexFile && fs.existsSync(indexFile) && fs.statSync(indexFile).isFile()) {
+      return fs.readFile(indexFile, 'utf8', (err, html) => {
+        if (err) {
+          console.error('Error reading index file:', err.message);
+          return res.type('html').send(fallbackHtml);
+        }
+        return res.type('html').send(html);
+      });
+    }
+
+    return res.type('html').send(fallbackHtml);
   };
 
   app.use(express.static(staticFolder, { index: false }));
