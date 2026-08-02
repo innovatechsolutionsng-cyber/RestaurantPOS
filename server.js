@@ -19,7 +19,14 @@ function generateId() {
 }
 
 const JWT_EXPIRY_SECONDS = 60 * 60 * 8; // 8 hours
-const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'https://localhost:3000',
+  'https://127.0.0.1:3000'
+];
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
   : DEFAULT_ALLOWED_ORIGINS;
