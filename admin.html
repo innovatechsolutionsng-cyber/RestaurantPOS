@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin — Restaurant</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+  </head>
+  <body>
+    <div class="mobile-sidebar-backdrop" id="sidebar-backdrop"></div>
+    <div class="container">
+      <header class="page-header">
+        <div class="header-brand">
+          <img src="assets/images/logo.png" alt="Restaurant logo" class="logo-img" />
+          <div>
+            <div class="page-title">Restaurant</div>
+            <div class="muted subtitle">Operations control center</div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar" title="Open navigation">
+            <span></span><span></span><span></span>
+          </button>
+          <button id="btn-settings" class="icon-action-btn" type="button" title="Settings" aria-label="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.607 2.296.07 2.572-1.065z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="btn-logout" class="icon-action-btn" type="button" title="Logout" aria-label="Logout">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l1.41-1.41L9.83 14H20v-2H9.83l1.58-1.59L10 9l-4 4 4 4zm-6 2h8v2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h8v2H4v16z" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="split" role="application">
+        <aside class="sidebar-card" id="sidebar" aria-label="Primary navigation">
+          <div class="sidebar-top">
+            <div class="caps">Main</div>
+          </div>
+          <nav>
+            <ul class="nav-list" role="list">
+              <li><a href="#overview" class="nav-link active" data-panel="overview" title="Overview"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 13h8V3H3v10zM3 21h8v-6H3v6zM13 21h8V11h-8v10zM13 3v6h8V3h-8z" fill="currentColor"/></svg><span>Overview</span></a></li>
+              <li><a href="#product-management" class="nav-link" data-panel="product-management" title="Product management"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7.5V20a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7.5L12 3 3 7.5zM12 5l8 3.5V19H4V8.5L12 5zM7 10h10v2H7v-2z" fill="currentColor"/></svg><span>Product management</span></a></li>
+              <li><a href="#directories" class="nav-link" data-panel="directories" title="User management"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 4H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a2 2 0 0 0-2-2h-6l-2-2z" fill="currentColor"/></svg><span>User management</span></a></li>
+              <li><a href="#sales" class="nav-link" data-panel="sales" title="Sales"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16v16H4z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 8h8M8 12h8M8 16h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Sales</span></a></li>
+              <li><a href="#transactions" class="nav-link" data-panel="transactions" title="Transactions"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" fill="currentColor"/></svg><span>Transactions History</span></a></li>
+              <li><a href="#reports" class="nav-link" data-panel="reports" title="Reports"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z" fill="currentColor"/></svg><span>Reports</span></a></li>
+            </ul>
+          </nav>
+
+          <div class="sidebar-footer">
+            <div class="nav-account">
+              <div class="avatar avatar--gradient" aria-hidden="true">A</div>
+              <div class="meta">
+                <div class="fw-700">Admin</div>
+                <div class="muted">admin@local</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main>
+          <section id="overview" class="panel overview-panel" role="region" aria-hidden="false">
+            <div class="overview-hero card">
+              <div>
+                <div class="eyebrow">Operations center</div>
+                <h2 class="page-title">A calm, organized view of the day.</h2>
+                <p class="overview-copy">Monitor products, staff, orders, and daily performance from a refined dashboard built for quick decisions.</p>
+                
+              </div>
+              <div class="overview-summary">
+                <div class="summary-chip">Orders today</div>
+                <div class="summary-chip">Staff online</div>
+                <div class="summary-chip">Low-stock alerts</div>
+              </div>
+            </div>
+
+            <div class="stats-grid overview-grid mt-sm">
+              <div class="card stat-card">
+                <div class="stat-meta">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16v4H4zM4 10h16v10H4z" fill="currentColor"/></svg>
+                  <div class="muted">Daily revenue</div>
+                </div>
+                <div class="stat-value" id="stat-daily-revenue">₦0.00</div>
+                <div class="muted">Sales today</div>
+              </div>
+              <div class="card stat-card">
+                <div class="stat-meta">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" fill="currentColor"/></svg>
+                  <div class="muted">Completed orders</div>
+                </div>
+                <div class="stat-value" id="stat-completed-orders">0</div>
+                <div class="muted">Finished today</div>
+              </div>
+              <div class="card stat-card">
+                <div class="stat-meta">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" fill="currentColor"/></svg>
+                  <div class="muted">Pending orders</div>
+                </div>
+                <div class="stat-value" id="stat-pending-orders">0</div>
+                <div class="muted">Needs attention</div>
+              </div>
+            </div>
+
+            <div class="card mt-sm quick-actions-panel">
+              <div class="card-title-row">
+                <div>
+                  <div class="eyebrow">Quick actions</div>
+                  <h3 class="section-title">Launch core workflows instantly.</h3>
+                  <div class="muted">A single row of the actions your team uses most.</div>
+                </div>
+              </div>
+              <div class="quick-actions-grid">
+                <div id="qa-create-product" class="card quick-action-card" role="button" tabindex="0" aria-label="Create product">
+                  <div class="quick-action-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </div>
+                  <div class="quick-action-label">Create product</div>
+                </div>
+                <div id="qa-add-staff" class="card quick-action-card" role="button" tabindex="0" aria-label="Add staff">
+                  <div class="quick-action-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4z" stroke="currentColor" stroke-width="2"/><path d="M4 20v-1a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </div>
+                  <div class="quick-action-label">Add staff</div>
+                </div>
+                <div id="qa-view-sales" class="card quick-action-card" role="button" tabindex="0" aria-label="View sales">
+                  <div class="quick-action-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M4 15h10M4 11h16M4 7h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </div>
+                  <div class="quick-action-label">View sales</div>
+                </div>
+                <div id="qa-generate-report" class="card quick-action-card" role="button" tabindex="0" aria-label="Generate report">
+                  <div class="quick-action-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="2"/><path d="M8 7h8M8 11h6M8 15h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </div>
+                  <div class="quick-action-label">Generate report</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-grid">
+              <div class="card">
+                <div class="card-title-row">
+                  <h3>Recent Sales</h3>
+                  <span class="pill">Today</span>
+                </div>
+                <div class="table-responsive">
+                  <table class="report-table" style="width:100%;">
+                    <thead>
+                      <tr>
+                        <th style="min-width:95px;">Time</th>
+                        <th style="min-width:130px;">Waiter</th>
+                        <th style="min-width:130px;">Cashier</th>
+                        <th style="min-width:110px; text-align:right; padding-right:24px;">Amount</th>
+                        <th style="min-width:110px; padding-left:22px;">Status</th>
+                        <th style="min-width:140px;">Method</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recent-sales-table-body">
+                      <tr>
+                        <td colspan="6" style="padding: 16px; text-align:center; color:#6b7280;">Loading today&apos;s sales…</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-title-row">
+                  <h3>Operational snapshot</h3>
+                  <span class="pill muted-pill">Updated now</span>
+                </div>
+                <div class="snapshot-row"><span>Products in catalog</span><strong id="snapshot-product-count">0</strong></div>
+                <div class="snapshot-row"><span>Registered users</span><strong id="snapshot-user-count">0</strong></div>
+                <div class="snapshot-row"><span>Events scheduled</span><strong id="snapshot-event-count">0</strong></div>
+              </div>
+            </div>
+          </section>
+          <section id="product-management" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Product management</h2>
+            <div class="section-subtitle muted">Organize products, categories, and stock details in one place.</div>
+            <div class="stagger-container stats-grid mt-sm">
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 7.5V20a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7.5L12 3 3 7.5zM12 5l8 3.5V19H4V8.5L12 5z" fill="currentColor"/></svg>
+                  <div class="muted">Categories</div>
+                </div>
+                <div id="cat-count" class="stat-value">0</div>
+                <div style="margin-left:auto"><button id="btn-manage-cats" class="btn btn-ghost">Manage</button></div>
+              </div>
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16v4H4zM4 10h16v10H4z" fill="currentColor"/></svg>
+                  <div class="muted">Subcategories</div>
+                </div>
+                <div id="subcat-count" class="stat-value">0</div>
+                <div style="margin-left:auto"><button id="btn-manage-subcats" class="btn btn-ghost">Manage</button></div>
+                <!-- compact dropdowns removed as per design -->
+              </div>
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 3h18v2H3zM3 7h18v14H3z" fill="currentColor"/></svg>
+                  <div class="muted">Products</div>
+                </div>
+                <div id="prod-count" class="stat-value">0</div>
+                <div style="margin-left:auto"><button id="btn-manage-prods" class="btn btn-ghost">Manage</button></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="list">
+                <div class="flex-row" style="gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+                  <div class="muted">Manage inventory hierarchy with categories, subcategories, and products</div>
+                  <button id="btn-add-category" class="btn btn-primary" style="margin-left:auto;">+ Add Category</button>
+                </div>
+
+                <div class="flex-row" style="margin-bottom:12px;align-items:center;">
+                  <input id="inventory-search" class="input" placeholder="Search categories, subcategories or products..." style="flex:1;min-width:240px;" />
+                </div>
+
+                <!-- Inventory tree view -->
+                <div id="inventory-tree" class="inventory-tree">
+                  <!-- Populated by JavaScript -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Add/Edit Category Modal -->
+            <div id="category-modal" class="modal" aria-hidden="true" role="alertdialog">
+              <div class="modal-overlay" data-action="close-modal"></div>
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h3 id="category-modal-title">Add Category</h3>
+                  <button class="modal-close" data-action="close-modal" aria-label="Close" title="Close">✕</button>
+                </div>
+                <form id="category-form" class="modal-form">
+                  <input type="hidden" id="category-id" />
+                  <div class="form-group">
+                    <label for="category-name">Category Name</label>
+                    <input type="text" id="category-name" class="input" placeholder="e.g., Beverages, Main Courses, Desserts" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="category-color">Category Color</label>
+                    <input type="color" id="category-color" class="input" value="#38bdf8" />
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Category</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- Add/Edit Subcategory Modal -->
+            <div id="subcategory-modal" class="modal" aria-hidden="true" role="alertdialog">
+              <div class="modal-overlay" data-action="close-modal"></div>
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h3 id="subcategory-modal-title">Add Subcategory</h3>
+                  <button class="modal-close" data-action="close-modal" aria-label="Close" title="Close">✕</button>
+                </div>
+                <form id="subcategory-form" class="modal-form">
+                  <input type="hidden" id="subcategory-id" />
+                  <input type="hidden" id="subcategory-parent" />
+                  <div class="form-group">
+                    <label for="subcategory-name">Subcategory Name</label>
+                    <input type="text" id="subcategory-name" class="input" placeholder="e.g., Cold Drinks, Hot Drinks" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="subcategory-color">Subcategory Color</label>
+                    <input type="color" id="subcategory-color" class="input" value="#6ee7b7" />
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Subcategory</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- Add/Edit Product Modal -->
+            <div id="product-modal" class="modal" aria-hidden="true" role="alertdialog">
+              <div class="modal-overlay" data-action="close-modal"></div>
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h3 id="product-modal-title">Add Product</h3>
+                  <button class="modal-close" data-action="close-modal" aria-label="Close" title="Close">✕</button>
+                </div>
+                <form id="product-form" class="modal-form">
+                  <input type="hidden" id="product-id" />
+                  <input type="hidden" id="product-category" />
+                  <input type="hidden" id="product-subcategory" />
+                  <div class="form-group">
+                    <label for="product-name">Product Name</label>
+                    <input type="text" id="product-name" class="input" placeholder="e.g., Coca Cola, Fried Rice" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="product-color">Product Color</label>
+                    <input type="color" id="product-color" class="input" value="#c7d2fe" />
+                  </div>
+                  <div class="form-group">
+                    <label for="product-price">Price (NGN)</label>
+                    <input type="number" id="product-price" class="input" placeholder="0.00" step="0.01" min="0" />
+                  </div>
+                  <div class="form-group">
+                    <label for="product-quantity">Quantity in Stock</label>
+                    <input type="number" id="product-quantity" class="input" placeholder="0" min="0" />
+                  </div>
+                  <div class="form-group">
+                    <label for="product-barcode">Barcode (EAN-13)</label>
+                    <div style="display:flex;gap:8px;align-items:flex-start;">
+                      <input type="text" id="product-barcode" class="input" placeholder="Leave blank to auto-generate" style="flex:1;" />
+                      <button type="button" id="btn-product-gen-barcode" class="btn btn-accent" style="margin-top:8px;">Generate</button>
+                    </div>
+                    <div id="product-barcode-preview" class="barcode-preview" aria-hidden="true" style="margin-top:12px;"></div>
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Product</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <!-- Panels: overview / users / menu / orders / settings -->
+          <section id="directories" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">User Management</h2>
+            <div class="card">
+              <div class="list">
+                <div class="flex-row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+                  <div class="muted">Create new user accounts and assign the right role and access level.</div>
+                  <div style="margin-left:auto"><button id="btn-open-add-user" class="btn btn-primary">Add User</button></div>
+                </div>
+
+                <div class="mt-sm">
+                  <table id="users-table" class="mt-sm" style="width:100%;border-collapse:collapse">
+                    <thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Full name</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Username</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Role</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Status</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Tables</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Actions</th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section id="overview" class="panel" role="region" aria-labelledby="overview-title">
+            <h2 class="page-title">Overview</h2>
+            <div class="section-subtitle muted">Review daily highlights and keep service running smoothly.</div>
+            <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, #eff6ff, #ffffff);">
+              <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;">
+                <div>
+                  <div class="hero-badge" style="background:rgba(37,99,235,0.12);color:#1d4ed8;letter-spacing:0.04em;margin-bottom:8px;">Admin Dashboard</div>
+                  <h2 class="page-title" style="margin-bottom:4px;">Welcome back, Admin</h2>
+                  <div class="muted">Monitor service, stock, and team activity from one place.</div>
+                </div>
+                <a href="index.html" class="btn btn-ghost">← Back to home</a>
+              </div>
+            </div>
+
+            <div class="stagger-container stats-grid" aria-hidden="false">
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 13h8V3H3v10zM3 21h8v-6H3v6zM13 21h8V11h-8v10zM13 3v6h8V3h-8z" fill="currentColor"/></svg>
+                  <div class="muted">Total Items</div>
+                </div>
+                <div class="stat-value" id="stat-items">—</div>
+              </div>
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5z" fill="currentColor"/></svg>
+                  <div class="muted">Active Users</div>
+                </div>
+                <div class="stat-value" id="stat-users">—</div>
+              </div>
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z" fill="currentColor"/></svg>
+                  <div class="muted">Orders Today</div>
+                </div>
+                <div class="stat-value" id="stat-orders">—</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3 id="overview-title" class="no-top page-title">Recent Activity</h3>
+              <ul class="activity-list" id="recent-activity">
+                <li class="activity-item"><div><div class="fw-700">No activity yet</div><small class="muted">—</small></div><div class="muted">—</div></li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="users" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Users</h2>
+            <div class="section-subtitle muted">Manage user accounts and keep team access organized.</div>
+            <div class="card">
+              <div class="list">
+                <div class="flex-row">
+                  <div class="muted">Manage cashiers and admins</div>
+                  <div style="margin-left:auto"><button class="btn btn-primary" id="btn-new-user">New User</button></div>
+                </div>
+                <div id="users-table" class="no-top muted">No users yet</div>
+              </div>
+            </div>
+          </section>
+
+          <section id="menu" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Menu</h2>
+            <div class="section-subtitle muted">Create and update the menu items your team serves.</div>
+            <div class="card">
+              <div class="muted">Manage menu items (create / edit / delete)</div>
+              <div id="menu-list" class="mt-sm">No items yet</div>
+            </div>
+          </section>
+
+          <section id="orders" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Orders</h2>
+            <div class="section-subtitle muted">Track current orders and follow service progress from start to finish.</div>
+            <div class="card">
+              <div class="muted">Recent orders and order management</div>
+              <div id="orders-list" class="mt-sm">No orders yet</div>
+            </div>
+          </section>
+
+          <section id="sales" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Sales</h2>
+            <div class="section-subtitle muted">Browse every sale in cards and review order summary plus item breakdown.</div>
+            <div class="card">
+              <div class="card-title-row">
+                <div>
+                  <h3 class="section-title">Sales board</h3>
+                  <div class="muted">All orders, sorted newest first.</div>
+                </div>
+                <button id="btn-refresh-sales" class="btn btn-primary">Refresh</button>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:16px;">
+                <input id="sales-search" type="text" placeholder="Search by table, waiter, cashier, or status" style="flex:1;min-width:220px;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+              </div>
+              <div class="sales-panel-grid">
+                <div id="sales-card-list" class="orders-container">
+                  <div class="muted">Loading sales…</div>
+                </div>
+                <div class="card">
+                  <div class="card-title-row">
+                    <h3>Order details</h3>
+                  </div>
+                  <div id="sales-detail-content" class="mt-sm">
+                    <p class="muted">Select a sale card to view its summary and item breakdown.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="transactions" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Transactions</h2>
+            <div class="section-subtitle muted">Review every completed transaction and payment status in one place.</div>
+            
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                  <h3 style="margin: 0 0 12px 0; font-size: 1.1rem; font-weight: 600;">Transaction History</h3>
+                  <div class="muted">Complete record of all orders, payments, and transactions</div>
+                </div>
+                <button id="btn-refresh-transaction-history" class="btn btn-primary">Refresh</button>
+              </div>
+              
+              <div style="margin-bottom: 16px;">
+                <input 
+                  type="text" 
+                  id="transaction-history-search" 
+                  placeholder="Search by date, table, or status..." 
+                  style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;"
+                >
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead style="background: #f3f4f6; border-bottom: 2px solid #d1d5db;">
+                    <tr>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Date</th>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Table Number</th>
+                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Items</th>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Waiter</th>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Cashier</th>
+                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total</th>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Payment Method</th>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Ref</th>
+                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="transaction-history-tbody">
+                    <tr>
+                      <td colspan="9" style="padding: 20px; text-align: center; color: #9ca3af;">No transactions found</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="reports" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Reports</h2>
+            <div class="section-subtitle muted">Inspect sales, voids, and product performance with clear summaries.</div>
+            
+
+            
+            <!-- End of Day Report Button -->
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                  <h3 style="margin: 0 0 12px 0; font-size: 1.1rem; font-weight: 600;">Daily Summary</h3>
+                  <div class="muted">Generate a comprehensive end of day report</div>
+                </div>
+                <button id="btn-end-of-day-report" class="btn btn-accent" style="background: #8b5cf6; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">End of Day Report</button>
+              </div>
+            </div>
+
+            <!-- Voided Items Report -->
+            <div class="card">
+              <div style="margin-bottom: 20px;">
+                <h3 style="margin: 0 0 12px 0; font-size: 1.1rem; font-weight: 600;">Voided Items Report</h3>
+                <div class="muted">Track all items voided from orders with detailed breakdown</div>
+              </div>
+              
+              <div style="margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                <input id="voided-search" type="text" placeholder="Search by order, table, or product..." class="input" style="flex: 1; min-width: 250px;" />
+                <button id="btn-refresh-voided-report" class="btn btn-primary">Refresh</button>
+              </div>
+              
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                      <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Date</th>
+                      <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Order ID</th>
+                      <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Table</th>
+                      <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Product</th>
+                      <th style="padding: 12px; text-align: center; font-weight: 600; color: #374151;">Qty Voided</th>
+                      <th style="padding: 12px; text-align: right; font-weight: 600; color: #374151;">Unit Price</th>
+                      <th style="padding: 12px; text-align: right; font-weight: 600; color: #374151;">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="voided-items-tbody">
+                    <tr>
+                      <td colspan="7" style="padding: 20px; text-align: center; color: #9ca3af;">No voided items found</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              <div style="margin-top: 16px; padding: 12px; background: #f0f9ff; border-radius: 6px; border-left: 4px solid #0284c7;">
+                <div style="font-size: 0.9rem; color: #666;">
+                  <strong>Total Voided Value:</strong> <span id="voided-total-value" style="font-weight: 700;">₦0.00</span> | 
+                  <strong>Total Items Voided:</strong> <span id="voided-total-items" style="font-weight: 700;">0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Items Summary Report -->
+            <div style="margin-top: 28px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.2rem; font-weight: 600; color: #1f2937; margin: 0;">Items Summary Report</h3>
+                <button id="btn-refresh-items-summary" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">Refresh</button>
+              </div>
+              
+              <div style="margin-bottom: 16px;">
+                <input 
+                  type="text" 
+                  id="items-summary-search" 
+                  placeholder="Search by product name..." 
+                  style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;"
+                >
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead style="background: #f3f4f6; border-bottom: 2px solid #d1d5db;">
+                    <tr>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Product Name</th>
+                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Unit Price</th>
+                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Quantity</th>
+                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="items-summary-tbody">
+                    <tr>
+                      <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No items found</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Subcategory Summary Report -->
+            <div style="margin-top: 28px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.2rem; font-weight: 600; color: #1f2937; margin: 0;">Subcategory Summary Report</h3>
+                <button id="btn-refresh-subcategory-summary" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">Refresh</button>
+              </div>
+              
+              <div style="margin-bottom: 16px;">
+                <input 
+                  type="text" 
+                  id="subcategory-summary-search" 
+                  placeholder="Search by subcategory name..." 
+                  style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;"
+                >
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead style="background: #f3f4f6; border-bottom: 2px solid #d1d5db;">
+                    <tr>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Subcategory</th>
+                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Items</th>
+                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Quantity</th>
+                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="subcategory-summary-tbody">
+                    <tr>
+                      <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No subcategories found</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Category Summary Report -->
+            <div style="margin-top: 28px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-size: 1.2rem; font-weight: 600; color: #1f2937; margin: 0;">Category Summary Report</h3>
+                <button id="btn-refresh-category-summary" style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">Refresh</button>
+              </div>
+              
+              <div style="margin-bottom: 16px;">
+                <input 
+                  type="text" 
+                  id="category-summary-search" 
+                  placeholder="Search by category name..." 
+                  style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;"
+                >
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead style="background: #f3f4f6; border-bottom: 2px solid #d1d5db;">
+                    <tr>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Category</th>
+                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Items</th>
+                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Quantity</th>
+                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="category-summary-tbody">
+                    <tr>
+                      <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No categories found</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="settings" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Settings</h2>
+            <div class="section-subtitle muted">Adjust your profile, business rules, and platform preferences.</div>
+
+            <div class="settings-tabs" role="tablist" aria-label="Settings categories">
+              <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-target="settings-profile">
+                <span class="settings-tab-icon">👤</span>
+                <span>Profile</span>
+              </button>
+              <button class="settings-tab" type="button" role="tab" aria-selected="false" data-target="settings-financial">
+                <span class="settings-tab-icon">💰</span>
+                <span>Financial settings</span>
+              </button>
+              <button class="settings-tab" type="button" role="tab" aria-selected="false" data-target="settings-business">
+                <span class="settings-tab-icon">🏪</span>
+                <span>Business settings</span>
+              </button>
+              <button class="settings-tab" type="button" role="tab" aria-selected="false" data-target="settings-system">
+                <span class="settings-tab-icon">⚙️</span>
+                <span>System settings</span>
+              </button>
+            </div>
+
+            <div class="settings-panels">
+              <div id="settings-profile" class="settings-tab-panel card" role="tabpanel">
+                <div class="settings-card-head">
+                  <h3>Profile</h3>
+                  <div class="muted">Keep your administrator profile up to date.</div>
+                </div>
+                <div class="settings-card-body">
+                  <div class="field">
+                    <label class="label">Full name</label>
+                    <input class="input" placeholder="Admin name" />
+                  </div>
+                  <div class="field">
+                    <label class="label">Email</label>
+                    <input class="input" type="email" placeholder="admin@restaurant.com" />
+                  </div>
+                  <div class="field">
+                    <label class="label">Phone number</label>
+                    <input class="input" placeholder="Contact number" />
+                  </div>
+                </div>
+              </div>
+
+              <div id="settings-financial" class="settings-tab-panel card" role="tabpanel" hidden>
+                <div class="settings-card-head">
+                  <h3>Financial settings</h3>
+                  <div class="muted">Manage tax, service charges, and discounts applied to bills.</div>
+                </div>
+                <div class="settings-card-body">
+                  <div class="stagger-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+                    <div class="field">
+                      <label for="tax-percentage" class="label">Tax Percentage (%)</label>
+                      <input id="tax-percentage" type="number" min="0" max="100" step="0.01" placeholder="e.g., 7.5" class="input" />
+                      <div style="font-size: 0.85rem; color: #666; margin-top: 4px;">Applied on bill subtotal</div>
+                    </div>
+                    
+                    <div class="field">
+                      <label for="service-charge-percentage" class="label">Service Charge (%)</label>
+                      <input id="service-charge-percentage" type="number" min="0" max="100" step="0.01" placeholder="e.g., 10" class="input" />
+                      <div style="font-size: 0.85rem; color: #666; margin-top: 4px;">Applied on bill subtotal</div>
+                    </div>
+                    
+                    <div class="field">
+                      <label for="discount-percentage" class="label">Discount Percentage (%)</label>
+                      <input id="discount-percentage" type="number" min="0" max="100" step="0.01" placeholder="e.g., 5" class="input" />
+                      <div style="font-size: 0.85rem; color: #666; margin-top: 4px;">Applied on bill subtotal</div>
+                    </div>
+                  </div>
+                  
+                  <div style="padding: 12px; background: #f0f9ff; border-radius: 6px; border-left: 4px solid #0284c7;">
+                    <div style="font-size: 0.9rem; color: #666;">
+                      <strong>Calculation Order:</strong> Subtotal → Tax → Service Charge → Discount → Final Total
+                    </div>
+                  </div>
+                  
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button id="btn-save-billing-settings" class="btn btn-primary">Save Billing Settings</button>
+                    <button id="btn-reset-billing-settings" class="btn btn-ghost">Reset to Defaults</button>
+                  </div>
+                  
+                  <div id="billing-settings-message" style="padding: 12px; border-radius: 6px; display: none;"></div>
+                </div>
+              </div>
+
+              <div id="settings-business" class="settings-tab-panel card" role="tabpanel" hidden>
+                <div class="settings-card-head">
+                  <h3>Business settings</h3>
+                  <div class="muted">Adjust operational details that shape daily service.</div>
+                </div>
+                
+                  <div class="settings-section">
+                    <h4 class="settings-section-title">Receipt details</h4>
+                    <div class="field">
+                      <label class="label">Receipt business name</label>
+                      <input id="receipt-business-name" class="input" type="text" placeholder="Restaurant name for receipts" />
+                    </div>
+                    <div class="field">
+                      <label class="label">Receipt address</label>
+                      <input id="receipt-address" class="input" type="text" placeholder="Street, city, state" />
+                    </div>
+                    <div class="field">
+                      <label class="label">Receipt phone number</label>
+                      <input id="receipt-phone" class="input" type="tel" placeholder="Contact phone number" />
+                    </div>
+                    <div class="field">
+                      <label class="label">Receipt email</label>
+                      <input id="receipt-email" class="input" type="email" placeholder="Contact email address" />
+                    </div>
+                    <div class="field" style="margin-bottom: 16px;">
+                      <label class="label">Receipt footer message</label>
+                      <textarea id="receipt-footer-message" class="input" rows="3" placeholder="Thank you message or other footer text"></textarea>
+                    </div>
+                    <div class="field" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                      <button id="btn-save-receipt-settings" class="btn btn-primary">Save Receipt Details</button>
+                    </div>
+                    <div id="receipt-settings-message" style="padding: 12px; border-radius: 6px; display: none;"></div>
+                  </div>
+
+                  <div class="settings-section">
+                    <h4 class="settings-section-title">Business day cutoff</h4>
+                    <div class="field">
+                      <label class="label">Business day cutoff</label>
+                      <input id="business-day-cutoff" type="time" class="input" value="00:00" />
+                      <p class="muted" style="margin-top:8px;">Dashboard counts and reports will be grouped from this time until the same time the next day.</p>
+                    </div>
+                    <div class="field" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                      <button id="btn-save-business-day" class="btn btn-primary">Save Business Day Setting</button>
+                      <button id="btn-reset-business-day" class="btn btn-ghost" style="color: #dc2626; border-color: #fca5a5;">Reset to 00:00</button>
+                    </div>
+                    <div id="business-day-settings-message" style="padding: 12px; border-radius: 6px; display: none;"></div>
+                  </div>
+                  <div class="mt-sm">
+                    <h3 class="no-top">Events</h3>
+                    <div class="flex-row" style="gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                      <div class="field" style="flex:1;min-width:180px;">
+                        <label for="event-name" class="label">Event Name</label>
+                        <input id="event-name" type="text" placeholder="e.g., Wedding Reception, Corporate Event" class="input" />
+                      </div>
+                      <div class="field" style="flex:1;min-width:180px;">
+                        <label for="event-date" class="label">Event Date</label>
+                        <input id="event-date" type="date" class="input" />
+                      </div>
+                      <div class="field" style="flex:1;min-width:180px;">
+                        <label for="event-location" class="label">Location</label>
+                        <input id="event-location" type="text" placeholder="e.g., Main Hall, Garden" class="input" />
+                      </div>
+                      <div class="field" style="flex:1;min-width:180px;">
+                        <label for="event-phone" class="label">Phone</label>
+                        <input id="event-phone" type="tel" placeholder="e.g., +2348012345678" class="input" />
+                      </div>
+                      <button id="btn-add-event" class="btn btn-primary">Add Event</button>
+                    </div>
+                    <div class="mt-sm">
+                      <table id="event-table" class="mt-sm" style="width:100%;border-collapse:collapse">
+                        <thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Event Name</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Date</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Location</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Phone</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Created</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Actions</th></tr></thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="settings-system" class="settings-tab-panel card" role="tabpanel" hidden>
+                <div class="settings-card-head">
+                  <h3>System settings</h3>
+                  <div class="muted">Control platform-wide features for inventory and platform behavior.</div>
+                </div>
+                <div class="settings-card-body system-settings-body">
+                  <div class="settings-feature-panel">
+                    <div>
+                      <div class="settings-feature-title">Advanced stock tracking</div>
+                      <div class="settings-feature-copy">Enable inventory-aware order processing, automatic quantity updates, and low-stock visibility across the system.</div>
+                    </div>
+                    <span class="status-badge status-badge--info">Inventory tracking</span>
+                  </div>
+
+                  <div class="settings-switch">
+                    <div class="settings-switch-row">
+                      <input id="enable-stock-count" type="checkbox" class="input checkbox-input" />
+                      <div>
+                        <label for="enable-stock-count" class="label" style="margin: 0; cursor: pointer;">Enable Stock Count Tracking</label>
+                        <div class="muted" style="margin-top: 4px;">When enabled, the system will apply stock updates and quantity validation during order processing.</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="system-setting-field">
+                    <label for="system-timeout-minutes" class="label">Session timeout (minutes)</label>
+                    <input id="system-timeout-minutes" class="input" type="number" min="5" max="1440" step="5" placeholder="120" />
+                    <div class="muted">Users will be automatically logged out after this inactivity period.</div>
+                  </div>
+
+                  <div class="settings-action-row">
+                    <button id="btn-save-stock-settings" class="btn btn-accent">Save Stock Settings</button>
+                    <span class="status-tag">Recommended for tighter inventory control</span>
+                  </div>
+
+                  <div id="stock-settings-message" class="status-message"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    
+    <!-- Edit modal (hidden) -->
+    <div id="edit-modal" class="modal" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+        <header class="modal-header">
+          <h3 id="edit-modal-title" class="page-title">Edit</h3>
+        </header>
+        <form id="edit-form" class="modal-body">
+          <input type="hidden" id="edit-type" />
+          <input type="hidden" id="edit-id" />
+
+          <div class="field">
+            <label class="label">Name</label>
+            <input id="edit-name" class="input" />
+          </div>
+
+          <div id="edit-parent-row" class="field" style="display:none;">
+            <label class="label">Parent Category</label>
+            <select id="edit-parent" class="input"></select>
+          </div>
+
+          <div id="edit-barcode-row" class="field" style="display:none;">
+            <label class="label">Barcode</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="edit-barcode" class="input" />
+              <button type="button" id="edit-gen-barcode" class="btn btn-accent">Generate</button>
+              <div id="edit-barcode-preview" class="barcode-preview" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <div id="edit-price-row" class="field" style="display:none;">
+            <label class="label">Price</label>
+            <input id="edit-price" class="input" placeholder="Enter price" />
+          </div>
+          <div id="edit-quantity-row" class="field" style="display:none;">
+            <label class="label">Quantity</label>
+            <input id="edit-quantity" class="input" type="number" min="0" placeholder="Enter quantity" />
+          </div>
+
+          <div id="edit-tables-row" class="field" style="display:none;">
+            <label class="label">Tables</label>
+            <input id="edit-tables" class="input" placeholder="e.g. 1,2,3" />
+          </div>
+
+          <footer class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+            <button type="button" class="btn btn-ghost" data-action="cancel-edit">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+    <!-- Add user modal -->
+    <div id="add-user-modal" class="modal" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
+        <header class="modal-header">
+          <h3 id="add-user-title" class="page-title">Create User</h3>
+        </header>
+        <form id="add-user-form" class="modal-body">
+          <input id="edit-user-id" type="hidden" />
+          <div class="field">
+            <label class="label">Full name</label>
+            <input id="user-full-name" class="input" required />
+          </div>
+          <div class="field">
+            <label class="label">Username</label>
+            <input id="user-username" class="input" required />
+          </div>
+          <div class="field">
+            <label class="label">Password</label>
+            <input id="user-password" type="password" class="input" />
+            <div class="muted" style="font-size:12px;margin-top:6px;">Required when creating a user. Leave blank to keep current password when editing.</div>
+          </div>
+          <div class="field" style="display:flex;align-items:center;gap:8px;">
+            <input id="user-show-password" type="checkbox" /> <label class="muted">Show password</label>
+          </div>
+          <div class="field">
+            <label class="label">Role</label>
+            <select id="user-role" class="input">
+              <option value="cashier">Cashier</option>
+              <option value="waiter">Waiter</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">Status</label>
+            <select id="user-status" class="input">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div id="waiter-table-section" class="field" style="display:none;">
+            <label class="label">Tables</label>
+            <input id="user-tables" class="input" placeholder="e.g. 1,2,3 or 6-10" />
+            <div class="muted" style="font-size:12px;margin-top:6px;">Enter table numbers or ranges for the waiter. Example: 6-10 means tables 6, 7, 8, 9, 10.</div>
+          </div>
+          <footer class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+            <button type="button" class="btn btn-ghost" data-action="cancel-edit">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create User</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+    <script>
+      // Small client-side nav toggling so panels show when clicking sidebar links.
+      (function(){
+        const links = document.querySelectorAll('.nav-link[data-panel]');
+        const panels = document.querySelectorAll('.panel');
+        function showPanel(id){
+          panels.forEach(p=>{
+            if(p.id===id){ p.removeAttribute('aria-hidden'); p.style.display='block'; }
+            else{ p.setAttribute('aria-hidden','true'); p.style.display='none'; }
+          });
+          links.forEach(a=> a.classList.toggle('active', a.dataset.panel===id));
+        }
+        links.forEach(a=> a.addEventListener('click', e=>{ e.preventDefault(); showPanel(a.dataset.panel); }));
+        // show overview by default
+        showPanel('overview');
+
+        // Logout button behavior is handled by admin-ui.js to preserve confirmation modal.
+        // The inline handler is intentionally omitted here to avoid double-binding.
+
+        
+      })();
+
+      // Global modal close handler
+      document.addEventListener('click', (e) => {
+        const action = e.target && e.target.dataset ? e.target.dataset.action : '';
+        if (action === 'close-modal' || action === 'cancel-edit') {
+          const modal = e.target.closest('.modal');
+          if (modal) {
+            modal.setAttribute('aria-hidden', 'true');
+            modal.style.display = '';
+          }
+        }
+      });
+    </script>
+    <!-- End of Day Report Modal -->
+    <div id="end-of-day-modal" class="modal" aria-hidden="true">
+      <div class="modal-backdrop" data-action="close-modal"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="eod-title" style="max-width: 1000px; width: 90vw; max-height: 90vh; overflow-y: auto;">
+        <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 id="eod-title" class="page-title">End of Day Report</h3>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-print-eod" class="btn btn-primary">Print</button>
+            <button id="btn-export-csv-eod" class="btn btn-accent" style="background: #06b6d4; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">Export CSV</button>
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Close</button>
+          </div>
+        </header>
+        <div class="modal-body">
+          <div id="eod-content" style="padding: 20px; background: white;">
+            <!-- Report content will be populated here -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="assets/js/db.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script src="assets/js/admin-ui.js"></script>
+    <script src="assets/js/admin-users.js"></script>
+  </body>
+</html>

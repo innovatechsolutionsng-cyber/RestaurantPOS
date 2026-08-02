@@ -1,0 +1,49 @@
+{
+  "name": "restaurant-pos",
+  "version": "1.0.0",
+  "description": "Web-based Restaurant Point of Sale System",
+  "main": "server.js",
+  "homepage": "./",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "echo 'Web app does not require packaging'",
+    "build:win": "echo 'Web app does not require packaging'",
+    "cleanup:db": "node scripts/cleanup-db.js"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.restaurant.pos",
+    "productName": "Restaurant POS",
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**/*",
+      "*.html"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}.exe",
+      "forceCodeSigning": false,
+      "sign": null
+    }
+  },
+  "dependencies": {
+    "body-parser": "^2.3.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mysql2": "^3.23.2"
+  }
+}

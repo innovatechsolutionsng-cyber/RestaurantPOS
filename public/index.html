@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Restaurant POS — Welcome</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+      body {
+        background: radial-gradient(circle at top left, #eff6ff 0%, var(--bg) 45%, #f8fafc 100%);
+      }
+      .landing-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .landing-card {
+        width: min(1120px, 100%);
+        background: rgba(255,255,255,0.95);
+        border: 1px solid rgba(255,255,255,0.7);
+        border-radius: 28px;
+        box-shadow: 0 30px 70px rgba(15,23,42,0.14);
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+      }
+      .landing-hero {
+        padding: 40px;
+        background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 45%, #0f172a 100%);
+        color: white;
+        position: relative;
+      }
+      .landing-panel {
+        padding: 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .hero-badge {
+        display: inline-flex;
+        width: fit-content;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.16);
+        font-size: 0.84rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .hero-title {
+        font-size: clamp(1.8rem, 3vw, 2.6rem);
+        font-weight: 800;
+        margin: 0;
+      }
+      .hero-copy {
+        font-size: 1rem;
+        line-height: 1.7;
+        color: rgba(255,255,255,0.9);
+      }
+      .hero-points {
+        display: grid;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .hero-points div {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        font-size: 0.95rem;
+      }
+      .login-section {
+        display: grid;
+        gap: 14px;
+      }
+      .login-card {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 20px;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        box-shadow: 0 12px 30px rgba(15,23,42,0.05);
+      }
+      .login-card h3 {
+        margin: 0 0 4px 0;
+        font-size: 1.08rem;
+      }
+      .login-card p {
+        margin: 0 0 12px 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .field { margin-top: 12px; }
+      .input {
+        background: white;
+        border: 1px solid #dbe3f0;
+        border-radius: 12px;
+        padding: 12px 14px;
+      }
+      .input:focus-visible {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(37,99,235,0.12);
+      }
+      .helper-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+      }
+      .helper-card strong { display: block; }
+      .helper-card span { color: var(--muted); font-size: 0.9rem; }
+      .feedback {
+        margin-top: 10px;
+        min-height: 20px;
+        font-size: 0.92rem;
+        color: #b45309;
+      }
+      @media (max-width: 860px) {
+        .landing-card { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 560px) {
+        .landing-hero, .landing-panel { padding: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="landing-shell">
+      <div class="landing-card">
+        <div class="landing-hero">
+          <div class="hero-badge">Restaurant POS Suite</div>
+          <h1 class="hero-title">Run your restaurant smoothly from one place.</h1>
+          <p class="hero-copy">A modern web experience for restaurant owners and front-desk teams to manage orders, staff, inventory, and daily operations in real time.</p>
+          <div class="hero-points">
+            <div>✓ Central login for admin and cashier roles</div>
+            <div>✓ Fast order handling and reporting</div>
+            <div>✓ Clean dashboards for daily decision-making</div>
+          </div>
+        </div>
+
+        <div class="landing-panel">
+          <div class="login-section">
+            <div class="login-card">
+              <h3>Sign in to your workspace</h3>
+              <p>Use one account to access the admin dashboard, cashier dashboard, or waiter dashboard.</p>
+
+              <form id="login-form" novalidate>
+                <div class="field">
+                  <label for="email" class="label">Username</label>
+                  <input id="email" name="email" type="text" class="input" placeholder="Enter your username" autocomplete="username" required autofocus>
+                </div>
+
+                <div class="field">
+                  <label for="password" class="label">Password</label>
+                  <input id="password" name="password" type="password" class="input" placeholder="Enter your password" autocomplete="current-password" required>
+                </div>
+
+                <label style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;">
+                  <input id="remember" type="checkbox">
+                  <span class="muted">Remember me</span>
+                </label>
+
+                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px">Sign in</button>
+                <div id="login-feedback" class="feedback" role="status" aria-live="polite"></div>
+              </form>
+            </div>
+            <div class="login-card">
+              <h3>Need admin access?</h3>
+              <p class="muted">If no admin user exists yet, register the first admin account.</p>
+              <a href="admin-setup.html" class="btn btn-secondary" style="width:100%;justify-content:center;">Create Admin Account</a>
+            </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="assets/js/db.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>
+      (async function () {
+        await RestaurantDB.init();
+        const remembered = localStorage.getItem('rememberedEmail');
+        const emailInput = document.getElementById('email');
+        const rememberToggle = document.getElementById('remember');
+        if (remembered && emailInput) {
+          emailInput.value = remembered;
+          if (rememberToggle) rememberToggle.checked = true;
+        }
+
+        const feedback = document.getElementById('login-feedback');
+        const form = document.getElementById('login-form');
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          feedback.textContent = '';
+          const username = (document.getElementById('email').value || '').trim();
+          const password = document.getElementById('password').value;
+          const remember = document.getElementById('remember').checked;
+
+          if (!username || !password) {
+            feedback.textContent = 'Please enter your username and password.';
+            return;
+          }
+
+          try {
+            const user = await Auth.login(username, password);
+            if (remember) {
+              localStorage.setItem('rememberedEmail', username);
+            } else {
+              localStorage.removeItem('rememberedEmail');
+            }
+
+            if (user.role === 'admin') {
+              window.location.href = 'admin.html';
+            } else if (user.role === 'waiter') {
+              window.location.href = 'waiter.html';
+            } else {
+              window.location.href = 'cashier.html';
+            }
+          } catch (error) {
+            if (error.message === 'no_user') {
+              feedback.textContent = 'No users found yet. You can create the default admin account from the reset option.';
+            } else {
+              feedback.textContent = 'Login failed. Please check your credentials and try again.';
+            }
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

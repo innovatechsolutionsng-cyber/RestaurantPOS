@@ -1,0 +1,3756 @@
+// Toast notification system
+function showToast(message, type = 'success', duration = 3000) {
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position: relative;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-weight: 600;
+    z-index: 2147483647;
+    animation: slideInRight 0.3s ease-out;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+    max-width: min(360px, calc(100vw - 24px));
+    line-height: 1.4;
+    pointer-events: none;
+  `;
+  
+  if (type === 'success') {
+    toast.style.backgroundColor = '#dcfce7';
+    toast.style.color = '#166534';
+    toast.style.border = '1px solid #86efac';
+    toast.textContent = '✓ ' + message;
+  } else if (type === 'error') {
+    toast.style.backgroundColor = '#fee2e2';
+    toast.style.color = '#991b1b';
+    toast.style.border = '1px solid #fca5a5';
+    toast.textContent = '✗ ' + message;
+  } else if (type === 'info') {
+    toast.style.backgroundColor = '#dbeafe';
+    toast.style.color = '#1e40af';
+    toast.style.border = '1px solid #93c5fd';
+    toast.textContent = 'ℹ ' + message;
+  }
+
+  let container = document.getElementById('app-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'app-toast-container';
+    container.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+      z-index: 2147483647;
+      pointer-events: none;
+      max-width: min(360px, calc(100vw - 24px));
+    `;
+    (document.body || document.documentElement).appendChild(container);
+  }
+  container.appendChild(toast);
+  
+  // Add animation
+  const style = document.createElement('style');
+  if (!document.getElementById('toast-animation-style')) {
+    style.id = 'toast-animation-style';
+    style.textContent = `
+      @keyframes slideInRight {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      @keyframes slideOutRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  setTimeout(() => {
+    toast.style.animation = 'slideOutRight 0.3s ease-in';
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, duration);
+}
+
+// Admin UI glue: moves inline script from admin.html into this file
+(async function(){
+  await RestaurantDB.init();
+  if(!Auth.requireRole('admin')) return;
+
+  const API_BASE_URL = (() => {
+    try {
+      if (window.location.protocol.startsWith('http')) {
+        return `${window.location.protocol}//${window.location.host}`;
+      }
+    } catch (e) {
+      return 'http://localhost:3000';
+    }
+    return 'http://localhost:3000';
+  })();
+
+  async function fetchBackend(path, options = {}) {
+    const url = `${API_BASE_URL}${path}`;
+    const response = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options));
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const error = body && body.error ? body.error : response.statusText || 'backend_error';
+      throw new Error(error);
+    }
+    return response.json();
+  }
+
+  let businessDayCutoff = '00:00';
+  let businessDayCutoffInput = null;
+  let btnSaveBusinessDay = null;
+  let btnResetBusinessDay = null;
+  let businessDaySettingsMessage = null;
+  let businessDayRefreshTimer = null;
+
+  let receiptSettings = {
+    businessName: '',
+    address: '',
+    phone: '',
+    email: '',
+    footerMessage: ''
+  };
+  let receiptBusinessNameInput = null;
+  let receiptAddressInput = null;
+  let receiptPhoneInput = null;
+  let receiptEmailInput = null;
+  let receiptFooterMessageInput = null;
+  let btnSaveReceiptSettings = null;
+  let receiptSettingsMessage = null;
+
+  function parseBusinessDayCutoff(value) {
+    if (!value || typeof value !== 'string') return null;
+    const match = value.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+    return match ? `${match[1]}:${match[2]}` : null;
+  }
+
+  function getBusinessDayRange(cutoff = '00:00', reference = new Date()) {
+    const normalized = parseBusinessDayCutoff(cutoff) || '00:00';
+    const [hours, minutes] = normalized.split(':').map(Number);
+    const boundary = new Date(reference);
+    boundary.setHours(hours, minutes, 0, 0);
+    const start = new Date(boundary);
+    if (reference < boundary) {
+      start.setDate(start.getDate() - 1);
+    }
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+
+  function getNextBusinessDayBoundary(cutoff = '00:00', reference = new Date()) {
+    const normalized = parseBusinessDayCutoff(cutoff) || '00:00';
+    const [hours, minutes] = normalized.split(':').map(Number);
+    const nextBoundary = new Date(reference);
+    nextBoundary.setHours(hours, minutes, 0, 0);
+    if (reference >= nextBoundary) {
+      nextBoundary.setDate(nextBoundary.getDate() + 1);
+    }
+    return nextBoundary;
+  }
+
+  function scheduleBusinessDayRefresh() {
+    if (businessDayRefreshTimer) {
+      clearTimeout(businessDayRefreshTimer);
+      businessDayRefreshTimer = null;
+    }
+    const nextBoundary = getNextBusinessDayBoundary(businessDayCutoff);
+    const delay = nextBoundary.getTime() - Date.now();
+    if (delay <= 0) {
+      businessDayRefreshTimer = setTimeout(scheduleBusinessDayRefresh, 1000);
+      return;
+    }
+    businessDayRefreshTimer = setTimeout(async () => {
+      try {
+        await loadBusinessDaySetting();
+        await updateOperationalSnapshotCounts();
+        await renderRecentSalesTable();
+        if (typeof loadSalesPanel === 'function') {
+          await loadSalesPanel();
+        }
+        showToast('Business day boundary reached. Dashboard refreshed for current business day.', 'info', 2500);
+      } catch (err) {
+        console.error('Failed to refresh admin dashboard on business day boundary:', err);
+      } finally {
+        scheduleBusinessDayRefresh();
+      }
+    }, delay);
+  }
+
+  async function updateOperationalSnapshotCounts() {
+    const productCountEl = document.getElementById('snapshot-product-count');
+    const userCountEl = document.getElementById('snapshot-user-count');
+    const eventCountEl = document.getElementById('snapshot-event-count');
+    const revenueEl = document.getElementById('stat-daily-revenue');
+    const pendingOrdersEl = document.getElementById('stat-pending-orders');
+    const completedOrdersEl = document.getElementById('stat-completed-orders');
+    const activeStaffEl = document.getElementById('stat-active-staff');
+    if (!productCountEl && !userCountEl && !eventCountEl && !revenueEl && !pendingOrdersEl && !completedOrdersEl && !activeStaffEl) return;
+
+    try {
+      if (BACKEND_AVAILABLE) {
+        const [productsRes, usersRes, eventsRes, ordersRes] = await Promise.all([
+          fetchBackend('/api/products').catch(() => ({ products: [] })),
+          fetchBackend('/api/users/list').catch(() => ({ users: [] })),
+          fetchBackend('/api/events').catch(() => ({ events: [] })),
+          fetchBackend('/api/orders/all').catch(() => ({ orders: [] }))
+        ]);
+        const products = productsRes.products || [];
+        const users = usersRes.users || [];
+        const events = eventsRes.events || [];
+        const orders = ordersRes.orders || [];
+
+        const activeStaffCount = (users || []).filter(u => u.status === 'active' && u.role && u.role !== 'admin').length;
+        const range = getBusinessDayRange(businessDayCutoff);
+        const currentDayOrders = (orders || []).filter(o => {
+          const createdAt = getOrderCreatedAt(o);
+          if (Number.isNaN(createdAt.getTime())) return false;
+          return createdAt >= range.start && createdAt < range.end;
+        });
+        const dailyOrderCount = currentDayOrders.length;
+        const completedOrderCount = currentDayOrders.filter(o => getOrderStatus(o) === 'completed').length;
+        const pendingOrderCount = currentDayOrders.filter(o => getOrderStatus(o) === 'pending').length;
+        const lowStockCount = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5).length;
+
+        if (productCountEl) productCountEl.textContent = String(products.length);
+        if (userCountEl) userCountEl.textContent = String(users.length);
+        if (eventCountEl) eventCountEl.textContent = String(events.length);
+        if (activeStaffEl) activeStaffEl.textContent = String(activeStaffCount);
+        if (pendingOrdersEl) pendingOrdersEl.textContent = String(pendingOrderCount);
+        if (completedOrdersEl) completedOrdersEl.textContent = String(completedOrderCount);
+        if (revenueEl) {
+          const revenue = (orders || []).reduce((sum, order) => {
+            const createdAt = getOrderCreatedAt(order);
+            if (Number.isNaN(createdAt.getTime())) return sum;
+            if (createdAt < range.start || createdAt >= range.end) return sum;
+            if (getOrderStatus(order) !== 'completed') return sum;
+            return sum + getOrderAmount(order);
+          }, 0);
+          revenueEl.textContent = `₦${new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(revenue)}`;
+        }
+
+        const summaryChips = document.querySelectorAll('.overview-summary .summary-chip');
+        if (summaryChips.length >= 3) {
+          summaryChips[0].textContent = `${dailyOrderCount} orders today`;
+          summaryChips[1].textContent = `${activeStaffCount} staff online`;
+          summaryChips[2].textContent = `${lowStockCount} low-stock alerts`;
+        }
+      } else {
+        const [products, users, events, orders] = await Promise.all([
+          RestaurantDB.getAllProducts().catch(() => []),
+          RestaurantDB.getAllUsers().catch(() => []),
+          RestaurantDB.getAllEvents().catch(() => []),
+          RestaurantDB.getAllOrders().catch(() => [])
+        ]);
+
+        const activeStaffCount = (users || []).filter(u => u.status === 'active' && u.role && u.role !== 'admin').length;
+        const range = getBusinessDayRange(businessDayCutoff);
+        const currentDayOrders = (orders || []).filter(o => {
+          const createdAt = getOrderCreatedAt(o);
+          if (Number.isNaN(createdAt.getTime())) return false;
+          return createdAt >= range.start && createdAt < range.end;
+        });
+        const dailyOrderCount = currentDayOrders.length;
+        const completedOrderCount = currentDayOrders.filter(o => getOrderStatus(o) === 'completed').length;
+        const pendingOrderCount = currentDayOrders.filter(o => getOrderStatus(o) === 'pending').length;
+        const lowStockCount = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5).length;
+
+        if (productCountEl) productCountEl.textContent = String((products || []).length);
+        if (userCountEl) userCountEl.textContent = String((users || []).length);
+        if (eventCountEl) eventCountEl.textContent = String((events || []).length);
+        if (activeStaffEl) activeStaffEl.textContent = String(activeStaffCount);
+        if (pendingOrdersEl) pendingOrdersEl.textContent = String(pendingOrderCount);
+        if (completedOrdersEl) completedOrdersEl.textContent = String(completedOrderCount);
+        if (revenueEl) {
+          const revenue = (orders || []).reduce((sum, order) => {
+            const created = getOrderCreatedAt(order);
+            if (Number.isNaN(created.getTime())) return sum;
+            if (created < range.start || created >= range.end) return sum;
+            if (getOrderStatus(order) !== 'completed') return sum;
+            return sum + getOrderAmount(order);
+          }, 0);
+          revenueEl.textContent = `₦${new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(revenue)}`;
+        }
+
+        const summaryChips = document.querySelectorAll('.overview-summary .summary-chip');
+        if (summaryChips.length >= 3) {
+          summaryChips[0].textContent = `${dailyOrderCount} orders today`;
+          summaryChips[1].textContent = `${activeStaffCount} staff online`;
+          summaryChips[2].textContent = `${lowStockCount} low-stock alerts`;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load operational snapshot counts:', err);
+    }
+  }
+
+  function parseOrderJson(value) {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (err) {
+        return value;
+      }
+    }
+    return value;
+  }
+
+  function normalizeOrderProperty(order, keys) {
+    if (!order) return null;
+    const normalizedOrder = Object.assign({}, order, {
+      orderData: parseOrderJson(order.orderData),
+      order_data: parseOrderJson(order.order_data),
+      order: parseOrderJson(order.order)
+    });
+
+    for (const key of keys) {
+      if (!key) continue;
+      const parts = String(key).split('.').map(part => part.replace(/\?$/g, ''));
+      let current = normalizedOrder;
+      for (const part of parts) {
+        if (current === undefined || current === null) {
+          current = null;
+          break;
+        }
+        if (typeof current === 'string') {
+          current = parseOrderJson(current);
+        }
+        current = current[part];
+      }
+      if (current !== undefined && current !== null) {
+        return current;
+      }
+    }
+    return null;
+  }
+
+  function getOrderPaymentMethod(order) {
+    const methodLabels = {
+      cash: 'Cash',
+      pos: 'POS Card',
+      transfer: 'Bank Transfer',
+      credit: 'Credit',
+    };
+
+    if (order.payments && Array.isArray(order.payments) && order.payments.length > 0) {
+      const methods = order.payments
+        .map(payment => methodLabels[payment.method] || payment.method || 'Payment')
+        .filter(Boolean);
+      return methods.length > 0 ? methods[0] : 'N/A';
+    }
+
+    const rawMethod = normalizeOrderProperty(order, ['paymentMethod', 'payment_method', 'method', 'payment', 'order.paymentMethod', 'order.payment_method', 'order.method', 'order.payment', 'orderData.paymentMethod', 'orderData.payment_method', 'orderData.method', 'orderData.payment', 'order_data.paymentMethod', 'order_data.payment_method', 'order_data.method', 'order_data.payment']);
+    if (!rawMethod) return 'N/A';
+    if (Array.isArray(rawMethod)) {
+      return String(rawMethod[0] || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
+    }
+    return String(rawMethod).replace(/_/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
+  }
+
+  function getOrderPerson(order, preferredKeys) {
+    const raw = normalizeOrderProperty(order, preferredKeys);
+    if (raw) return String(raw);
+    return 'N/A';
+  }
+
+  function getOrderAmount(order) {
+    const rawAmount = normalizeOrderProperty(order, [
+      'totalAmount',
+      'total',
+      'subtotal',
+      'amount',
+      'order.totalAmount',
+      'order.total',
+      'order.subtotal',
+      'order.amount',
+      'orderData.totalAmount',
+      'orderData.total',
+      'orderData.subtotal',
+      'orderData.amount',
+      'order_data.totalAmount',
+      'order_data.total',
+      'order_data.subtotal',
+      'order_data.amount',
+      'order.orderData.totalAmount',
+      'order.orderData.total',
+      'order.orderData.subtotal',
+      'order.orderData.amount',
+      'order.order_data.totalAmount',
+      'order.order_data.total',
+      'order.order_data.subtotal',
+      'order.order_data.amount'
+    ]);
+    return Number(rawAmount || 0);
+  }
+
+  function getOrderCreatedAt(order) {
+    const rawCreatedAt = normalizeOrderProperty(order, [
+      'createdAt',
+      'created_at',
+      'date',
+      'order.createdAt',
+      'order.created_at',
+      'order.date',
+      'orderData.createdAt',
+      'orderData.created_at',
+      'orderData.order.createdAt',
+      'orderData.order.created_at',
+      'order_data.createdAt',
+      'order_data.created_at',
+      'order_data.order.createdAt',
+      'order_data.order.created_at',
+      'order.orderData.createdAt',
+      'order.orderData.created_at',
+      'order.order_data.createdAt',
+      'order.order_data.created_at',
+      'orderData.orderData.createdAt',
+      'orderData.orderData.created_at',
+      'orderData.order_data.createdAt',
+      'orderData.order_data.created_at',
+      'order_data.orderData.createdAt',
+      'order_data.orderData.created_at',
+      'order_data.order_data.createdAt',
+      'order_data.order_data.created_at'
+    ]);
+    return rawCreatedAt ? new Date(rawCreatedAt) : new Date(NaN);
+  }
+
+  function getOrderTime(order) {
+    const created = getOrderCreatedAt(order);
+    if (Number.isNaN(created.getTime())) return 'N/A';
+    return created.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  }
+
+  function getOrderStatus(order) {
+    const rawStatus = normalizeOrderProperty(order, [
+      'status',
+      'order.status',
+      'order_data.status',
+      'orderData.status',
+      'orderData.order.status',
+      'orderData.order_data.status',
+      'order_data.order.status',
+      'order.orderData.status',
+      'order.order_data.status',
+      'order.orderData.order.status',
+      'order.order_data.order.status',
+      'orderData.orderData.status',
+      'orderData.order_data.status',
+      'order_data.orderData.status',
+      'order_data.order_data.status',
+      'orderData.order.status',
+      'state'
+    ]);
+    return String(rawStatus || '').toLowerCase();
+  }
+
+  async function loadAdminOrders() {
+    try {
+      if (BACKEND_AVAILABLE) {
+        const result = await fetchBackend('/api/orders/all').catch(() => ({ orders: [] }));
+        return Array.isArray(result?.orders) ? result.orders : [];
+      }
+      return await RestaurantDB.getAllOrders().catch(() => []);
+    } catch (err) {
+      console.error('Failed to load admin orders:', err);
+      return [];
+    }
+  }
+
+  async function renderRecentSalesTable() {
+    const body = document.getElementById('recent-sales-table-body');
+    if (!body) return;
+    try {
+      const orders = await loadAdminOrders();
+      const range = getBusinessDayRange(businessDayCutoff);
+      const todayOrders = (orders || []).filter((order) => {
+        const created = getOrderCreatedAt(order);
+        if (Number.isNaN(created.getTime())) return false;
+        return created >= range.start && created < range.end;
+      }).sort((a, b) => {
+        const aDate = getOrderCreatedAt(a);
+        const bDate = getOrderCreatedAt(b);
+        return bDate - aDate;
+      }).slice(0, 8);
+
+      if (todayOrders.length === 0) {
+        body.innerHTML = '<tr><td colspan="6" style="padding: 16px; text-align:center; color:#6b7280;">No sales recorded for this business day.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = todayOrders.map((order) => {
+        const time = getOrderTime(order);
+        const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']);
+        const cashier = getOrderPerson(order, ['cashierName', 'cashier', 'createdBy', 'created_by', 'orderData.cashierName', 'orderData.cashier', 'orderData.createdBy', 'orderData.created_by', 'order.orderData.cashierName', 'order.orderData.cashier', 'order.orderData.createdBy', 'order.orderData.created_by']);
+        const amount = getOrderAmount(order);
+        const status = getOrderStatus(order) || 'N/A';
+        const method = getOrderPaymentMethod(order);
+        const statusLabel = String(status).charAt(0).toUpperCase() + String(status).slice(1);
+        const statusColor = status.toLowerCase() === 'completed' ? '#10b981' : status.toLowerCase() === 'pending' ? '#f59e0b' : '#3b82f6';
+        const methodBadge = method && method !== 'N/A'
+          ? `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-size:0.8rem;font-weight:600;">${method}</span>`
+          : '<span style="color:#6b7280;">N/A</span>';
+
+        return `
+          <tr>
+            <td>${time}</td>
+            <td>${waiter}</td>
+            <td>${cashier}</td>
+            <td style="text-align:right; font-weight:600; padding-right:24px;">₦${formatCurrency(amount)}</td>
+            <td style="padding-left:22px;"><span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:${statusColor}20;color:${statusColor};font-size:0.85rem;font-weight:600;">${statusLabel}</span></td>
+            <td>${methodBadge}</td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      console.error('Failed to render recent sales table:', err);
+      body.innerHTML = '<tr><td colspan="6" style="padding: 16px; text-align:center; color:#ef4444;">Unable to load recent sales.</td></tr>';
+    }
+  }
+
+  let salesOrdersCache = [];
+  let selectedSalesOrderId = null;
+
+  function getOrderStableId(order, index) {
+    return String(order.id ?? order._id ?? order.orderId ?? order.reference ?? `sale-${index}`);
+  }
+
+  function getOrderItems(order) {
+    const itemCandidates = normalizeOrderProperty(order, [
+      'items',
+      'order.items',
+      'orderData.items',
+      'order_data.items',
+      'order.orderData.items',
+      'order.order_data.items',
+      'orderData.order.items',
+      'order_data.order.items'
+    ]);
+    if (!itemCandidates) return [];
+    const items = Array.isArray(itemCandidates) ? itemCandidates : parseOrderJson(itemCandidates);
+    if (!Array.isArray(items)) return [];
+    return items.map(item => typeof item === 'string' ? parseOrderJson(item) : item).filter(Boolean);
+  }
+
+  function getOrderTableNumber(order) {
+    const rawTable = normalizeOrderProperty(order, ['tableNumber', 'table_name', 'tableName', 'order.tableNumber', 'order.table_name', 'order.tableName', 'orderData.tableNumber', 'orderData.table_name', 'orderData.tableName', 'order_data.tableNumber', 'order_data.table_name', 'order_data.tableName']);
+    if (rawTable) return String(rawTable);
+    const tableName = normalizeOrderProperty(order, ['tableName', 'table_name', 'table', 'order.tableName', 'order.orderData.tableName', 'orderData.tableName']);
+    return tableName ? String(tableName) : 'Table N/A';
+  }
+
+  function renderSalesDetail(order) {
+    const detailContainer = document.getElementById('sales-detail-content');
+    if (!detailContainer) return;
+    if (!order) {
+      detailContainer.innerHTML = '<p class="muted">Select a sale card to view its summary and item breakdown.</p>';
+      return;
+    }
+
+    const items = getOrderItems(order);
+    const totalAmount = getOrderAmount(order);
+    const tableLabel = getOrderTableNumber(order);
+    const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']);
+    const cashier = getOrderPerson(order, ['cashierName', 'cashier', 'createdBy', 'created_by', 'orderData.cashierName', 'orderData.cashier', 'orderData.createdBy', 'orderData.created_by', 'order.orderData.cashierName', 'order.orderData.cashier', 'order.orderData.createdBy', 'order.orderData.created_by']);
+    const status = getOrderStatus(order) || 'N/A';
+    const method = getOrderPaymentMethod(order);
+    const createdAt = getOrderCreatedAt(order);
+    const dateLabel = Number.isNaN(createdAt.getTime()) ? 'N/A' : createdAt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+
+    detailContainer.innerHTML = `
+      <div class="order-card-detail"><span class="order-card-label">Table</span><span class="order-card-value">${tableLabel}</span></div>
+      <div class="order-card-detail"><span class="order-card-label">Waiter</span><span class="order-card-value">${waiter}</span></div>
+      <div class="order-card-detail"><span class="order-card-label">Cashier</span><span class="order-card-value">${cashier}</span></div>
+      <div class="order-card-detail"><span class="order-card-label">Payment Method</span><span class="order-card-value">${method}</span></div>
+      <div class="order-card-detail"><span class="order-card-label">Status</span><span class="order-card-value">${status}</span></div>
+      <div class="order-card-detail"><span class="order-card-label">Order Date</span><span class="order-card-value">${dateLabel}</span></div>
+      <div class="order-card-detail"><span class="order-card-label">Total</span><span class="order-card-value">₦${formatCurrency(totalAmount)}</span></div>
+      <div style="margin-top:20px;">
+        <h4 style="margin:0 0 10px 0;font-size:1rem;font-weight:700;color:var(--text);">Items breakdown</h4>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead style="background:#f3f4f6;border-bottom:2px solid #d1d5db;">
+              <tr>
+                <th style="padding:10px;text-align:left;font-size:0.85rem;font-weight:600;color:#374151;">Item</th>
+                <th style="padding:10px;text-align:center;font-size:0.85rem;font-weight:600;color:#374151;">Qty</th>
+                <th style="padding:10px;text-align:right;font-size:0.85rem;font-weight:600;color:#374151;">Unit</th>
+                <th style="padding:10px;text-align:right;font-size:0.85rem;font-weight:600;color:#374151;">Line total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.length === 0 ? '<tr><td colspan="4" style="padding:16px;text-align:center;color:#6b7280;">No items available for this sale.</td></tr>' : items.map((item, idx) => {
+                const name = item.productName || item.name || item.title || 'Unnamed item';
+                const quantity = Number(item.quantity || item.qty || 0);
+                const unitPrice = Number(item.unitPrice || item.price || item.amount || 0);
+                const lineTotal = quantity * unitPrice;
+                return `
+                  <tr style="border-bottom:1px solid #e5e7eb;${idx % 2 === 0 ? 'background:#f9fafb;' : ''}">
+                    <td style="padding:10px;font-size:0.9rem;">${String(name)}</td>
+                    <td style="padding:10px;text-align:center;font-size:0.9rem;">${quantity}</td>
+                    <td style="padding:10px;text-align:right;font-size:0.9rem;">₦${formatCurrency(unitPrice)}</td>
+                    <td style="padding:10px;text-align:right;font-size:0.9rem;font-weight:600;">₦${formatCurrency(lineTotal)}</td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function selectSalesOrder(orderId) {
+    const normalizedId = String(orderId);
+    const order = salesOrdersCache.find((order, idx) => getOrderStableId(order, idx) === normalizedId);
+    selectedSalesOrderId = normalizedId;
+    document.querySelectorAll('.sales-order-card').forEach((card) => {
+      card.classList.toggle('active', card.dataset.orderId === normalizedId);
+    });
+    renderSalesDetail(order);
+  }
+
+  async function loadSalesPanel() {
+    const cardList = document.getElementById('sales-card-list');
+    const detailContent = document.getElementById('sales-detail-content');
+    const searchInput = document.getElementById('sales-search');
+    if (!cardList || !detailContent) return;
+
+    try {
+      const allOrders = await loadAdminOrders();
+
+      const searchTerm = (searchInput?.value || '').toLowerCase().trim();
+      const filteredOrders = (allOrders || []).filter((order) => {
+        const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']).toLowerCase();
+        const cashier = getOrderPerson(order, ['cashierName', 'cashier', 'createdBy', 'created_by', 'orderData.cashierName', 'orderData.cashier', 'orderData.createdBy', 'orderData.created_by', 'order.orderData.cashierName', 'order.orderData.cashier', 'order.orderData.createdBy', 'order.orderData.created_by']).toLowerCase();
+        const status = getOrderStatus(order).toLowerCase();
+        const method = getOrderPaymentMethod(order).toLowerCase();
+        const table = getOrderTableNumber(order).toLowerCase();
+        const id = String(getOrderStableId(order, 0)).toLowerCase();
+        return !searchTerm || [waiter, cashier, status, method, table, id].some(value => value.includes(searchTerm));
+      });
+
+      salesOrdersCache = filteredOrders.sort((a, b) => new Date(getOrderCreatedAt(b)) - new Date(getOrderCreatedAt(a)));
+
+      if (salesOrdersCache.length === 0) {
+        cardList.innerHTML = '<div class="muted">No sales match your search.</div>';
+        detailContent.innerHTML = '<p class="muted">Select a sale card to view details.</p>';
+        return;
+      }
+
+      cardList.innerHTML = salesOrdersCache.map((order, idx) => {
+        const orderId = getOrderStableId(order, idx);
+        const status = getOrderStatus(order) || 'N/A';
+        const statusLabel = String(status).charAt(0).toUpperCase() + String(status).slice(1);
+        const statusColor = status === 'completed' ? '#10b981' : status === 'pending' ? '#f59e0b' : '#3b82f6';
+        const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']);
+        const cashier = getOrderPerson(order, ['cashierName', 'cashier', 'createdBy', 'created_by', 'orderData.cashierName', 'orderData.cashier', 'orderData.createdBy', 'orderData.created_by', 'order.orderData.cashierName', 'order.orderData.cashier', 'order.orderData.createdBy', 'order.orderData.created_by']);
+        const tableLabel = getOrderTableNumber(order);
+        const amount = getOrderAmount(order);
+        const itemsCount = getOrderItems(order).length;
+        const method = getOrderPaymentMethod(order);
+        const isActive = selectedSalesOrderId === orderId;
+
+        return `
+          <div class="order-card sales-order-card${isActive ? ' active' : ''}" data-order-id="${orderId}" tabindex="0" role="button" aria-pressed="${isActive}">
+            <div class="order-card-header">
+              <div>
+                <h4 class="order-card-title">${tableLabel}</h4>
+                <div class="muted" style="font-size:0.92rem;margin-top:4px;">${itemsCount} item${itemsCount === 1 ? '' : 's'} · ${method}</div>
+              </div>
+              <span class="order-card-badge" style="background:${statusColor};">${statusLabel}</span>
+            </div>
+            <div class="order-card-detail"><span class="order-card-label">Waiter</span><span class="order-card-value">${waiter}</span></div>
+            <div class="order-card-detail"><span class="order-card-label">Cashier</span><span class="order-card-value">${cashier}</span></div>
+            <div class="order-card-detail"><span class="order-card-label">Total</span><span class="order-card-value">₦${formatCurrency(amount)}</span></div>
+          </div>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.sales-order-card').forEach((card) => {
+        card.addEventListener('click', () => selectSalesOrder(card.dataset.orderId));
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectSalesOrder(card.dataset.orderId);
+          }
+        });
+      });
+
+      const chosenId = selectedSalesOrderId && salesOrdersCache.some((order, idx) => getOrderStableId(order, idx) === selectedSalesOrderId)
+        ? selectedSalesOrderId
+        : getOrderStableId(salesOrdersCache[0], 0);
+      selectSalesOrder(chosenId);
+    } catch (err) {
+      console.error('Failed to load sales panel:', err);
+      cardList.innerHTML = '<div class="muted">Unable to load sales.</div>';
+      detailContent.innerHTML = '<p class="muted">Unable to display selected sale.</p>';
+    }
+  }
+
+  async function isBackendAvailable() {
+    try {
+      const response = await fetchBackend('/health');
+      return response && response.status === 'ok';
+    } catch (err) {
+      return false;
+    }
+  }
+
+  const BACKEND_AVAILABLE = await isBackendAvailable();
+  const logoutBtn = document.getElementById('btn-logout') || document.getElementById('logout');
+  const settingsBtn = document.getElementById('btn-settings');
+  function showConfirmDialog({ title, message, confirmText = 'Yes', cancelText = 'Cancel', onConfirm }) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.setAttribute('aria-hidden', 'false');
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+        <header class="modal-header">
+          <h3 id="confirm-dialog-title">${title}</h3>
+          <button type="button" class="modal-close" aria-label="Close">✕</button>
+        </header>
+        <div class="modal-body">
+          <p>${message}</p>
+        </div>
+        <footer class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" class="btn btn-ghost cancel-btn">${cancelText}</button>
+          <button type="button" class="btn btn-danger confirm-btn">${confirmText}</button>
+        </footer>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop')?.addEventListener('click', close);
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.querySelector('.cancel-btn')?.addEventListener('click', close);
+    modal.querySelector('.confirm-btn')?.addEventListener('click', () => { onConfirm?.(); close(); });
+  }
+  if(logoutBtn) logoutBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); showConfirmDialog({ title: 'Logout confirmation', message: 'Are you sure you want to logout?', confirmText: 'Logout', cancelText: 'Stay logged in', onConfirm: () => { Auth.logout(); location.href='login.html'; } }); });
+  if(settingsBtn){ settingsBtn.addEventListener('click', ()=>{ showPanel('settings'); document.querySelectorAll('.nav-link[data-panel]').forEach((link)=>{ link.classList.toggle('active', link.dataset.panel === 'settings'); }); }); }
+  const form = document.getElementById('create-cashier');
+  if(form){
+    form.addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      const uEl = document.getElementById('c-username');
+      const pEl = document.getElementById('c-password');
+      const u = uEl ? uEl.value.trim() : '';
+      const p = pEl ? pEl.value : '';
+      if(!u) { showToast('Enter username', 'error'); return; }
+      if(!p) { showToast('Enter password', 'error'); return; }
+      try{
+        if (!BACKEND_AVAILABLE) {
+          throw new Error('backend_unavailable');
+        }
+        await fetchBackend('/api/users/create', {
+          method: 'POST',
+          body: JSON.stringify({ username: u, password: p, role: 'cashier', fullName: u, status: 'active', tables: [] })
+        });
+        const msgEl = document.getElementById('created-msg'); if(msgEl) msgEl.textContent = 'Cashier created: ' + u;
+        form.reset();
+        showToast(`Cashier "${u}" created successfully`, 'success');
+        // refresh list if visible by dispatching an event handled by admin-users.js
+        const usersList = document.getElementById('users-list');
+        if(usersList) usersList.dispatchEvent(new CustomEvent('refresh-users'));
+      }catch(err){
+        showToast(`Failed to create cashier: ${err.message}`, 'error');
+      }
+    });
+  }
+
+  // (waiter creation moved to register-waiter modal and table)
+
+  // change my password
+  const cpForm = document.getElementById('change-my-pw');
+  if(cpForm){
+    cpForm.addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      const curEl = document.getElementById('current-pw');
+      const neuEl = document.getElementById('new-pw');
+      const cur = curEl ? curEl.value : '';
+      const neu = neuEl ? neuEl.value : '';
+      if(!cur) { showToast('Enter current password', 'error'); return; }
+      if(!neu) { showToast('Enter new password', 'error'); return; }
+      try{
+        await Auth.changePassword(cur, neu);
+        const pwMsgEl = document.getElementById('pw-msg'); if(pwMsgEl) pwMsgEl.textContent = 'Password changed.';
+        cpForm.reset();
+        showToast('Password changed successfully', 'success');
+      }catch(err){
+        showToast(`Failed to change password: ${err.message}`, 'error');
+      }
+    });
+  }
+
+  // nav behaviour
+  const sidebar = document.getElementById('sidebar');
+  const appShell = document.querySelector('.split');
+  const sidebarToggle = document.getElementById('mobile-nav-toggle');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  const isMobile = () => window.innerWidth <= 960;
+  const setMobileSidebarState = (open) => {
+    if(!sidebar) return;
+    sidebar.classList.toggle('is-open', open);
+    document.body.classList.toggle('mobile-sidebar-open', open);
+    if(sidebarBackdrop) {
+      sidebarBackdrop.classList.toggle('active', open);
+    }
+  };
+  const expandSidebar = () => {
+    if(isMobile()) {
+      setMobileSidebarState(true);
+      return;
+    }
+    sidebar.classList.add('expanded');
+    if(appShell) appShell.classList.add('sidebar-expanded');
+  };
+  const collapseSidebar = () => {
+    if(isMobile()) {
+      setMobileSidebarState(false);
+      return;
+    }
+    sidebar.classList.remove('expanded');
+    if(appShell) appShell.classList.remove('sidebar-expanded');
+  };
+  if(sidebar){
+    sidebar.addEventListener('mouseenter', expandSidebar);
+    sidebar.addEventListener('focusin', expandSidebar);
+    sidebar.addEventListener('mouseleave', collapseSidebar);
+    sidebar.addEventListener('focusout', (event) => {
+      if(!sidebar.contains(event.relatedTarget)) collapseSidebar();
+    });
+    sidebar.addEventListener('click', (event) => {
+      if(isMobile() && event.target.closest('.nav-link')) {
+        collapseSidebar();
+      } else if(isMobile()) {
+        expandSidebar();
+      }
+    });
+  }
+  if(sidebarToggle){
+    sidebarToggle.addEventListener('click', () => {
+      const willOpen = !sidebar.classList.contains('is-open');
+      setMobileSidebarState(willOpen);
+      sidebarToggle.setAttribute('aria-expanded', String(willOpen));
+    });
+  }
+  if(sidebarBackdrop){
+    sidebarBackdrop.addEventListener('click', () => {
+      setMobileSidebarState(false);
+      if(sidebarToggle) sidebarToggle.setAttribute('aria-expanded', 'false');
+    });
+  }
+  window.addEventListener('resize', () => {
+    if(!sidebar) return;
+    if(isMobile()) {
+      if(!sidebar.classList.contains('is-open')) {
+        sidebar.classList.remove('expanded');
+        if(appShell) appShell.classList.remove('sidebar-expanded');
+      }
+    } else {
+      sidebar.classList.remove('is-open');
+      document.body.classList.remove('mobile-sidebar-open');
+      if(sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+      if(sidebarToggle) sidebarToggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  const showPanel = (panelId) => {
+    document.querySelectorAll('.nav-link[data-panel]').forEach((link) => {
+      link.classList.toggle('active', link.dataset.panel === panelId);
+    });
+    document.querySelectorAll('.panel').forEach((panel) => {
+      panel.setAttribute('aria-hidden', 'true');
+      panel.style.display = 'none';
+    });
+    const target = document.getElementById(panelId);
+    if(target){
+      target.removeAttribute('aria-hidden');
+      target.style.display = 'block';
+    }
+    localStorage.setItem('admin-active-panel', panelId);
+    if (panelId === 'sales') {
+      loadSalesPanel();
+    }
+  };
+
+  document.querySelectorAll('.nav-link[data-panel]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    showPanel(a.dataset.panel);
+    if(isMobile()) {
+      collapseSidebar();
+      if(sidebarToggle) sidebarToggle.setAttribute('aria-expanded', 'false');
+    }
+  }));
+
+  const settingsTabs = document.querySelectorAll('.settings-tab');
+  const settingsPanels = document.querySelectorAll('.settings-tab-panel');
+  const activateSettingsTab = (targetId) => {
+    settingsTabs.forEach((tab) => {
+      const isActive = tab.dataset.target === targetId;
+      tab.classList.toggle('active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+    settingsPanels.forEach((panel) => {
+      const isActive = panel.id === targetId;
+      panel.hidden = !isActive;
+      panel.style.display = isActive ? 'block' : 'none';
+    });
+  };
+  settingsTabs.forEach((tab) => {
+    tab.addEventListener('click', () => activateSettingsTab(tab.dataset.target));
+  });
+  if(settingsTabs.length) {
+    activateSettingsTab(settingsTabs[0].dataset.target);
+  }
+
+  const savedAdminPanel = localStorage.getItem('admin-active-panel');
+  const initialPanel = (savedAdminPanel && document.getElementById(savedAdminPanel))
+    || document.getElementById('overview')
+    || document.querySelector('.panel');
+  if(initialPanel){ showPanel(initialPanel.id || initialPanel.getAttribute('id') || 'overview'); }
+
+  const qaCreateProduct = document.getElementById('qa-create-product');
+  const qaAddStaff = document.getElementById('qa-add-staff');
+  const qaViewSales = document.getElementById('qa-view-sales');
+  const qaGenerateReport = document.getElementById('qa-generate-report');
+
+  function activateQuickAction(card, action) {
+    if (!card) return;
+    card.addEventListener('click', action);
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        action();
+      }
+    });
+  }
+
+  function openCreateProductFlow() {
+    showPanel('product-management');
+    const inventorySearch = document.getElementById('inventory-search');
+    if (inventorySearch) {
+      inventorySearch.focus();
+    }
+  }
+
+  function openAddStaffFlow() {
+    showPanel('directories');
+    resetAddUserForm();
+    if (userRole) {
+      userRole.value = 'cashier';
+      toggleWaiterTableSection();
+    }
+    if (addUserModal) {
+      addUserModal.style.display = 'flex';
+      addUserModal.setAttribute('aria-hidden', 'false');
+      if (userFullName) userFullName.focus();
+    }
+  }
+
+  function openViewSalesFlow() {
+    showPanel('sales');
+    loadSalesPanel();
+  }
+
+  activateQuickAction(qaCreateProduct, openCreateProductFlow);
+  activateQuickAction(qaAddStaff, openAddStaffFlow);
+  activateQuickAction(qaViewSales, openViewSalesFlow);
+  activateQuickAction(qaGenerateReport, () => {
+    showPanel('reports');
+    const refreshBtn = document.getElementById('btn-refresh-items-summary');
+    if (refreshBtn) refreshBtn.click();
+  });
+
+  const btnRefreshSales = document.getElementById('btn-refresh-sales');
+  const salesSearchInput = document.getElementById('sales-search');
+  if (btnRefreshSales) {
+    btnRefreshSales.addEventListener('click', loadSalesPanel);
+  }
+  if (salesSearchInput) {
+    salesSearchInput.addEventListener('input', loadSalesPanel);
+  }
+
+  // User management modal + table wiring
+  const btnOpenAddUser = document.getElementById('btn-open-add-user');
+  const addUserModal = document.getElementById('add-user-modal');
+  const addUserForm = document.getElementById('add-user-form');
+  const userFullName = document.getElementById('user-full-name');
+  const userUsername = document.getElementById('user-username');
+  const userPassword = document.getElementById('user-password');
+  const userShowPassword = document.getElementById('user-show-password');
+  const userRole = document.getElementById('user-role');
+  const userStatus = document.getElementById('user-status');
+  const userTables = document.getElementById('user-tables');
+  const waiterTableSection = document.getElementById('waiter-table-section');
+  const editUserId = document.getElementById('edit-user-id');
+
+  function toggleWaiterTableSection(){
+    if(!waiterTableSection || !userRole) return;
+    const isWaiter = userRole.value === 'waiter';
+    waiterTableSection.style.display = isWaiter ? 'block' : 'none';
+    if(!isWaiter && userTables) userTables.value = '';
+  }
+
+  function parseWaiterTables(rawTables){
+    if(!rawTables || typeof rawTables !== 'string') return [];
+    const tableSet = new Set();
+    rawTables.split(',').map((entry) => entry.trim()).filter(Boolean).forEach((entry) => {
+      const rangeMatch = entry.match(/^(\d+)\s*-\s*(\d+)$/);
+      if(rangeMatch){
+        let start = Number(rangeMatch[1]);
+        let end = Number(rangeMatch[2]);
+        if(Number.isInteger(start) && Number.isInteger(end)){
+          if(start > end) [start, end] = [end, start];
+          for(let table = start; table <= end; table += 1){
+            tableSet.add(String(table));
+          }
+          return;
+        }
+      }
+      if(entry){
+        tableSet.add(entry);
+      }
+    });
+    return Array.from(tableSet);
+  }
+
+  function clearEditAdminOption(){
+    if(!userRole) return;
+    const existingAdminOption = userRole.querySelector('option[value="admin"]');
+    if(existingAdminOption && existingAdminOption.dataset.tempAdmin === 'true'){
+      existingAdminOption.remove();
+      delete userRole.dataset.tempAdmin;
+    }
+  }
+
+  function resetAddUserForm(){
+    if(addUserForm) addUserForm.reset();
+    if(editUserId) editUserId.value = '';
+    if(userRole){
+      clearEditAdminOption();
+      userRole.value = 'cashier';
+    }
+    if(userStatus) userStatus.value = 'active';
+    if(addUserForm) addUserForm.dataset.mode = 'create';
+    const modalTitle = document.getElementById('add-user-title');
+    if(modalTitle) modalTitle.textContent = 'Create User';
+    const submitBtn = addUserForm ? addUserForm.querySelector('button[type="submit"]') : null;
+    if(submitBtn) submitBtn.textContent = 'Create User';
+    toggleWaiterTableSection();
+  }
+
+  async function refreshUsers(){
+    const tbl = document.getElementById('users-table');
+    if(!tbl) return;
+    const tbody = tbl.querySelector('tbody');
+    if(!tbody) return;
+    let users = [];
+    if (BACKEND_AVAILABLE) {
+      try {
+        const response = await fetchBackend('/api/users/list');
+        users = response.users || [];
+      } catch (err) {
+        console.warn('Backend user list unavailable, falling back to local DB', err);
+        users = await RestaurantDB.getAllUsers();
+      }
+    } else {
+      users = await RestaurantDB.getAllUsers();
+    }
+    tbody.innerHTML = '';
+    if(!users || users.length === 0){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="6" class="muted" style="padding:8px">No users found.</td>`;
+      tbody.appendChild(tr);
+      return;
+    }
+    users.sort((a,b)=> new Date(b.createdAt||0) - new Date(a.createdAt||0));
+    users.forEach((u)=>{
+      const tr = document.createElement('tr');
+      const fullName = u.fullName || u.username || '—';
+      const tables = Array.isArray(u.tables) && u.tables.length ? u.tables.join(', ') : '—';
+      const status = u.status || 'active';
+      const isActive = status === 'active';
+      const toggleTitle = isActive ? 'Deactivate user' : 'Activate user';
+      const toggleClass = isActive ? 'action-toggle' : 'action-activate';
+      const statusClass = isActive ? 'status-active' : 'status-inactive';
+      const statusIcon = isActive
+        ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" fill="currentColor"/></svg>'
+        : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+      tr.innerHTML = `<td style="padding:8px;border-bottom:1px solid var(--border)">${fullName}</td><td style="padding:8px;border-bottom:1px solid var(--border)">${u.username}</td><td style="padding:8px;border-bottom:1px solid var(--border)">${u.role}</td><td style="padding:8px;border-bottom:1px solid var(--border)"><span class="status-badge ${statusClass}">${status}</span></td><td style="padding:8px;border-bottom:1px solid var(--border)">${tables}</td><td style="padding:8px;border-bottom:1px solid var(--border)"><div class='table-action-buttons'><button class='table-icon-btn action-edit' data-edit-user='${u.id}' title='Edit user' aria-label='Edit user'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' aria-hidden='true'><path d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z' fill='currentColor'/></svg></button><button class='table-icon-btn ${toggleClass}' data-toggle-user='${u.id}' title='${toggleTitle}' aria-label='${toggleTitle}'>${statusIcon}</button><button class='table-icon-btn action-delete' data-delete-user='${u.id}' title='Delete user' aria-label='Delete user'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' aria-hidden='true'><path d='M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H4V5h4l1-2z' fill='currentColor'/></svg></button></div></td>`;
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('[data-edit-user]').forEach((btn)=>{
+      btn.addEventListener('click', async (ev)=>{
+        const id = ev.currentTarget.getAttribute('data-edit-user');
+        if(!id) return;
+        let user = null;
+        if (BACKEND_AVAILABLE) {
+          try {
+            const data = await fetchBackend(`/api/users/${encodeURIComponent(id)}`);
+            user = data.user;
+          } catch (err) {
+            console.warn('Backend failed to fetch user by ID, falling back to local DB', err);
+            user = await RestaurantDB.getUserById(Number(id));
+          }
+        } else {
+          user = await RestaurantDB.getUserById(Number(id));
+        }
+        if(!user) return;
+        if(editUserId) editUserId.value = String(id);
+        if(userFullName) userFullName.value = user.fullName || '';
+        if(userUsername) userUsername.value = user.username || '';
+        if(userPassword) userPassword.value = '';
+        if(userRole){
+          clearEditAdminOption();
+          if(user.role === 'admin'){
+            const adminOption = new Option('Admin', 'admin');
+            adminOption.disabled = true;
+            adminOption.dataset.tempAdmin = 'true';
+            userRole.appendChild(adminOption);
+            userRole.value = 'admin';
+          } else {
+            userRole.value = user.role || 'cashier';
+          }
+        }
+        if(userStatus) userStatus.value = user.status || 'active';
+        if(userTables) userTables.value = Array.isArray(user.tables) ? user.tables.join(',') : '';
+        if(addUserForm) addUserForm.dataset.mode = 'edit';
+        const modalTitle = document.getElementById('add-user-title');
+        if(modalTitle) modalTitle.textContent = 'Edit User';
+        const submitBtn = addUserForm ? addUserForm.querySelector('button[type="submit"]') : null;
+        if(submitBtn) submitBtn.textContent = 'Save Changes';
+        toggleWaiterTableSection();
+        if(addUserModal){
+          addUserModal.style.display = 'flex';
+          addUserModal.setAttribute('aria-hidden','false');
+        }
+        if(userFullName) userFullName.focus();
+      });
+    });
+
+    tbody.querySelectorAll('[data-toggle-user]').forEach((btn)=>{
+      btn.addEventListener('click', async (ev)=>{
+        const id = ev.currentTarget.getAttribute('data-toggle-user');
+        if(!id) return;
+        try{
+          let user = null;
+          if (BACKEND_AVAILABLE) {
+            const response = await fetchBackend(`/api/users/${encodeURIComponent(id)}`);
+            user = response.user;
+          } else {
+            user = await RestaurantDB.getUserById(Number(id));
+          }
+          if(!user) return;
+          user.status = (user.status || 'active') === 'active' ? 'inactive' : 'active';
+          if (BACKEND_AVAILABLE) {
+            await fetchBackend('/api/users/update', {
+              method: 'POST',
+              body: JSON.stringify({ id: user.id, username: user.username, role: user.role, fullName: user.fullName, status: user.status, tables: user.tables || [] })
+            });
+          } else {
+            user.updatedAt = new Date().toISOString();
+            await RestaurantDB.updateUser(user);
+          }
+          await refreshUsers();
+          showToast(`User ${user.status === 'inactive' ? 'deactivated' : 'activated'} successfully`, 'success');
+        }catch(err){
+          showToast(`Failed to update user status: ${err.message}`, 'error');
+        }
+      });
+    });
+
+    tbody.querySelectorAll('[data-delete-user]').forEach((btn)=>{
+      btn.addEventListener('click', async (ev)=>{
+        const id = ev.currentTarget.getAttribute('data-delete-user');
+        if(!id) return;
+        if(!confirm('Delete this user?')) return;
+        try{
+          if (BACKEND_AVAILABLE) {
+            await fetchBackend('/api/users/delete', {
+              method: 'POST',
+              body: JSON.stringify({ id })
+            });
+          } else {
+            await RestaurantDB.deleteUser(Number(id));
+          }
+          await refreshUsers();
+          if (typeof updateOperationalSnapshotCounts === 'function') await updateOperationalSnapshotCounts();
+          showToast('User deleted successfully', 'success');
+        }catch(err){
+          showToast(`Failed to delete user: ${err.message}`, 'error');
+        }
+      });
+    });
+  }
+
+  if(btnOpenAddUser && addUserModal){
+    btnOpenAddUser.addEventListener('click', ()=>{
+      resetAddUserForm();
+      addUserModal.style.display = 'flex';
+      addUserModal.setAttribute('aria-hidden', 'false');
+      if(userFullName) userFullName.focus();
+    });
+  }
+
+  if(userRole) userRole.addEventListener('change', toggleWaiterTableSection);
+  if(userShowPassword && userPassword){
+    userShowPassword.addEventListener('change', ()=>{
+      userPassword.type = userShowPassword.checked ? 'text' : 'password';
+    });
+  }
+
+  if(addUserForm){
+    addUserForm.addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      const mode = addUserForm.dataset.mode || 'create';
+      const userId = editUserId ? Number(editUserId.value) : null;
+      const fullName = userFullName ? userFullName.value.trim() : '';
+      const username = userUsername ? userUsername.value.trim() : '';
+      const password = userPassword ? userPassword.value : '';
+      const role = userRole ? userRole.value : 'cashier';
+      const status = userStatus ? userStatus.value : 'active';
+      const tablesRaw = userTables ? userTables.value.trim() : '';
+      const tables = role === 'waiter' ? parseWaiterTables(tablesRaw) : [];
+
+      if(!fullName || !username){ showToast('Please complete full name and username.', 'error'); return; }
+      if(mode === 'create' && !password){ showToast('Password is required for new users.', 'error'); return; }
+
+      try{
+        let allUsers = [];
+        if (BACKEND_AVAILABLE) {
+          try {
+            const response = await fetchBackend('/api/users/list');
+            allUsers = response.users || [];
+          } catch (err) {
+            console.warn('Failed to fetch users from backend for duplicate check, falling back to local DB', err);
+            allUsers = await RestaurantDB.getAllUsers();
+          }
+        } else {
+          allUsers = await RestaurantDB.getAllUsers();
+        }
+        const existing = allUsers.find(u => u.username && u.username.toLowerCase() === username.toLowerCase() && (mode === 'create' || u.id !== userId));
+        if(existing){ showToast('Username already exists', 'error'); return; }
+
+        if(mode === 'edit' && userId){
+          let user = null;
+          if (BACKEND_AVAILABLE) {
+            const response = await fetchBackend('/api/users/update', {
+              method: 'POST',
+              body: JSON.stringify({ id: String(userId), username, role, fullName, status, tables })
+            });
+            user = response.user;
+          } else {
+            user = await RestaurantDB.getUserById(userId);
+            if(!user){ showToast('User no longer exists.', 'error'); return; }
+            user.fullName = fullName;
+            user.username = username;
+            user.role = role;
+            user.status = status;
+            user.tables = role === 'waiter' ? tables : [];
+            user.updatedAt = new Date().toISOString();
+            await RestaurantDB.updateUser(user);
+          }
+          if(password){
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/auth/change-password', {
+                method: 'POST',
+                body: JSON.stringify({ username, currentPassword: password, newPassword: password })
+              });
+            } else {
+              await RestaurantDB.changeUserPassword(userId, password);
+            }
+          }
+          showToast(`User "${username}" updated successfully`, 'success');
+        } else {
+          if (BACKEND_AVAILABLE) {
+            await fetchBackend('/api/users/create', {
+              method: 'POST',
+              body: JSON.stringify({ username, password, role, fullName, status, tables })
+            });
+          } else {
+            await RestaurantDB.createUser({ username, password, role, fullName, status, tables });
+          }
+          showToast(`User "${username}" created successfully`, 'success');
+        }
+
+        resetAddUserForm();
+        addUserModal.style.display = '';
+        addUserModal.setAttribute('aria-hidden','true');
+        await refreshUsers();
+      }catch(err){
+        showToast(`Failed to save user: ${err.message}`, 'error');
+      }
+    });
+  }
+
+  refreshUsers().catch(err => console.error('Failed to load users', err));
+
+  // Inventory wiring: hierarchical tree-based product management
+  (async function(){
+    const $ = id => document.getElementById(id);
+    
+    // Helper functions
+    function closeModal(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.setAttribute('aria-hidden', 'true');
+        modal.style.display = '';
+      }
+    }
+
+    function openModal(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+      }
+    }
+
+    // Modal close button handlers
+    document.querySelectorAll('[data-action="close-modal"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const modal = btn.closest('.modal');
+        if (modal) {
+          const modalId = modal.id;
+          closeModal(modalId);
+          const form = modal.querySelector('form');
+          if (form) form.reset();
+        }
+      });
+    });
+
+    // Cancel buttons share the same close behavior
+    document.querySelectorAll('[data-action="cancel-edit"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const modal = btn.closest('.modal');
+        if (modal) {
+          modal.setAttribute('aria-hidden', 'true');
+          modal.style.display = '';
+        }
+      });
+    });
+
+    // Barcode generation (EAN-13)
+    function generateEAN13(){
+      const digits = [];
+      for(let i=0;i<12;i++) digits.push(Math.floor(Math.random()*10));
+      const sum = digits.reduce((acc,d,i)=> acc + (i % 2 === 0 ? d : d * 3), 0);
+      const check = (10 - (sum % 10)) % 10;
+      digits.push(check);
+      return digits.join('');
+    }
+
+    // SVG renderer for EAN-13
+    function renderEAN13SVG(code, opts){
+      opts = opts || {};
+      const widthUnit = opts.widthUnit || 1;
+      const height = opts.height || 60;
+      const textHeight = opts.textHeight || 14;
+      if(!/^[0-9]{13}$/.test(code)) return null;
+      const L = {'0':'0001101','1':'0011001','2':'0010011','3':'0111101','4':'0100011','5':'0110001','6':'0101111','7':'0111011','8':'0110111','9':'0001011'};
+      const G = {'0':'0100111','1':'0110011','2':'0011011','3':'0100001','4':'0011101','5':'0111001','6':'0000101','7':'0010001','8':'0001001','9':'0010111'};
+      const R = {'0':'1110010','1':'1100110','2':'1101100','3':'1000010','4':'1011100','5':'1001110','6':'1010000','7':'1000100','8':'1001000','9':'1110100'};
+      const parityTable = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+      const first = code[0];
+      const left = code.slice(1,7);
+      const right = code.slice(7);
+      const parity = parityTable[Number(first)];
+      let bits = '101';
+      for(let i=0;i<6;i++) bits += (parity[i]==='L' ? L[left[i]] : G[left[i]]);
+      bits += '01010';
+      for(let i=0;i<6;i++) bits += R[right[i]];
+      bits += '101';
+      const totalWidth = bits.length * widthUnit + 20;
+      const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('width', totalWidth);
+      svg.setAttribute('height', height + textHeight + 6);
+      svg.setAttribute('viewBox', `0 0 ${totalWidth} ${height + textHeight + 6}`);
+      svg.style.background = 'transparent';
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform','translate(10,0)');
+      let x = 0;
+      for(let i=0;i<bits.length;i++){
+        const bit = bits[i];
+        const barHeight = (i<3 || (i>=3+42 && i<3+42+5) || i>=3+42+5+42) ? height + 6 : height;
+        if(bit==='1'){
+          const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          rect.setAttribute('x', x);
+          rect.setAttribute('y', 0);
+          rect.setAttribute('width', widthUnit);
+          rect.setAttribute('height', barHeight);
+          rect.setAttribute('fill', '#111');
+          g.appendChild(rect);
+        }
+        x += widthUnit;
+      }
+      svg.appendChild(g);
+      const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      txt.setAttribute('x', 0);
+      txt.setAttribute('y', height + textHeight);
+      txt.setAttribute('fill', '#111');
+      txt.setAttribute('font-size', textHeight);
+      txt.setAttribute('font-family','monospace');
+      txt.textContent = code;
+      svg.appendChild(txt);
+      return svg;
+    }
+
+    async function getBackendCategories(){
+      if (!BACKEND_AVAILABLE) return [];
+      const res = await fetchBackend('/api/categories');
+      return res.categories || [];
+    }
+
+    async function getBackendSubcategories(){
+      if (!BACKEND_AVAILABLE) return [];
+      const res = await fetchBackend('/api/subcategories');
+      return res.subcategories || [];
+    }
+
+    async function getBackendProducts(){
+      if (!BACKEND_AVAILABLE) return [];
+      const res = await fetchBackend('/api/products');
+      return res.products || [];
+    }
+
+    async function findBackendCategoryById(id){
+      const cats = await getBackendCategories();
+      return cats.find(c => String(c.id) === String(id)) || null;
+    }
+
+    async function findBackendSubcategoryById(id){
+      const subs = await getBackendSubcategories();
+      return subs.find(s => String(s.id) === String(id)) || null;
+    }
+
+    async function findBackendProductById(id){
+      const prods = await getBackendProducts();
+      return prods.find(p => String(p.id) === String(id)) || null;
+    }
+
+    // Render hierarchical inventory tree
+    async function refreshInventory() {
+      const treeContainer = $('inventory-tree');
+      let cats = [];
+      let subs = [];
+      let prods = [];
+      if (BACKEND_AVAILABLE) {
+        try {
+          [cats, subs, prods] = await Promise.all([getBackendCategories(), getBackendSubcategories(), getBackendProducts()]);
+        } catch (backendErr) {
+          console.warn('Failed to load inventory from backend, falling back to local DB', backendErr);
+          cats = await RestaurantDB.getAllCategories();
+          subs = await RestaurantDB.getAllSubcategories();
+          prods = await RestaurantDB.getAllProducts();
+        }
+      } else {
+        cats = await RestaurantDB.getAllCategories();
+        subs = await RestaurantDB.getAllSubcategories();
+        prods = await RestaurantDB.getAllProducts();
+      }
+
+      const catCount = $('cat-count');
+      const subcatCount = $('subcat-count');
+      const prodCount = $('prod-count');
+      if(catCount) catCount.textContent = String(cats.length);
+      if(subcatCount) subcatCount.textContent = String(subs.length);
+      if(prodCount) prodCount.textContent = String(prods.length);
+
+      if (!treeContainer) return;
+
+      const searchQuery = ($('inventory-search')?.value || '').toLowerCase();
+
+      function matchesSearch(text) {
+        if (!searchQuery) return true;
+        return text.toLowerCase().includes(searchQuery);
+      }
+
+      if (cats.length === 0) {
+        treeContainer.innerHTML = '<div class="empty-tree">No categories yet. Click "Add Category" to get started.</div>';
+        return;
+      }
+
+      let html = '';
+      cats.forEach(cat => {
+        const subForCat = subs.filter(s => String(s.parent) === String(cat.id));
+        const prodsForCat = prods.filter(p => String(p.cat) === String(cat.id));
+        
+        const catMatches = matchesSearch(cat.name);
+        const subMatches = subForCat.some(s => matchesSearch(s.name));
+        const prodMatches = prodsForCat.some(p => matchesSearch(p.name));
+        const shouldShow = catMatches || subMatches || prodMatches;
+
+        if (!shouldShow) return;
+
+        html += `<div class="tree-item"><div class="tree-item-header level-1 collapsed" data-toggle-category="${cat.id}" style="border-left:4px solid ${cat.color || '#38bdf8'};"><div class="tree-icon">▼</div><div class="tree-item-content"><div class="tree-item-label"><div class="tree-item-name">📂 ${cat.name}</div><div class="tree-item-meta"><span>${subForCat.length} subcategories</span><span>${prodsForCat.length} products</span></div></div></div><div class="tree-actions"><button class="tree-btn-small tree-btn-add" data-add-subcategory="${cat.id}" title="Add Subcategory">+</button><button class="tree-btn-small tree-btn-edit" data-edit-category="${cat.id}" title="Edit">✏</button><button class="tree-btn-small tree-btn-delete" data-delete-category="${cat.id}" title="Delete">🗑</button></div></div><div class="tree-item-children">`;
+
+        subForCat.forEach(sub => {
+          const prodsForSub = prodsForCat.filter(p => String(p.sub) === String(sub.id));
+          const subMatches = matchesSearch(sub.name);
+          const prodMatches = prodsForSub.some(p => matchesSearch(p.name));
+          
+          if (!subMatches && !prodMatches && searchQuery) return;
+
+          html += `<div class="tree-item"><div class="tree-item-header level-2 collapsed" data-toggle-subcategory="${sub.id}" style="border-left:4px solid ${sub.color || '#6ee7b7'};"><div class="tree-icon">▼</div><div class="tree-item-content"><div class="tree-item-label"><div class="tree-item-name">🏷️ ${sub.name}</div><div class="tree-item-meta"><span>${prodsForSub.length} products</span></div></div></div><div class="tree-actions"><button class="tree-btn-small tree-btn-add" data-add-product="${sub.id}" data-product-category="${cat.id}" title="Add Product">+</button><button class="tree-btn-small tree-btn-edit" data-edit-subcategory="${sub.id}" data-subcategory-category="${cat.id}" title="Edit">✏</button><button class="tree-btn-small tree-btn-delete" data-delete-subcategory="${sub.id}" title="Delete">🗑</button></div></div><div class="tree-item-children">`;
+
+          prodsForSub.forEach(prod => {
+            if (searchQuery && !matchesSearch(prod.name) && !matchesSearch(prod.barcode || '')) return;
+
+            const priceDisplay = prod.price ? `₦${new Intl.NumberFormat('en-NG').format(parseFloat(prod.price))}` : '—';
+            const qty = prod.quantity !== undefined ? prod.quantity : 0;
+
+            html += `<div class="tree-item"><div class="tree-item-header level-3" style="border-left:4px solid ${prod.color || '#c7d2fe'};"><div class="tree-item-content"><div class="tree-item-label"><div class="tree-item-name">📦 ${prod.name}</div><div class="tree-item-meta"><span>${priceDisplay}</span><span>Stock: ${qty}</span></div></div></div><div class="tree-actions"><button class="tree-btn-small tree-btn-edit" data-edit-product="${prod.id}" data-product-category="${cat.id}" data-product-subcategory="${sub.id}" title="Edit">✏</button><button class="tree-btn-small tree-btn-delete" data-delete-product="${prod.id}" title="Delete">🗑</button></div></div></div>`;
+          });
+
+          html += `</div></div>`;
+        });
+
+        html += `</div></div>`;
+      });
+
+      treeContainer.innerHTML = html || '<div class="empty-tree">No items match your search.</div>';
+      wireUpTreeHandlers();
+    }
+
+    function wireUpTreeHandlers() {
+      document.querySelectorAll('[data-toggle-category]').forEach(header => {
+        header.addEventListener('click', () => { header.classList.toggle('collapsed'); });
+      });
+
+      document.querySelectorAll('[data-toggle-subcategory]').forEach(header => {
+        header.addEventListener('click', () => { header.classList.toggle('collapsed'); });
+      });
+
+      document.querySelectorAll('[data-add-subcategory]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const catId = btn.dataset.addSubcategory;
+          $('subcategory-id').value = '';
+          $('subcategory-parent').value = catId;
+          $('subcategory-name').value = '';
+          $('subcategory-color').value = '#6ee7b7';
+          $('subcategory-modal-title').textContent = 'Add Subcategory';
+          $('subcategory-form').dataset.mode = 'create';
+          openModal('subcategory-modal');
+          setTimeout(() => $('subcategory-name').focus(), 100);
+        });
+      });
+
+      document.querySelectorAll('[data-add-product]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const subId = btn.dataset.addProduct;
+          const catId = btn.dataset.productCategory;
+          $('product-id').value = '';
+          $('product-category').value = catId;
+          $('product-subcategory').value = subId;
+          $('product-name').value = '';
+          $('product-price').value = '';
+          $('product-quantity').value = '';
+          $('product-barcode').value = '';
+          $('product-color').value = '#c7d2fe';
+          $('product-barcode-preview').innerHTML = '';
+          $('product-modal-title').textContent = 'Add Product';
+          $('product-form').dataset.mode = 'create';
+          openModal('product-modal');
+          setTimeout(() => $('product-name').focus(), 100);
+        });
+      });
+
+      document.querySelectorAll('[data-edit-category]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const catId = btn.dataset.editCategory;
+          let cat = null;
+          if (BACKEND_AVAILABLE) {
+            cat = await findBackendCategoryById(catId);
+          }
+          if (!cat) {
+            cat = await RestaurantDB.getCategoryById(catId);
+          }
+          if (!cat) { showToast('Category not found', 'error'); return; }
+          $('category-id').value = catId;
+          $('category-name').value = cat.name;
+          $('category-color').value = cat.color || '#38bdf8';
+          $('category-modal-title').textContent = 'Edit Category';
+          $('category-form').dataset.mode = 'edit';
+          openModal('category-modal');
+          setTimeout(() => $('category-name').focus(), 100);
+        });
+      });
+
+      document.querySelectorAll('[data-edit-subcategory]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const subId = btn.dataset.editSubcategory;
+          let sub = null;
+          if (BACKEND_AVAILABLE) {
+            sub = await findBackendSubcategoryById(subId);
+          }
+          if (!sub) {
+            sub = await RestaurantDB.getSubcategoryById(subId);
+          }
+          if (!sub) { showToast('Subcategory not found', 'error'); return; }
+          $('subcategory-id').value = subId;
+          $('subcategory-parent').value = sub.parent;
+          $('subcategory-name').value = sub.name;
+          $('subcategory-color').value = sub.color || '#6ee7b7';
+          $('subcategory-modal-title').textContent = 'Edit Subcategory';
+          $('subcategory-form').dataset.mode = 'edit';
+          openModal('subcategory-modal');
+          setTimeout(() => $('subcategory-name').focus(), 100);
+        });
+      });
+
+      document.querySelectorAll('[data-edit-product]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const prodId = btn.dataset.editProduct;
+          let prod = null;
+          if (BACKEND_AVAILABLE) {
+            prod = await findBackendProductById(prodId);
+          }
+          if (!prod) {
+            prod = await RestaurantDB.getProductById(prodId);
+          }
+          if (!prod) { showToast('Product not found', 'error'); return; }
+          $('product-id').value = prodId;
+          $('product-category').value = prod.cat;
+          $('product-subcategory').value = prod.sub;
+          $('product-name').value = prod.name;
+          $('product-price').value = prod.price || '';
+          $('product-quantity').value = prod.quantity !== undefined ? prod.quantity : '';
+          $('product-barcode').value = prod.barcode || '';
+          $('product-color').value = prod.color || '#c7d2fe';
+          if (prod.barcode && /^[0-9]{13}$/.test(prod.barcode)) {
+            $('product-barcode-preview').innerHTML = '';
+            const svg = renderEAN13SVG(prod.barcode, {widthUnit: 2, height: 60});
+            if (svg) {
+              $('product-barcode-preview').appendChild(svg);
+              $('product-barcode-preview').setAttribute('aria-hidden', 'false');
+            }
+          } else {
+            $('product-barcode-preview').innerHTML = '';
+          }
+          $('product-modal-title').textContent = 'Edit Product';
+          $('product-form').dataset.mode = 'edit';
+          openModal('product-modal');
+          setTimeout(() => $('product-name').focus(), 100);
+        });
+      });
+
+      document.querySelectorAll('[data-delete-category]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const catId = btn.dataset.deleteCategory;
+          if (!confirm('Delete this category and all its subcategories and products?')) return;
+          try {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/categories/delete', {
+                method: 'POST',
+                body: JSON.stringify({ id: catId })
+              });
+            } else {
+              await RestaurantDB.deleteCategory(catId);
+            }
+            showToast('Category deleted successfully', 'success');
+            await refreshInventory();
+          } catch (err) {
+            showToast(`Failed to delete category: ${err.message}`, 'error');
+          }
+        });
+      });
+
+      document.querySelectorAll('[data-delete-subcategory]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const subId = btn.dataset.deleteSubcategory;
+          if (!confirm('Delete this subcategory and all its products?')) return;
+          try {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/subcategories/delete', {
+                method: 'POST',
+                body: JSON.stringify({ id: subId })
+              });
+            } else {
+              await RestaurantDB.deleteSubcategory(subId);
+            }
+            showToast('Subcategory deleted successfully', 'success');
+            await refreshInventory();
+          } catch (err) {
+            showToast(`Failed to delete subcategory: ${err.message}`, 'error');
+          }
+        });
+      });
+
+      document.querySelectorAll('[data-delete-product]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const prodId = btn.dataset.deleteProduct;
+          if (!confirm('Delete this product?')) return;
+          try {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/products/delete', {
+                method: 'POST',
+                body: JSON.stringify({ id: prodId })
+              });
+            } else {
+              await RestaurantDB.deleteProduct(prodId);
+            }
+            showToast('Product deleted successfully', 'success');
+            await refreshInventory();
+          } catch (err) {
+            showToast(`Failed to delete product: ${err.message}`, 'error');
+          }
+        });
+      });
+    }
+
+    const btnAddCategory = $('btn-add-category');
+    if (btnAddCategory) {
+      btnAddCategory.addEventListener('click', () => {
+        $('category-id').value = '';
+        $('category-name').value = '';
+        $('category-color').value = '#38bdf8';
+        $('category-modal-title').textContent = 'Add Category';
+        $('category-form').dataset.mode = 'create';
+        openModal('category-modal');
+        setTimeout(() => $('category-name').focus(), 100);
+      });
+    }
+
+    // Form handlers
+    const categoryForm = $('category-form');
+    if (categoryForm) {
+      categoryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = $('category-id').value;
+        const name = ($('category-name').value || '').trim();
+        const mode = categoryForm.dataset.mode || 'create';
+
+        if (!name) { showToast('Enter category name', 'error'); return; }
+
+        const color = $('category-color')?.value || '#38bdf8';
+        try {
+          if (mode === 'edit') {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/categories/save', {
+                method: 'POST',
+                body: JSON.stringify({ id, name, color })
+              });
+            } else {
+              await RestaurantDB.updateCategory({ id, name, color });
+            }
+            showToast('Category updated successfully', 'success');
+          } else {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/categories/save', {
+                method: 'POST',
+                body: JSON.stringify({ name, color })
+              });
+            } else {
+              await RestaurantDB.addCategory({ name, color });
+            }
+            showToast(`Category "${name}" added successfully`, 'success');
+          }
+          closeModal('category-modal');
+          categoryForm.reset();
+          await refreshInventory();
+        } catch (err) {
+          showToast(`Failed to save category: ${err.message}`, 'error');
+        }
+      });
+    }
+
+    const subcategoryForm = $('subcategory-form');
+    if (subcategoryForm) {
+      subcategoryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = $('subcategory-id').value;
+        const parent = $('subcategory-parent').value;
+        const name = ($('subcategory-name').value || '').trim();
+        const color = $('subcategory-color')?.value || '#6ee7b7';
+        const mode = subcategoryForm.dataset.mode || 'create';
+
+        if (!parent) { showToast('Select parent category', 'error'); return; }
+        if (!name) { showToast('Enter subcategory name', 'error'); return; }
+
+        try {
+          if (mode === 'edit') {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/subcategories/save', {
+                method: 'POST',
+                body: JSON.stringify({ id, name, parent, color })
+              });
+            } else {
+              await RestaurantDB.updateSubcategory({ id, name, parent, color });
+            }
+            showToast('Subcategory updated successfully', 'success');
+          } else {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/subcategories/save', {
+                method: 'POST',
+                body: JSON.stringify({ name, parent, color })
+              });
+            } else {
+              await RestaurantDB.addSubcategory({ name, parent, color });
+            }
+            showToast(`Subcategory "${name}" added successfully`, 'success');
+          }
+          closeModal('subcategory-modal');
+          subcategoryForm.reset();
+          await refreshInventory();
+        } catch (err) {
+          showToast(`Failed to save subcategory: ${err.message}`, 'error');
+        }
+      });
+    }
+
+    const productForm = $('product-form');
+    if (productForm) {
+      productForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = $('product-id').value;
+        const cat = $('product-category').value;
+        const sub = $('product-subcategory').value;
+        const name = ($('product-name').value || '').trim();
+        const price = ($('product-price').value || '').trim() || null;
+        const quantity = parseInt($('product-quantity').value || '0', 10);
+        const barcode = ($('product-barcode').value || '').trim() || null;
+        const color = $('product-color')?.value || '#c7d2fe';
+        const mode = productForm.dataset.mode || 'create';
+
+        if (!cat) { showToast('Select category', 'error'); return; }
+        if (!sub) { showToast('Select subcategory', 'error'); return; }
+        if (!name) { showToast('Enter product name', 'error'); return; }
+
+        try {
+          if (mode === 'edit') {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/products/save', {
+                method: 'POST',
+                body: JSON.stringify({ id, name, barcode, price, quantity, cat, sub, color })
+              });
+            } else {
+              await RestaurantDB.updateProduct({ id, name, barcode, price, quantity, color });
+            }
+            showToast('Product updated successfully', 'success');
+          } else {
+            if (BACKEND_AVAILABLE) {
+              await fetchBackend('/api/products/save', {
+                method: 'POST',
+                body: JSON.stringify({ name, barcode, price, quantity, cat, sub, color })
+              });
+            } else {
+              await RestaurantDB.addProduct({ name, cat, sub, barcode, price, quantity, color });
+            }
+            showToast(`Product "${name}" added successfully`, 'success');
+          }
+          closeModal('product-modal');
+          productForm.reset();
+          await refreshInventory();
+        } catch (err) {
+          showToast(`Failed to save product: ${err.message}`, 'error');
+        }
+      });
+    }
+
+    const btnProductGenBarcode = $('btn-product-gen-barcode');
+    if (btnProductGenBarcode) {
+      btnProductGenBarcode.addEventListener('click', () => {
+        $('product-barcode').value = generateEAN13();
+        const svg = renderEAN13SVG($('product-barcode').value, {widthUnit: 2, height: 60});
+        if (svg) {
+          $('product-barcode-preview').innerHTML = '';
+          $('product-barcode-preview').appendChild(svg);
+          $('product-barcode-preview').setAttribute('aria-hidden', 'false');
+        }
+      });
+    }
+
+    const productBarcodeInput = $('product-barcode');
+    if (productBarcodeInput) {
+      productBarcodeInput.addEventListener('input', (e) => {
+        const val = (e.target.value || '').trim();
+        if ($('product-barcode-preview')) {
+          $('product-barcode-preview').innerHTML = '';
+          if (/^[0-9]{13}$/.test(val)) {
+            const svg = renderEAN13SVG(val, {widthUnit: 2, height: 60});
+            if (svg) {
+              $('product-barcode-preview').appendChild(svg);
+              $('product-barcode-preview').setAttribute('aria-hidden', 'false');
+            }
+          } else {
+            $('product-barcode-preview').setAttribute('aria-hidden', 'true');
+          }
+        }
+      });
+    }
+
+    const inventorySearch = $('inventory-search');
+    if (inventorySearch) {
+      inventorySearch.addEventListener('input', () => refreshInventory());
+    }
+
+    // Initial load
+    await refreshInventory();
+    if (typeof refreshUsers === 'function') {
+      await refreshUsers().catch(err => console.error('Failed to load users', err));
+    }
+    await loadBusinessDaySetting().catch(err => console.error('Failed to load business day cutoff setting:', err));
+    await loadReceiptSettings().catch(err => console.error('Failed to load receipt settings:', err));
+    scheduleBusinessDayRefresh();
+    await updateOperationalSnapshotCounts();
+  })();
+
+    // Settings: Billing & Charges
+    const taxPercentageInput = document.getElementById('tax-percentage');
+    const serviceChargePercentageInput = document.getElementById('service-charge-percentage');
+    const discountPercentageInput = document.getElementById('discount-percentage');
+    const btnSaveBillingSettings = document.getElementById('btn-save-billing-settings');
+    const btnResetBillingSettings = document.getElementById('btn-reset-billing-settings');
+    const settingsMessage = document.getElementById('billing-settings-message');
+    
+    // Stock count and session timeout settings
+    const enableStockCountCheckbox = document.getElementById('enable-stock-count');
+    const systemTimeoutInput = document.getElementById('system-timeout-minutes');
+    const btnSaveStockSettings = document.getElementById('btn-save-stock-settings');
+
+    // Load settings on page load
+    async function loadBillingSettings(){
+      try {
+        const taxSetting = await RestaurantDB.getSetting('taxPercentage');
+        const serviceSetting = await RestaurantDB.getSetting('serviceChargePercentage');
+        const discountSetting = await RestaurantDB.getSetting('discountPercentage');
+        const stockCountSetting = await RestaurantDB.getSetting('enableStockCount');
+        const timeoutSetting = await RestaurantDB.getSetting('sessionTimeoutMinutes');
+        
+        if (taxPercentageInput && taxSetting) taxPercentageInput.value = taxSetting.value || '';
+        if (serviceChargePercentageInput && serviceSetting) serviceChargePercentageInput.value = serviceSetting.value || '';
+        if (discountPercentageInput && discountSetting) discountPercentageInput.value = discountSetting.value || '';
+        if (enableStockCountCheckbox && stockCountSetting) enableStockCountCheckbox.checked = stockCountSetting.value === true || stockCountSetting.value === 'true';
+        if (systemTimeoutInput && timeoutSetting) systemTimeoutInput.value = String(timeoutSetting.value || '');
+      } catch (err) {
+        console.error('Failed to load billing settings:', err);
+      }
+    }
+
+    // Save settings
+    if (btnSaveBillingSettings) {
+      btnSaveBillingSettings.addEventListener('click', async () => {
+        try {
+          const taxValue = parseFloat(taxPercentageInput?.value || 0);
+          const serviceValue = parseFloat(serviceChargePercentageInput?.value || 0);
+          const discountValue = parseFloat(discountPercentageInput?.value || 0);
+
+          // Validate percentages
+          if (taxValue < 0 || taxValue > 100) throw new Error('Tax percentage must be between 0 and 100');
+          if (serviceValue < 0 || serviceValue > 100) throw new Error('Service charge must be between 0 and 100');
+          if (discountValue < 0 || discountValue > 100) throw new Error('Discount must be between 0 and 100');
+
+          await RestaurantDB.setSetting('taxPercentage', taxValue);
+          await RestaurantDB.setSetting('serviceChargePercentage', serviceValue);
+          await RestaurantDB.setSetting('discountPercentage', discountValue);
+
+          settingsMessage.style.display = 'block';
+          settingsMessage.style.background = '#dcfce7';
+          settingsMessage.style.color = '#166534';
+          settingsMessage.style.border = '1px solid #86efac';
+          settingsMessage.textContent = '✓ Billing settings saved successfully';
+
+          setTimeout(() => {
+            settingsMessage.style.display = 'none';
+          }, 3000);
+        } catch (err) {
+          settingsMessage.style.display = 'block';
+          settingsMessage.style.background = '#fee2e2';
+          settingsMessage.style.color = '#991b1b';
+          settingsMessage.style.border = '1px solid #fca5a5';
+          settingsMessage.textContent = '✗ Error: ' + err.message;
+        }
+      });
+    }
+
+    // Reset to defaults
+    if (btnResetBillingSettings) {
+      btnResetBillingSettings.addEventListener('click', async () => {
+        try {
+          if (!confirm('Reset billing settings to 0%?')) return;
+
+          await RestaurantDB.setSetting('taxPercentage', 0);
+          await RestaurantDB.setSetting('serviceChargePercentage', 0);
+          await RestaurantDB.setSetting('discountPercentage', 0);
+
+          if (taxPercentageInput) taxPercentageInput.value = '0';
+          if (serviceChargePercentageInput) serviceChargePercentageInput.value = '0';
+          if (discountPercentageInput) discountPercentageInput.value = '0';
+
+          settingsMessage.style.display = 'block';
+          settingsMessage.style.background = '#dcfce7';
+          settingsMessage.style.color = '#166534';
+          settingsMessage.style.border = '1px solid #86efac';
+          settingsMessage.textContent = '✓ Settings reset to defaults';
+
+          setTimeout(() => {
+            settingsMessage.style.display = 'none';
+          }, 3000);
+        } catch (err) {
+          settingsMessage.style.display = 'block';
+          settingsMessage.style.background = '#fee2e2';
+          settingsMessage.style.color = '#991b1b';
+          settingsMessage.style.border = '1px solid #fca5a5';
+          settingsMessage.textContent = '✗ Error: ' + err.message;
+        }
+      });
+    }
+
+    // Stock Count Settings
+    if (btnSaveStockSettings) {
+      btnSaveStockSettings.addEventListener('click', async () => {
+        try {
+          const stockCountEnabled = enableStockCountCheckbox ? enableStockCountCheckbox.checked : false;
+          const timeoutMinutes = systemTimeoutInput ? parseInt(systemTimeoutInput.value || '0', 10) : 0;
+          const stockSettingsMessage = document.getElementById('stock-settings-message');
+
+          if (timeoutMinutes <= 0 || timeoutMinutes > 1440) {
+            throw new Error('Please enter a valid timeout between 1 and 1440 minutes.');
+          }
+          
+          await RestaurantDB.setSetting('enableStockCount', stockCountEnabled);
+          await RestaurantDB.setSetting('sessionTimeoutMinutes', timeoutMinutes);
+          
+          if (stockSettingsMessage) {
+            stockSettingsMessage.style.display = 'block';
+            stockSettingsMessage.style.background = '#dcfce7';
+            stockSettingsMessage.style.color = '#166534';
+            stockSettingsMessage.style.border = '1px solid #86efac';
+            stockSettingsMessage.textContent = '✓ System settings saved successfully';
+            
+            setTimeout(() => {
+              stockSettingsMessage.style.display = 'none';
+            }, 3000);
+          }
+        } catch (err) {
+          const stockSettingsMessage = document.getElementById('stock-settings-message');
+          if (stockSettingsMessage) {
+            stockSettingsMessage.style.display = 'block';
+            stockSettingsMessage.style.background = '#fee2e2';
+            stockSettingsMessage.style.color = '#991b1b';
+            stockSettingsMessage.style.border = '1px solid #fca5a5';
+            stockSettingsMessage.textContent = '✗ Error: ' + err.message;
+          }
+        }
+      });
+    }
+
+    // Business day cutoff setting
+    businessDayCutoffInput = document.getElementById('business-day-cutoff');
+    btnSaveBusinessDay = document.getElementById('btn-save-business-day');
+    btnResetBusinessDay = document.getElementById('btn-reset-business-day');
+    businessDaySettingsMessage = document.getElementById('business-day-settings-message');
+    if (businessDayCutoffInput) {
+      businessDayCutoffInput.value = businessDayCutoff;
+    }
+
+    async function loadBusinessDaySetting() {
+      try {
+        const response = await fetchBackend('/api/settings/business-day');
+        if (response && response.success) {
+          const value = response.value || '00:00';
+          businessDayCutoff = value;
+          if (businessDayCutoffInput) {
+            businessDayCutoffInput.value = value;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load business day cutoff setting:', err);
+      }
+    }
+
+    async function saveBusinessDaySetting(value) {
+      try {
+        const response = await fetchBackend('/api/settings/business-day', {
+          method: 'POST',
+          body: JSON.stringify({ cutoff: value })
+        });
+        if (response && response.success) {
+          return response.value;
+        }
+        throw new Error(response.error || 'save_failed');
+      } catch (err) {
+        throw err;
+      }
+    }
+
+    async function loadReceiptSettings() {
+      try {
+        const response = await fetchBackend('/api/settings/receipt-details');
+        if (response && response.success) {
+          const config = response.config || {};
+          receiptSettings = {
+            businessName: String(config.businessName || '').trim(),
+            address: String(config.address || '').trim(),
+            phone: String(config.phone || '').trim(),
+            email: String(config.email || '').trim(),
+            footerMessage: String(config.footerMessage || '').trim()
+          };
+          if (receiptBusinessNameInput) receiptBusinessNameInput.value = receiptSettings.businessName;
+          if (receiptAddressInput) receiptAddressInput.value = receiptSettings.address;
+          if (receiptPhoneInput) receiptPhoneInput.value = receiptSettings.phone;
+          if (receiptEmailInput) receiptEmailInput.value = receiptSettings.email;
+          if (receiptFooterMessageInput) receiptFooterMessageInput.value = receiptSettings.footerMessage;
+        }
+      } catch (err) {
+        console.warn('Failed to load receipt settings:', err);
+      }
+    }
+
+    async function saveReceiptSettings(payload) {
+      try {
+        const response = await fetchBackend('/api/settings/receipt-details', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        if (response && response.success) {
+          return response.config;
+        }
+        throw new Error(response.error || 'save_failed');
+      } catch (err) {
+        throw err;
+      }
+    }
+
+    if (btnSaveBusinessDay) {
+      btnSaveBusinessDay.addEventListener('click', async () => {
+        try {
+          const value = businessDayCutoffInput?.value || '00:00';
+          const saved = await saveBusinessDaySetting(value);
+          businessDayCutoff = saved;
+          if (businessDayCutoffInput) {
+            businessDayCutoffInput.value = saved;
+          }
+          scheduleBusinessDayRefresh();
+          await updateOperationalSnapshotCounts();
+          if (businessDaySettingsMessage) {
+            businessDaySettingsMessage.style.display = 'block';
+            businessDaySettingsMessage.style.background = '#dcfce7';
+            businessDaySettingsMessage.style.color = '#166534';
+            businessDaySettingsMessage.style.border = '1px solid #86efac';
+            businessDaySettingsMessage.textContent = `✓ Business day cutoff set to ${saved}`;
+          }
+        } catch (err) {
+          if (businessDaySettingsMessage) {
+            businessDaySettingsMessage.style.display = 'block';
+            businessDaySettingsMessage.style.background = '#fee2e2';
+            businessDaySettingsMessage.style.color = '#991b1b';
+            businessDaySettingsMessage.style.border = '1px solid #fca5a5';
+            businessDaySettingsMessage.textContent = '✗ Error: ' + err.message;
+          }
+        } finally {
+          if (businessDaySettingsMessage) {
+            setTimeout(() => { businessDaySettingsMessage.style.display = 'none'; }, 3000);
+          }
+        }
+      });
+    }
+
+    if (btnResetBusinessDay) {
+      btnResetBusinessDay.addEventListener('click', async () => {
+        try {
+          const saved = await saveBusinessDaySetting('00:00');
+          businessDayCutoff = saved;
+          if (businessDayCutoffInput) businessDayCutoffInput.value = saved;
+          scheduleBusinessDayRefresh();
+          await updateOperationalSnapshotCounts();
+          if (businessDaySettingsMessage) {
+            businessDaySettingsMessage.style.display = 'block';
+            businessDaySettingsMessage.style.background = '#dcfce7';
+            businessDaySettingsMessage.style.color = '#166534';
+            businessDaySettingsMessage.style.border = '1px solid #86efac';
+            businessDaySettingsMessage.textContent = '✓ Business day cutoff reset to 00:00';
+          }
+        } catch (err) {
+          if (businessDaySettingsMessage) {
+            businessDaySettingsMessage.style.display = 'block';
+            businessDaySettingsMessage.style.background = '#fee2e2';
+            businessDaySettingsMessage.style.color = '#991b1b';
+            businessDaySettingsMessage.style.border = '1px solid #fca5a5';
+            businessDaySettingsMessage.textContent = '✗ Error: ' + err.message;
+          }
+        } finally {
+          if (businessDaySettingsMessage) {
+            setTimeout(() => { businessDaySettingsMessage.style.display = 'none'; }, 3000);
+          }
+        }
+      });
+    }
+
+    receiptBusinessNameInput = document.getElementById('receipt-business-name');
+    receiptAddressInput = document.getElementById('receipt-address');
+    receiptPhoneInput = document.getElementById('receipt-phone');
+    receiptEmailInput = document.getElementById('receipt-email');
+    receiptFooterMessageInput = document.getElementById('receipt-footer-message');
+    btnSaveReceiptSettings = document.getElementById('btn-save-receipt-settings');
+    receiptSettingsMessage = document.getElementById('receipt-settings-message');
+    loadReceiptSettings().catch(err => console.error('Failed to load receipt settings after DOM init:', err));
+
+    if (btnSaveReceiptSettings) {
+      btnSaveReceiptSettings.addEventListener('click', async () => {
+        try {
+          const payload = {
+            businessName: receiptBusinessNameInput?.value || '',
+            address: receiptAddressInput?.value || '',
+            phone: receiptPhoneInput?.value || '',
+            email: receiptEmailInput?.value || '',
+            footerMessage: receiptFooterMessageInput?.value || ''
+          };
+          const savedConfig = await saveReceiptSettings(payload);
+          receiptSettings = {
+            businessName: String(savedConfig.businessName || '').trim(),
+            address: String(savedConfig.address || '').trim(),
+            phone: String(savedConfig.phone || '').trim(),
+            email: String(savedConfig.email || '').trim(),
+            footerMessage: String(savedConfig.footerMessage || '').trim()
+          };
+          if (receiptSettingsMessage) {
+            receiptSettingsMessage.style.display = 'block';
+            receiptSettingsMessage.style.background = '#dcfce7';
+            receiptSettingsMessage.style.color = '#166534';
+            receiptSettingsMessage.style.border = '1px solid #86efac';
+            receiptSettingsMessage.textContent = '✓ Receipt details saved successfully';
+          }
+        } catch (err) {
+          if (receiptSettingsMessage) {
+            receiptSettingsMessage.style.display = 'block';
+            receiptSettingsMessage.style.background = '#fee2e2';
+            receiptSettingsMessage.style.color = '#991b1b';
+            receiptSettingsMessage.style.border = '1px solid #fca5a5';
+            receiptSettingsMessage.textContent = '✗ Error: ' + err.message;
+          }
+        } finally {
+          if (receiptSettingsMessage) {
+            setTimeout(() => { receiptSettingsMessage.style.display = 'none'; }, 3000);
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // Voided Items Report Functionality
+    // ==========================================
+    const btnRefreshVoidedReport = document.getElementById('btn-refresh-voided-report');
+    const voidedSearchInput = document.getElementById('voided-search');
+    const voidedItemsTbody = document.getElementById('voided-items-tbody');
+    const voidedTotalValue = document.getElementById('voided-total-value');
+    const voidedTotalItems = document.getElementById('voided-total-items');
+    
+    async function loadVoidedItemsReport() {
+      try {
+        const orders = await RestaurantDB.getAllOrders();
+        const searchTerm = (voidedSearchInput?.value || '').toLowerCase();
+        
+        // Collect all voided items from all orders
+        let allVoidedItems = [];
+        let totalVoidedValue = 0;
+        let totalVoidedCount = 0;
+        
+        orders.forEach(order => {
+          if (!order.voidedItems || order.voidedItems.length === 0) return;
+          
+          order.voidedItems.forEach(voidedItem => {
+            // Apply search filter
+            const searchMatch = !searchTerm || 
+              order.tableName.toLowerCase().includes(searchTerm) ||
+              order.id.toLowerCase().includes(searchTerm) ||
+              voidedItem.productName.toLowerCase().includes(searchTerm);
+            
+            if (!searchMatch) return;
+            
+            const itemValue = voidedItem.unitPrice * voidedItem.quantity;
+            
+            allVoidedItems.push({
+              orderCreatedAt: order.createdAt || new Date().toISOString(),
+              orderId: order.id,
+              tableName: order.tableName,
+              productName: voidedItem.productName,
+              quantity: voidedItem.quantity,
+              unitPrice: voidedItem.unitPrice,
+              totalValue: itemValue
+            });
+            
+            totalVoidedValue += itemValue;
+            totalVoidedCount += voidedItem.quantity;
+          });
+        });
+        
+        // Sort by date (newest first)
+        allVoidedItems.sort((a, b) => new Date(b.orderCreatedAt) - new Date(a.orderCreatedAt));
+        
+        // Render table
+        if (allVoidedItems.length === 0) {
+          voidedItemsTbody.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #9ca3af;">No voided items found</td></tr>';
+        } else {
+          voidedItemsTbody.innerHTML = allVoidedItems.map((item, idx) => {
+            const dateStr = new Date(item.orderCreatedAt).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            
+            return `
+              <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+                <td style="padding: 12px; font-size: 0.9rem;">${dateStr}</td>
+                <td style="padding: 12px; font-size: 0.9rem; font-family: monospace;">${String(item.orderId).substring(0, 8)}...</td>
+                <td style="padding: 12px; font-size: 0.9rem;">${item.tableName}</td>
+                <td style="padding: 12px; font-size: 0.9rem;">${item.productName}</td>
+                <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${item.quantity}</td>
+                <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${formatCurrency(item.unitPrice)}</td>
+                <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formatCurrency(item.totalValue)}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+        
+        // Update totals
+        if (voidedTotalValue) {
+          voidedTotalValue.textContent = '₦' + formatCurrency(totalVoidedValue);
+        }
+        if (voidedTotalItems) {
+          voidedTotalItems.textContent = totalVoidedCount;
+        }
+      } catch (err) {
+        console.error('Error loading voided items report:', err);
+        voidedItemsTbody.innerHTML = '<tr><td colspan="7" style="padding: 20px; text-align: center; color: #ef4444;">Error loading report: ' + err.message + '</td></tr>';
+      }
+    }
+    
+    // Refresh button
+    if (btnRefreshVoidedReport) {
+      btnRefreshVoidedReport.addEventListener('click', loadVoidedItemsReport);
+    }
+    
+    // Search input
+    if (voidedSearchInput) {
+      voidedSearchInput.addEventListener('input', loadVoidedItemsReport);
+    }
+
+    // **ITEMS SUMMARY REPORT**
+    const itemsSummaryTbody = document.getElementById('items-summary-tbody');
+    const itemsSummarySearch = document.getElementById('items-summary-search');
+    const btnRefreshItemsSummary = document.getElementById('btn-refresh-items-summary');
+
+    // Helper function to get product price by name
+    async function getProductPriceByName(productName) {
+      try {
+        const allProducts = await RestaurantDB.getAllProducts();
+        const product = allProducts.find(p => p.name && p.name.toLowerCase() === productName.toLowerCase());
+        return product ? (product.price || 0) : 0;
+      } catch (error) {
+        console.error('Error fetching product price:', error);
+        return 0;
+      }
+    }
+
+    // Helper function to get all products with prices
+    async function getAllProductsWithPrices() {
+      try {
+        return await RestaurantDB.getAllProducts();
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        return [];
+      }
+    }
+
+    async function loadItemsSummaryReport() {
+      try {
+        const allOrders = await RestaurantDB.getAllOrders();
+        const allProducts = await getAllProductsWithPrices();
+        
+        // Create a map of product names to prices
+        const productPriceMap = {};
+        allProducts.forEach(product => {
+          if (product.name) {
+            productPriceMap[product.name.toLowerCase()] = product.price || 0;
+          }
+        });
+        
+        // Group items by productName and sum quantities
+        const itemsSummary = {};
+        
+        allOrders.forEach(order => {
+          // Only include completed/sent orders
+          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
+            if (order.items && Array.isArray(order.items)) {
+              order.items.forEach(item => {
+                const productName = item.productName || 'Unknown';
+                const quantity = item.quantity || 0;
+                
+                // Get the product price from the products database
+                const productNameLower = productName.toLowerCase();
+                const unitPrice = productPriceMap[productNameLower] || 0;
+                
+                if (!itemsSummary[productName]) {
+                  itemsSummary[productName] = {
+                    productName: productName,
+                    unitPrice: unitPrice,
+                    totalQuantity: 0
+                  };
+                }
+                
+                itemsSummary[productName].totalQuantity += quantity;
+              });
+            }
+          }
+        });
+        
+        // Convert to array, calculate total value, and sort by total value (descending)
+        let summaryArray = Object.values(itemsSummary).map(item => ({
+          ...item,
+          totalValue: item.unitPrice * item.totalQuantity
+        })).sort((a, b) => b.totalValue - a.totalValue);
+        
+        // Apply search filter if provided
+        const searchTerm = (itemsSummarySearch?.value || '').toLowerCase();
+        if (searchTerm) {
+          summaryArray = summaryArray.filter(item => 
+            item.productName.toLowerCase().includes(searchTerm)
+          );
+        }
+        
+        // Calculate grand totals
+        const grandTotalQuantity = summaryArray.reduce((sum, item) => sum + item.totalQuantity, 0);
+        const grandTotalValue = summaryArray.reduce((sum, item) => sum + item.totalValue, 0);
+        
+        // Render table
+        itemsSummaryTbody.innerHTML = summaryArray.map((item, idx) => {
+          const formattedUnitPrice = (item.unitPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const formattedTotalValue = (item.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          return `
+          <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+            <td style="padding: 12px; font-size: 0.9rem;">${item.productName}</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 500;">₦${formattedUnitPrice}</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 500;">${item.totalQuantity}</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formattedTotalValue}</td>
+          </tr>
+        `;
+        }).join('') + `
+          <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
+            <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem;">-</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalQuantity}</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${(grandTotalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      } catch (error) {
+        console.error('Error loading items summary report:', error);
+        itemsSummaryTbody.innerHTML = '<tr><td colspan="4" style="padding: 12px; text-align: center; color: #ef4444;">Error loading report</td></tr>';
+      }
+    }
+
+    if (btnRefreshItemsSummary) {
+      btnRefreshItemsSummary.addEventListener('click', loadItemsSummaryReport);
+    }
+    
+    if (itemsSummarySearch) {
+      itemsSummarySearch.addEventListener('input', loadItemsSummaryReport);
+    }
+
+    // **CATEGORY SUMMARY REPORT**
+    const categorySummaryTbody = document.getElementById('category-summary-tbody');
+    const categorySummarySearch = document.getElementById('category-summary-search');
+    const btnRefreshCategorySummary = document.getElementById('btn-refresh-category-summary');
+
+    async function loadCategorySummaryReport() {
+      try {
+        const allOrders = await RestaurantDB.getAllOrders();
+        const allProducts = await getAllProductsWithPrices();
+        
+        // Fetch all categories and create a map of category ID to category name
+        const allCategories = await RestaurantDB.getAllCategories();
+        const categoryMap = {};
+        allCategories.forEach(category => {
+          categoryMap[category.id] = category.name || 'Uncategorized';
+        });
+        console.log('Category Map:', categoryMap);
+        
+        // Create a map of product names to their details (price and category ID)
+        const productDetailsMap = {};
+        allProducts.forEach(product => {
+          if (product.name) {
+            const categoryName = categoryMap[product.cat] || 'Uncategorized';
+            const details = {
+              price: product.price || 0,
+              category: categoryName
+            };
+            productDetailsMap[product.name.toLowerCase()] = details;
+            // Also store by original case for matching
+            productDetailsMap[product.name] = details;
+          }
+        });
+        console.log('Product Details Map:', productDetailsMap);
+        
+        // Group items by category and sum quantities and values
+        const categorySummary = {};
+        
+        allOrders.forEach(order => {
+          // Only include completed/sent orders
+          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
+            if (order.items && Array.isArray(order.items)) {
+              order.items.forEach(item => {
+                const productName = item.productName || 'Unknown';
+                const quantity = item.quantity || 0;
+                
+                // Get the product details from the database
+                const productNameLower = productName.toLowerCase();
+                const productDetails = productDetailsMap[productNameLower] || { price: 0, category: 'Uncategorized' };
+                const unitPrice = productDetails.price;
+                const category = productDetails.category;
+                const itemTotal = quantity * unitPrice;
+                
+                if (!categorySummary[category]) {
+                  categorySummary[category] = {
+                    category: category,
+                    itemCount: 0,
+                    totalQuantity: 0,
+                    totalValue: 0
+                  };
+                }
+                
+                categorySummary[category].itemCount += 1;
+                categorySummary[category].totalQuantity += quantity;
+                categorySummary[category].totalValue += itemTotal;
+              });
+            }
+          }
+        });
+        
+        // Convert to array and sort by total value (descending)
+        let summaryArray = Object.values(categorySummary).sort((a, b) => b.totalValue - a.totalValue);
+        
+        // Apply search filter if provided
+        const searchTerm = (categorySummarySearch?.value || '').toLowerCase();
+        if (searchTerm) {
+          summaryArray = summaryArray.filter(item => 
+            item.category.toLowerCase().includes(searchTerm)
+          );
+        }
+        
+        // Calculate grand totals
+        const grandTotalItems = summaryArray.reduce((sum, item) => sum + item.itemCount, 0);
+        const grandTotalQuantity = summaryArray.reduce((sum, item) => sum + item.totalQuantity, 0);
+        const grandTotalValue = summaryArray.reduce((sum, item) => sum + item.totalValue, 0);
+        
+        // Render table
+        categorySummaryTbody.innerHTML = summaryArray.map((item, idx) => `
+          <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+            <td style="padding: 12px; font-size: 0.9rem; font-weight: 600;">${item.category}</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${item.itemCount}</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 500;">${item.totalQuantity}</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formatCurrency(item.totalValue)}</td>
+          </tr>
+        `).join('') + `
+          <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
+            <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalItems}</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalQuantity}</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${formatCurrency(grandTotalValue)}</td>
+          </tr>
+        `;
+      } catch (error) {
+        console.error('Error loading category summary report:', error);
+        categorySummaryTbody.innerHTML = '<tr><td colspan="4" style="padding: 12px; text-align: center; color: #ef4444;">Error loading report</td></tr>';
+      }
+    }
+
+    if (btnRefreshCategorySummary) {
+      btnRefreshCategorySummary.addEventListener('click', loadCategorySummaryReport);
+    }
+    
+    if (categorySummarySearch) {
+      categorySummarySearch.addEventListener('input', loadCategorySummaryReport);
+    }
+
+    // **SUBCATEGORY SUMMARY REPORT**
+    const subcategorySummaryTbody = document.getElementById('subcategory-summary-tbody');
+    const subcategorySummarySearch = document.getElementById('subcategory-summary-search');
+    const btnRefreshSubcategorySummary = document.getElementById('btn-refresh-subcategory-summary');
+
+    async function loadSubcategorySummaryReport() {
+      try {
+        const allOrders = await RestaurantDB.getAllOrders();
+        const allProducts = await getAllProductsWithPrices();
+        
+        // Fetch all subcategories and create a map of subcategory ID to subcategory name
+        const allSubcategories = await RestaurantDB.getAllSubcategories();
+        const subcategoryMap = {};
+        allSubcategories.forEach(subcategory => {
+          subcategoryMap[subcategory.id] = subcategory.name || 'Uncategorized';
+        });
+        console.log('Subcategory Map:', subcategoryMap);
+        
+        // Create a map of product names to their details (price and subcategory ID)
+        const productDetailsMap = {};
+        allProducts.forEach(product => {
+          if (product.name) {
+            const subcategoryName = subcategoryMap[product.sub] || 'Uncategorized';
+            const details = {
+              price: product.price || 0,
+              subcategory: subcategoryName
+            };
+            productDetailsMap[product.name.toLowerCase()] = details;
+            // Also store by original case for matching
+            productDetailsMap[product.name] = details;
+          }
+        });
+        console.log('Product Details Map:', productDetailsMap);
+        
+        // Group items by subcategory and sum quantities and values
+        const subcategorySummary = {};
+        
+        allOrders.forEach(order => {
+          // Only include completed/sent orders
+          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
+            if (order.items && Array.isArray(order.items)) {
+              order.items.forEach(item => {
+                const productName = item.productName || 'Unknown';
+                const quantity = item.quantity || 0;
+                
+                // Get the product details from the database
+                const productNameLower = productName.toLowerCase();
+                const productDetails = productDetailsMap[productNameLower] || { price: 0, subcategory: 'Uncategorized' };
+                const unitPrice = productDetails.price;
+                const subcategory = productDetails.subcategory;
+                const itemTotal = quantity * unitPrice;
+                
+                if (!subcategorySummary[subcategory]) {
+                  subcategorySummary[subcategory] = {
+                    subcategory: subcategory,
+                    itemCount: 0,
+                    totalQuantity: 0,
+                    totalValue: 0
+                  };
+                }
+                
+                subcategorySummary[subcategory].itemCount += 1;
+                subcategorySummary[subcategory].totalQuantity += quantity;
+                subcategorySummary[subcategory].totalValue += itemTotal;
+              });
+            }
+          }
+        });
+        
+        // Convert to array and sort by total value (descending)
+        let summaryArray = Object.values(subcategorySummary).sort((a, b) => b.totalValue - a.totalValue);
+        
+        // Apply search filter if provided
+        const searchTerm = (subcategorySummarySearch?.value || '').toLowerCase();
+        if (searchTerm) {
+          summaryArray = summaryArray.filter(item => 
+            item.subcategory.toLowerCase().includes(searchTerm)
+          );
+        }
+        
+        // Calculate grand totals
+        const grandTotalItems = summaryArray.reduce((sum, item) => sum + item.itemCount, 0);
+        const grandTotalQuantity = summaryArray.reduce((sum, item) => sum + item.totalQuantity, 0);
+        const grandTotalValue = summaryArray.reduce((sum, item) => sum + item.totalValue, 0);
+        
+        // Render table
+        subcategorySummaryTbody.innerHTML = summaryArray.map((item, idx) => `
+          <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+            <td style="padding: 12px; font-size: 0.9rem; font-weight: 600;">${item.subcategory}</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${item.itemCount}</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 500;">${item.totalQuantity}</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formatCurrency(item.totalValue)}</td>
+          </tr>
+        `).join('') + `
+          <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
+            <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalItems}</td>
+            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalQuantity}</td>
+            <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${formatCurrency(grandTotalValue)}</td>
+          </tr>
+        `;
+      } catch (error) {
+        console.error('Error loading subcategory summary report:', error);
+        subcategorySummaryTbody.innerHTML = '<tr><td colspan="4" style="padding: 12px; text-align: center; color: #ef4444;">Error loading report</td></tr>';
+      }
+    }
+
+    if (btnRefreshSubcategorySummary) {
+      btnRefreshSubcategorySummary.addEventListener('click', loadSubcategorySummaryReport);
+    }
+    
+    if (subcategorySummarySearch) {
+      subcategorySummarySearch.addEventListener('input', loadSubcategorySummaryReport);
+    }
+
+    // **TRANSACTION HISTORY**
+    const transactionHistoryTbody = document.getElementById('transaction-history-tbody');
+    const transactionHistorySearch = document.getElementById('transaction-history-search');
+    const btnRefreshTransactionHistory = document.getElementById('btn-refresh-transaction-history');
+    const btnEndOfDayReport = document.getElementById('btn-end-of-day-report');
+
+    async function loadTransactionHistory() {
+      try {
+        const response = await fetchBackend('/api/orders/all');
+        const allOrders = response.orders || [];
+        
+        // Map through all orders to create transaction records
+        let transactions = allOrders.map(order => {
+          // Extract table number (just the number part)
+          let tableNumber = 'N/A';
+          if (order.tableName) {
+            const match = order.tableName.match(/\d+/);
+            tableNumber = match ? match[0] : order.tableName;
+          }
+          
+          // Build reference details
+          let refDetails = '';
+          if (order.splitReference) {
+            refDetails = `Split: ${order.splitReference}`;
+          } else if (order.joinedTables && order.joinedTables.length > 0) {
+            refDetails = `Joined: ${order.joinedTables.join(', ')}`;
+          } else {
+            refDetails = 'N/A';
+          }
+          
+          const paymentMethodDisplay = getOrderPaymentMethod(order);
+          
+          // Format date for display (e.g., "Jan 15, 10:30 AM")
+          const date = new Date(order.createdAt || new Date().toISOString());
+          const dateStr = date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+            year: 'numeric'
+          });
+          const timeStr = date.toLocaleTimeString('en-US', { 
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          const displayDate = `${dateStr} ${timeStr}`;
+          
+          return {
+            id: order.id,
+            createdAt: order.createdAt || new Date().toISOString(),
+            date: displayDate,
+            tableNumber: tableNumber,
+            itemCount: (order.items || []).length,
+            waiter: order.waiterName || 'N/A',
+            cashier: order.cashierName || order.createdBy || 'N/A',
+            total: (order.items || []).reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0),
+            paymentMethod: paymentMethodDisplay,
+            ref: refDetails,
+            status: order.status || 'pending'
+          };
+        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        // Apply search filter if provided
+        const searchTerm = (transactionHistorySearch?.value || '').toLowerCase();
+        if (searchTerm) {
+          transactions = transactions.filter(t => 
+            String(t.date).toLowerCase().includes(searchTerm) ||
+            String(t.tableNumber).toLowerCase().includes(searchTerm) ||
+            String(t.waiter).toLowerCase().includes(searchTerm) ||
+            t.status.toLowerCase().includes(searchTerm)
+          );
+        }
+
+        // Render table with new column order: Date, Table Number, Items, Waiter, Cashier, Total, Payment Method, Ref, Status
+        transactionHistoryTbody.innerHTML = transactions.length === 0 
+          ? '<tr><td colspan="9" style="padding: 20px; text-align: center; color: #9ca3af;">No transactions found</td></tr>'
+          : transactions.map((tx, idx) => {
+            const statusColor = tx.status === 'completed' ? '#10b981' : tx.status === 'sent' ? '#3b82f6' : '#ef4444';
+            return `
+            <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+              <td style="padding: 12px; font-size: 0.9rem; font-weight: 500;">${tx.date}</td>
+              <td style="padding: 12px; font-size: 0.9rem;">${tx.tableNumber}</td>
+              <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${tx.itemCount}</td>
+              <td style="padding: 12px; font-size: 0.9rem;">${tx.waiter}</td>
+              <td style="padding: 12px; font-size: 0.9rem;">${tx.cashier}</td>
+              <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 500;">₦${formatCurrency(tx.total)}</td>
+              <td style="padding: 12px; font-size: 0.9rem;">${tx.paymentMethod && tx.paymentMethod !== 'N/A' ? `<span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:#ede9fe;color:#5b21b6;font-size:0.8rem;font-weight:600;">${tx.paymentMethod}</span>` : '<span style="color:#6b7280;">N/A</span>'}</td>
+              <td style="padding: 12px; font-size: 0.9rem;">${tx.ref}</td>
+              <td style="padding: 12px; text-align: center;"><span style="display: inline-block; padding: 4px 8px; border-radius: 4px; background: ${statusColor}; color: white; font-size: 0.8rem; font-weight: 500;">${tx.status}</span></td>
+            </tr>
+            `;
+          }).join('');
+      } catch (error) {
+        console.error('Error loading transaction history:', error);
+        transactionHistoryTbody.innerHTML = '<tr><td colspan="9" style="padding: 12px; text-align: center; color: #ef4444;">Error loading transactions</td></tr>';
+      }
+    }
+
+    if (btnRefreshTransactionHistory) {
+      btnRefreshTransactionHistory.addEventListener('click', loadTransactionHistory);
+    }
+    
+    if (transactionHistorySearch) {
+      transactionHistorySearch.addEventListener('input', loadTransactionHistory);
+    }
+
+
+
+
+
+    // **DISPLAY CONSOLIDATED DATA IN REPORT TABLES**
+    async function displayConsolidatedDataInTables(consolidatedData) {
+      try {
+        // Display Items Summary
+        const itemsArray = Object.entries(consolidatedData.items).map(([product, data]) => ({
+          productName: product,
+          totalQuantity: data.qty,
+          totalValue: data.amount
+        })).sort((a, b) => b.totalValue - a.totalValue);
+
+        const itemsTotalQty = itemsArray.reduce((sum, item) => sum + item.totalQuantity, 0);
+        const itemsTotalValue = itemsArray.reduce((sum, item) => sum + item.totalValue, 0);
+
+        if (itemsSummaryTbody) {
+          itemsSummaryTbody.innerHTML = itemsArray.map((item, idx) => {
+            const formattedTotalValue = (item.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return `
+            <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+              <td style="padding: 12px; font-size: 0.9rem;">${item.productName}</td>
+              <td style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 500;">${item.totalQuantity}</td>
+              <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formattedTotalValue}</td>
+            </tr>
+          `;
+          }).join('') + `
+            <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
+              <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
+              <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${itemsTotalQty}</td>
+              <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${(itemsTotalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          `;
+        }
+
+        // Display Category Summary
+        const categoriesArray = Object.entries(consolidatedData.categories).map(([category, total]) => ({
+          categoryName: category,
+          totalValue: total
+        })).sort((a, b) => b.totalValue - a.totalValue);
+
+        const categoriesTotalValue = categoriesArray.reduce((sum, cat) => sum + cat.totalValue, 0);
+
+        if (categorySummaryTbody) {
+          categorySummaryTbody.innerHTML = categoriesArray.map((category, idx) => {
+            const formattedTotal = (category.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return `
+            <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+              <td style="padding: 12px; font-size: 0.9rem;">${category.categoryName}</td>
+              <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formattedTotal}</td>
+            </tr>
+          `;
+          }).join('') + `
+            <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
+              <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
+              <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${(categoriesTotalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          `;
+        }
+
+        // Display Subcategory Summary
+        const subcategoriesArray = Object.entries(consolidatedData.subcategories).map(([subcategory, total]) => ({
+          subcategoryName: subcategory,
+          totalValue: total
+        })).sort((a, b) => b.totalValue - a.totalValue);
+
+        const subcategoriesTotalValue = subcategoriesArray.reduce((sum, subcat) => sum + subcat.totalValue, 0);
+
+        if (subcategorySummaryTbody) {
+          subcategorySummaryTbody.innerHTML = subcategoriesArray.map((subcategory, idx) => {
+            const formattedTotal = (subcategory.totalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return `
+            <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+              <td style="padding: 12px; font-size: 0.9rem;">${subcategory.subcategoryName}</td>
+              <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formattedTotal}</td>
+            </tr>
+          `;
+          }).join('') + `
+            <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
+              <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
+              <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${(subcategoriesTotalValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          `;
+        }
+
+        // Display Voided Items
+        if (consolidatedData.voidedItems && consolidatedData.voidedItems.length > 0) {
+          const voidedArray = consolidatedData.voidedItems.sort((a, b) => new Date(b.voidedAt || 0) - new Date(a.voidedAt || 0));
+          
+          let voidedQtyTotal = 0;
+          let voidedValueTotal = 0;
+
+          if (voidedItemsTbody) {
+            voidedItemsTbody.innerHTML = voidedArray.map((item, idx) => {
+              const formattedValue = (item.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              voidedQtyTotal += item.qty;
+              voidedValueTotal += item.total;
+              
+              return `
+              <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+                <td style="padding: 12px; font-size: 0.9rem;">${item.table || '—'}</td>
+                <td style="padding: 12px; font-size: 0.9rem;">${item.product}</td>
+                <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${item.qty}</td>
+                <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formattedValue}</td>
+              </tr>
+            `;
+            }).join('') + `
+              <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
+                <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
+                <td style="padding: 12px; font-size: 0.9rem;">—</td>
+                <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${voidedQtyTotal}</td>
+                <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${(voidedValueTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+            `;
+          }
+
+          if (voidedTotalValue) {
+            voidedTotalValue.textContent = '₦' + formatCurrency(voidedValueTotal);
+          }
+          if (voidedTotalItems) {
+            voidedTotalItems.textContent = voidedQtyTotal;
+          }
+        } else {
+          if (voidedItemsTbody) {
+            voidedItemsTbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No voided items</td></tr>';
+          }
+        }
+
+        console.log('Consolidated data displayed in all report tables');
+      } catch (err) {
+        console.error('Error displaying consolidated data in tables:', err);
+      }
+    }
+    
+    async function importReportCSV(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        console.warn('No file selected');
+        return;
+      }
+      
+      console.log('Importing file:', file.name);
+      
+      try {
+        const text = await file.text();
+        const lines = text.trim().split('\n');
+        
+        if (lines.length < 2) {
+          alert('CSV file appears to be empty or invalid');
+          return;
+        }
+        
+        console.log('Total lines:', lines.length);
+        console.log('First 5 lines:', lines.slice(0, 5));
+        
+        // Check if this is an End of Day Report (multi-section CSV)
+        const isEODReport = lines[0].trim().toLowerCase().includes('end of day report') ||
+                           lines.some(l => l.trim().toLowerCase().includes('item summary')) ||
+                           lines.some(l => l.trim().toLowerCase().includes('category summary'));
+        
+        if (isEODReport) {
+          console.log('Detected End of Day Report format');
+          
+          // Parse EOD report sections
+          let currentSection = '';
+          const reportData = {
+            eventName: '',
+            dateStr: '',
+            timeStr: '',
+            items: {},
+            categories: {},
+            subcategories: {},
+            voidedItems: []
+          };
+          
+          // Extract metadata from first few lines
+          for (let i = 0; i < Math.min(5, lines.length); i++) {
+            const line = lines[i].trim();
+            if (line.toLowerCase().includes('event:')) {
+              reportData.eventName = line.split(':')[1]?.trim() || '';
+            } else if (line.toLowerCase().includes('date:')) {
+              reportData.dateStr = line.split(':')[1]?.trim() || '';
+            } else if (line.toLowerCase().includes('time:')) {
+              reportData.timeStr = line.split(':')[1]?.trim() || '';
+            }
+          }
+          
+          // Parse sections
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            
+            if (line.toLowerCase().includes('item summary')) {
+              currentSection = 'items';
+              i++; // Skip header row
+              continue;
+            } else if (line.toLowerCase().includes('category summary')) {
+              currentSection = 'categories';
+              i++; // Skip header row
+              continue;
+            } else if (line.toLowerCase().includes('subcategory summary')) {
+              currentSection = 'subcategories';
+              i++; // Skip header row
+              continue;
+            } else if (line.toLowerCase().includes('voided items')) {
+              currentSection = 'voided';
+              i++; // Skip header row
+              continue;
+            }
+            
+            if (!line || line.includes('---') || line.toLowerCase() === 'total') continue;
+            
+            const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+            
+            if (currentSection === 'items' && values.length >= 3) {
+              const product = values[0];
+              if (product && product.toLowerCase() !== 'product' && product.toLowerCase() !== 'total') {
+                reportData.items[product] = {
+                  qty: parseInt(values[1]) || 0,
+                  amount: parseFloat(values[2]) || 0
+                };
+              }
+            } else if (currentSection === 'categories' && values.length >= 2) {
+              const category = values[0];
+              if (category && category.toLowerCase() !== 'category' && category.toLowerCase() !== 'total') {
+                reportData.categories[category] = parseFloat(values[1]) || 0;
+              }
+            } else if (currentSection === 'subcategories' && values.length >= 2) {
+              const subcategory = values[0];
+              if (subcategory && subcategory.toLowerCase() !== 'subcategory' && subcategory.toLowerCase() !== 'total') {
+                reportData.subcategories[subcategory] = parseFloat(values[1]) || 0;
+              }
+            } else if (currentSection === 'voided' && values.length >= 4) {
+              const table = values[0];
+              if (table && table.toLowerCase() !== 'table' && table.toLowerCase() !== 'total') {
+                reportData.voidedItems.push({
+                  table: table,
+                  product: values[1],
+                  qty: parseInt(values[2]) || 0,
+                  total: parseFloat(values[3]) || 0
+                });
+              }
+            }
+          }
+          
+          // Store the report data for display
+          window.importedEODReportData = reportData;
+          
+          // Merge with any previously imported EOD reports
+          // This allows consolidating data from multiple systems into one master EOD report
+          let consolidatedData = {
+            eventName: reportData.eventName || 'Multi-System Event',
+            dateStr: reportData.dateStr,
+            timeStr: reportData.timeStr,
+            items: {},
+            categories: {},
+            subcategories: {},
+            voidedItems: [],
+            importedSystems: []
+          };
+          
+          // Load existing consolidated data if it exists
+          try {
+            const existingConsolidated = await RestaurantDB.getSetting('consolidatedEODReport');
+            if (existingConsolidated && existingConsolidated.value) {
+              const parsed = JSON.parse(existingConsolidated.value);
+              consolidatedData = parsed;
+              console.log('Loaded existing consolidated data');
+            }
+          } catch (err) {
+            console.warn('No existing consolidated data found, creating new');
+          }
+          
+          // Merge current import with consolidated data
+          try {
+            // Merge items (add quantities and amounts)
+            for (const [productName, itemData] of Object.entries(reportData.items)) {
+              if (!consolidatedData.items[productName]) {
+                consolidatedData.items[productName] = { qty: 0, amount: 0 };
+              }
+              consolidatedData.items[productName].qty += itemData.qty;
+              consolidatedData.items[productName].amount += itemData.amount;
+            }
+            
+            // Merge categories (add amounts)
+            for (const [categoryName, amount] of Object.entries(reportData.categories)) {
+              if (!consolidatedData.categories[categoryName]) {
+                consolidatedData.categories[categoryName] = 0;
+              }
+              consolidatedData.categories[categoryName] += amount;
+            }
+            
+            // Merge subcategories (add amounts)
+            for (const [subcategoryName, amount] of Object.entries(reportData.subcategories)) {
+              if (!consolidatedData.subcategories[subcategoryName]) {
+                consolidatedData.subcategories[subcategoryName] = 0;
+              }
+              consolidatedData.subcategories[subcategoryName] += amount;
+            }
+            
+            // Merge voided items (just add them)
+            consolidatedData.voidedItems = consolidatedData.voidedItems.concat(reportData.voidedItems);
+            
+            // Track which systems have been imported
+            consolidatedData.importedSystems.push({
+              systemName: reportData.eventName || 'Unknown System',
+              dateStr: reportData.dateStr,
+              timeStr: reportData.timeStr,
+              importedAt: new Date().toISOString()
+            });
+            
+            // Save the consolidated data back to database
+            await RestaurantDB.setSetting('consolidatedEODReport', JSON.stringify(consolidatedData));
+            console.log('Consolidated data updated and saved');
+          } catch (mergeErr) {
+            console.warn('Error merging EOD data:', mergeErr);
+          }
+          
+          // Calculate totals
+          const itemsCount = Object.keys(consolidatedData.items).length;
+          const categoriesCount = Object.keys(consolidatedData.categories).length;
+          const subcategoriesCount = Object.keys(consolidatedData.subcategories).length;
+          const voidedCount = consolidatedData.voidedItems.length;
+          const totalAmount = Object.values(consolidatedData.items).reduce((sum, item) => sum + (item.amount || 0), 0);
+          const systemsImported = consolidatedData.importedSystems.length;
+          
+          // Display consolidated data in all report tables
+          await displayConsolidatedDataInTables(consolidatedData);
+          
+          alert(`✓ EOD Report Imported & Consolidated Successfully!\n\nCurrent Import:\nEvent: ${reportData.eventName}\nDate: ${reportData.dateStr}\nTime: ${reportData.timeStr}\n\n📊 CONSOLIDATED TOTALS (All Systems):\n• Items Sold: ${itemsCount}\n• Total Sales: ₦${formatCurrency(totalAmount)}\n• Categories: ${categoriesCount}\n• Subcategories: ${subcategoriesCount}\n• Voided Items: ${voidedCount}\n\n🖥️ Systems Imported: ${systemsImported}\n\nData from multiple systems is now merged. You can continue importing reports from other systems, or export the complete consolidated EOD report.`);
+          
+          console.log('EOD Report imported and consolidated:', consolidatedData);
+          event.target.value = '';
+          return;
+        }
+        
+        // Otherwise, try to parse as transaction data (simple CSV format)
+        // Find the first line that looks like CSV headers
+        let headerLineIndex = -1;
+        let headers = [];
+        
+        for (let i = 0; i < Math.min(10, lines.length); i++) {
+          const potentialHeaders = lines[i].split(',').map(h => h.trim().toLowerCase());
+          
+          // Check if this line contains common header patterns
+          if (potentialHeaders.some(h => h.includes('order') || h.includes('table') || h.includes('product') || h.includes('id'))) {
+            headerLineIndex = i;
+            headers = potentialHeaders;
+            console.log('Found headers at line', i, ':', headers);
+            break;
+          }
+        }
+        
+        if (headerLineIndex === -1) {
+          alert('Invalid CSV format. Could not find column headers. Expected columns like: Order ID, Table, Items, Total');
+          return;
+        }
+        
+        // Parse data rows starting after headers
+        const importedOrders = [];
+        let skippedCount = 0;
+        
+        for (let i = headerLineIndex + 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue; // Skip empty lines
+          
+          // Skip section headers and totals
+          if (line.toUpperCase().includes('SUMMARY') || 
+              line.toUpperCase().includes('TOTAL') ||
+              line.toUpperCase().includes('VOIDED')) {
+            continue;
+          }
+          
+          const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, '')); // Remove quotes
+          
+          if (values.length < 1 || !values[0]) continue;
+          
+          try {
+            // Map CSV columns to order fields
+            const orderId = values[0];
+            const tableName = values[1] || 'N/A';
+            const itemCount = parseInt(values[2]) || 0;
+            const totalAmount = parseFloat(values[3]) || 0;
+            
+            // Skip if invalid data
+            if (!orderId || totalAmount === 0) continue;
+            
+            // Check if order already exists
+            const existingOrder = await RestaurantDB.getOrder(orderId);
+            
+            if (existingOrder) {
+              skippedCount++;
+              console.log('Skipping duplicate order:', orderId);
+              continue;
+            }
+            
+            // Create order object
+            const newOrder = {
+              id: orderId,
+              tableName: tableName,
+              waiterName: 'Imported',
+              clientName: '',
+              items: [],
+              voidedItems: [],
+              totalAmount: totalAmount,
+              status: 'completed',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              billingBreakdown: {
+                subtotal: totalAmount,
+                tax: 0,
+                taxPercentage: 0,
+                discount: 0,
+                discountPercentage: 0,
+                serviceCharge: 0,
+                serviceChargePercentage: 0
+              }
+            };
+            
+            importedOrders.push(newOrder);
+            console.log('Parsed order:', orderId, 'Table:', tableName, 'Total:', totalAmount);
+          } catch (parseErr) {
+            console.warn('Error parsing row', i, ':', parseErr);
+          }
+        }
+        
+        if (importedOrders.length === 0) {
+          alert('No valid orders found in the CSV file to import.');
+          return;
+        }
+        
+        // Add imported orders to database
+        for (const order of importedOrders) {
+          await RestaurantDB.addOrder(order);
+        }
+        
+        alert(`✓ Successfully imported ${importedOrders.length} orders${skippedCount > 0 ? ` (${skippedCount} duplicates skipped)` : ''}!`);
+        console.log('Import complete: ' + importedOrders.length + ' orders added');
+        
+        // Reset file input
+        event.target.value = '';
+        
+      } catch (error) {
+        console.error('Error importing CSV:', error);
+        alert('Error importing CSV file: ' + error.message);
+      }
+    }
+
+    // **END OF DAY REPORT**
+    async function generateEndOfDayReport() {
+      try {
+        const allOrders = await RestaurantDB.getAllOrders();
+        const allProducts = await getAllProductsWithPrices();
+        
+        // Get event name from settings or use default
+        const settings = await RestaurantDB.getSetting('eventName');
+        const eventName = settings?.value || 'Restaurant';
+        
+        // Fetch categories and subcategories for lookups
+        const allCategories = await RestaurantDB.getAllCategories();
+        const allSubcategories = await RestaurantDB.getAllSubcategories();
+        
+        const categoryMap = {};
+        allCategories.forEach(c => categoryMap[c.id] = c.name);
+        
+        const subcategoryMap = {};
+        allSubcategories.forEach(s => subcategoryMap[s.id] = s.name);
+        
+        const productDetailsMap = {};
+        allProducts.forEach(p => {
+          if (p.name) {
+            productDetailsMap[p.name.toLowerCase()] = {
+              price: p.price || 0,
+              category: categoryMap[p.cat] || 'Uncategorized',
+              subcategory: subcategoryMap[p.sub] || 'Uncategorized'
+            };
+          }
+        });
+
+        // Generate items summary
+        const itemsSummary = {};
+        const categorySummary = {};
+        const subcategorySummary = {};
+        const voidedItems = [];
+        
+        allOrders.forEach(order => {
+          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
+            if (order.items && Array.isArray(order.items)) {
+              order.items.forEach(item => {
+                const productName = item.productName || 'Unknown';
+                const quantity = item.quantity || 0;
+                const productNameLower = productName.toLowerCase();
+                const productDetails = productDetailsMap[productNameLower] || { price: 0, category: 'Uncategorized', subcategory: 'Uncategorized' };
+                const unitPrice = productDetails.price;
+                const total = quantity * unitPrice;
+                
+                // Items summary
+                if (!itemsSummary[productName]) {
+                  itemsSummary[productName] = { qty: 0, amount: 0 };
+                }
+                itemsSummary[productName].qty += quantity;
+                itemsSummary[productName].amount += total;
+                
+                // Category summary
+                const category = productDetails.category;
+                if (!categorySummary[category]) {
+                  categorySummary[category] = 0;
+                }
+                categorySummary[category] += total;
+                
+                // Subcategory summary
+                const subcategory = productDetails.subcategory;
+                if (!subcategorySummary[subcategory]) {
+                  subcategorySummary[subcategory] = 0;
+                }
+                subcategorySummary[subcategory] += total;
+              });
+            }
+            
+            // Voided items
+            if (order.voidedItems && Array.isArray(order.voidedItems)) {
+              order.voidedItems.forEach(item => {
+                const productName = item.productName || 'Unknown';
+                const quantity = item.quantity || 0;
+                const productNameLower = productName.toLowerCase();
+                const productDetails = productDetailsMap[productNameLower] || { price: 0, category: 'Uncategorized', subcategory: 'Uncategorized' };
+                const unitPrice = productDetails.price;
+                const total = quantity * unitPrice;
+                
+                voidedItems.push({
+                  table: order.table || 'N/A',
+                  product: productName,
+                  qty: quantity,
+                  total: total
+                });
+              });
+            }
+          }
+        });
+
+        // Create report content
+        const now = new Date();
+        const dateStr = now.toLocaleDateString();
+        const timeStr = now.toLocaleTimeString();
+        
+        const itemsArray = Object.entries(itemsSummary).sort((a, b) => b[1].amount - a[1].amount);
+        const categoriesArray = Object.entries(categorySummary).sort((a, b) => b[1] - a[1]);
+        const subcategoriesArray = Object.entries(subcategorySummary).sort((a, b) => b[1] - a[1]);
+        
+        // Calculate totals
+        const itemsTotalQty = itemsArray.reduce((sum, item) => sum + item[1].qty, 0);
+        const itemsTotalAmount = itemsArray.reduce((sum, item) => sum + item[1].amount, 0);
+        const categoriesTotalValue = categoriesArray.reduce((sum, cat) => sum + cat[1], 0);
+        const subcategoriesTotalValue = subcategoriesArray.reduce((sum, sub) => sum + sub[1], 0);
+        const voidedTotalQty = voidedItems.reduce((sum, item) => sum + item.qty, 0);
+        const voidedTotalValue = voidedItems.reduce((sum, item) => sum + item.total, 0);
+        
+        let html = `
+          <div style="font-family: Arial, sans-serif; color: #1f2937;">
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #d1d5db; padding-bottom: 20px;">
+              <h1 style="margin: 0; font-size: 1.5rem; font-weight: 700;">${eventName}</h1>
+              <h2 style="margin: 10px 0 0 0; font-size: 1.2rem; color: #6b7280;">END OF DAY REPORT</h2>
+              <p style="margin: 10px 0 0 0; color: #9ca3af; font-size: 0.95rem;">
+                <strong>Date:</strong> ${dateStr}<br>
+                <strong>Time:</strong> ${timeStr}
+              </p>
+            </div>
+
+            <!-- Items Summary -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">ITEM SUMMARY</h3>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                  <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Product</th>
+                    <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Qty</th>
+                    <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsArray.map(([product, data]) => `
+                    <tr>
+                      <td style="padding: 12px; border: 1px solid #e5e7eb;">${product}</td>
+                      <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${data.qty}</td>
+                      <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(data.amount)}</td>
+                    </tr>
+                  `).join('')}
+                  <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                    <td style="padding: 12px; border: 1px solid #e5e7eb;">TOTAL</td>
+                    <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${itemsTotalQty}</td>
+                    <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(itemsTotalAmount)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Category Summary -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">CATEGORY SUMMARY</h3>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                  <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Category</th>
+                    <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${categoriesArray.map(([category, total]) => `
+                    <tr>
+                      <td style="padding: 12px; border: 1px solid #e5e7eb;">${category}</td>
+                      <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(total)}</td>
+                    </tr>
+                  `).join('')}
+                  <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                    <td style="padding: 12px; border: 1px solid #e5e7eb;">TOTAL</td>
+                    <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(categoriesTotalValue)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Subcategory Summary -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">SUBCATEGORY SUMMARY</h3>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                  <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Subcategory</th>
+                    <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${subcategoriesArray.map(([subcategory, total]) => `
+                    <tr>
+                      <td style="padding: 12px; border: 1px solid #e5e7eb;">${subcategory}</td>
+                      <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(total)}</td>
+                    </tr>
+                  `).join('')}
+                  <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                    <td style="padding: 12px; border: 1px solid #e5e7eb;">TOTAL</td>
+                    <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(subcategoriesTotalValue)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Voided Items -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">VOIDED ITEMS</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="background: #f3f4f6;">
+                    <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Table</th>
+                    <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Product</th>
+                    <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Qty</th>
+                    <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${voidedItems.length === 0 
+                    ? '<tr><td colspan="4" style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; color: #9ca3af;">No voided items</td></tr>'
+                    : voidedItems.map(item => `
+                    <tr>
+                      <td style="padding: 12px; border: 1px solid #e5e7eb;">${item.table}</td>
+                      <td style="padding: 12px; border: 1px solid #e5e7eb;">${item.product}</td>
+                      <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${item.qty}</td>
+                      <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(item.total)}</td>
+                    </tr>
+                  `).join('')
+                  }
+                  ${voidedItems.length > 0 ? `
+                  <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                    <td colspan="2" style="padding: 12px; border: 1px solid #e5e7eb;">TOTAL</td>
+                    <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${voidedTotalQty}</td>
+                    <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(voidedTotalValue)}</td>
+                  </tr>
+                  ` : ''}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+
+        // Display in modal
+        const eodContent = document.getElementById('eod-content');
+        const eodModal = document.getElementById('end-of-day-modal');
+        
+        if (eodContent) {
+          eodContent.innerHTML = html;
+        }
+        
+        if (eodModal) {
+          eodModal.setAttribute('aria-hidden', 'false');
+          eodModal.style.display = 'flex';
+        }
+
+        // Store report data for export
+        window.eodReportData = {
+          eventName,
+          dateStr,
+          timeStr,
+          itemsArray,
+          categoriesArray,
+          subcategoriesArray,
+          voidedItems,
+          itemsTotalQty,
+          itemsTotalAmount,
+          categoriesTotalValue,
+          subcategoriesTotalValue,
+          voidedTotalQty,
+          voidedTotalValue,
+          html
+        };
+      } catch (error) {
+        console.error('Error generating end of day report:', error);
+        alert('Error generating report: ' + error.message);
+      }
+    }
+
+    if (btnEndOfDayReport) {
+      btnEndOfDayReport.addEventListener('click', generateEndOfDayReport);
+    }
+
+    // Print End of Day Report
+    const btnPrintEod = document.getElementById('btn-print-eod');
+    if (btnPrintEod) {
+      btnPrintEod.addEventListener('click', () => {
+        if (window.eodReportData) {
+          const printWindow = window.open('', '_blank');
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>End of Day Report - ${window.eodReportData.eventName}</title>
+                <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; color: #1f2937; }
+                  h1, h2, h3 { margin-bottom: 10px; }
+                  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                  th, td { padding: 12px; border: 1px solid #e5e7eb; text-align: left; }
+                  th { background: #f3f4f6; font-weight: 600; }
+                  tr:nth-child(even) { background: #f9fafb; }
+                  .text-right { text-align: right; }
+                  .text-center { text-align: center; }
+                  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #d1d5db; padding-bottom: 20px; }
+                  .section-header { font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; }
+                  @media print { body { margin: 0; } }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h1>${window.eodReportData.eventName}</h1>
+                  <h2>END OF DAY REPORT</h2>
+                  <p><strong>Date:</strong> ${window.eodReportData.dateStr}<br><strong>Time:</strong> ${window.eodReportData.timeStr}</p>
+                </div>
+
+                <h3 class="section-header">ITEM SUMMARY</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th class="text-center">Qty</th>
+                      <th class="text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${window.eodReportData.itemsArray.map(([product, data]) => `
+                      <tr>
+                        <td>${product}</td>
+                        <td class="text-center">${data.qty}</td>
+                        <td class="text-right">₦${formatCurrency(data.amount)}</td>
+                      </tr>
+                    `).join('')}
+                    <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                      <td>TOTAL</td>
+                      <td class="text-center">${window.eodReportData.itemsTotalQty}</td>
+                      <td class="text-right">₦${formatCurrency(window.eodReportData.itemsTotalAmount)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <h3 class="section-header">CATEGORY SUMMARY</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th class="text-right">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${window.eodReportData.categoriesArray.map(([category, total]) => `
+                      <tr>
+                        <td>${category}</td>
+                        <td class="text-right">₦${formatCurrency(total)}</td>
+                      </tr>
+                    `).join('')}
+                    <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                      <td>TOTAL</td>
+                      <td class="text-right">₦${formatCurrency(window.eodReportData.categoriesTotalValue)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <h3 class="section-header">SUBCATEGORY SUMMARY</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Subcategory</th>
+                      <th class="text-right">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${window.eodReportData.subcategoriesArray.map(([subcategory, total]) => `
+                      <tr>
+                        <td>${subcategory}</td>
+                        <td class="text-right">₦${formatCurrency(total)}</td>
+                      </tr>
+                    `).join('')}
+                    <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                      <td>TOTAL</td>
+                      <td class="text-right">₦${formatCurrency(window.eodReportData.subcategoriesTotalValue)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <h3 class="section-header">VOIDED ITEMS</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Table</th>
+                      <th>Product</th>
+                      <th class="text-center">Qty</th>
+                      <th class="text-right">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${window.eodReportData.voidedItems.length === 0 
+                      ? '<tr><td colspan="4" style="text-align: center; color: #9ca3af;">No voided items</td></tr>'
+                      : window.eodReportData.voidedItems.map(item => `
+                      <tr>
+                        <td>${item.table}</td>
+                        <td>${item.product}</td>
+                        <td class="text-center">${item.qty}</td>
+                        <td class="text-right">₦${formatCurrency(item.total)}</td>
+                      </tr>
+                    `).join('')
+                    }
+                    ${window.eodReportData.voidedItems.length > 0 ? `
+                    <tr style="background: #f3f4f6; font-weight: 600; border-top: 2px solid #d1d5db;">
+                      <td colspan="2">TOTAL</td>
+                      <td class="text-center">${window.eodReportData.voidedTotalQty}</td>
+                      <td class="text-right">₦${formatCurrency(window.eodReportData.voidedTotalValue)}</td>
+                    </tr>
+                    ` : ''}
+                  </tbody>
+                </table>
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+          printWindow.print();
+        }
+      });
+    }
+
+    // Export End of Day Report as CSV
+    const btnExportCsvEod = document.getElementById('btn-export-csv-eod');
+    if (btnExportCsvEod) {
+      btnExportCsvEod.addEventListener('click', () => {
+        if (window.eodReportData) {
+          let csv = `END OF DAY REPORT\n`;
+          csv += `Event: ${window.eodReportData.eventName}\n`;
+          csv += `Date: ${window.eodReportData.dateStr}\n`;
+          csv += `Time: ${window.eodReportData.timeStr}\n\n`;
+
+          // Item Summary
+          csv += `ITEM SUMMARY\n`;
+          csv += `Product,Quantity,Amount\n`;
+          window.eodReportData.itemsArray.forEach(([product, data]) => {
+            csv += `"${product}",${data.qty},${data.amount}\n`;
+          });
+          csv += `TOTAL,${window.eodReportData.itemsTotalQty},${window.eodReportData.itemsTotalAmount}\n`;
+          csv += `\n`;
+
+          // Category Summary
+          csv += `CATEGORY SUMMARY\n`;
+          csv += `Category,Total Value\n`;
+          window.eodReportData.categoriesArray.forEach(([category, total]) => {
+            csv += `"${category}",${total}\n`;
+          });
+          csv += `TOTAL,${window.eodReportData.categoriesTotalValue}\n`;
+          csv += `\n`;
+
+          // Subcategory Summary
+          csv += `SUBCATEGORY SUMMARY\n`;
+          csv += `Subcategory,Total Value\n`;
+          window.eodReportData.subcategoriesArray.forEach(([subcategory, total]) => {
+            csv += `"${subcategory}",${total}\n`;
+          });
+          csv += `TOTAL,${window.eodReportData.subcategoriesTotalValue}\n`;
+          csv += `\n`;
+
+          // Voided Items
+          csv += `VOIDED ITEMS\n`;
+          csv += `Table,Product,Quantity,Total Value\n`;
+          window.eodReportData.voidedItems.forEach(item => {
+            csv += `"${item.table}","${item.product}",${item.qty},${item.total}\n`;
+          });
+          if (window.eodReportData.voidedItems.length > 0) {
+            csv += `TOTAL,,${window.eodReportData.voidedTotalQty},${window.eodReportData.voidedTotalValue}\n`;
+          }
+
+          // Download CSV
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement('a');
+          link.setAttribute('href', URL.createObjectURL(blob));
+          link.setAttribute('download', `end_of_day_report_${window.eodReportData.dateStr.replace(/\//g, '-')}.csv`);
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      });
+    }
+    
+    // Helper function to format currency
+    function formatCurrency(amount) {
+      return (amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    
+    // Load reports on initial page load
+    loadVoidedItemsReport();
+    loadItemsSummaryReport();
+    loadSubcategorySummaryReport();
+    loadCategorySummaryReport();
+    loadTransactionHistory();
+    await renderRecentSalesTable();
+  })();

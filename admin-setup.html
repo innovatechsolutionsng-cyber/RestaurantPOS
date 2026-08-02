@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Setup — Restaurant POS</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+      html, body {
+        min-height: 100%;
+      }
+      body {
+        min-height: 100vh;
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top left, #eff6ff 0%, #f8fafc 45%, #fdfdfd 100%);
+        color: #0f172a;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+      }
+      .setup-shell {
+        width: min(840px, 100%);
+        max-height: calc(100vh - 32px);
+        background: #ffffff;
+        border: 1px solid rgba(15, 23, 42, 0.06);
+        border-radius: 24px;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .setup-panel {
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        overflow-y: auto;
+      }
+      .setup-hero {
+        background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 45%, #0f172a 100%);
+        color: white;
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .setup-hero h1 {
+        margin: 0;
+        font-size: clamp(2rem, 3vw, 2.7rem);
+        line-height: 1.05;
+      }
+      .setup-hero p {
+        margin: 0;
+        color: rgba(255,255,255,0.88);
+        line-height: 1.75;
+      }
+      .setup-card {
+        border-radius: 20px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 24px;
+        box-shadow: 0 18px 30px rgba(15, 23, 42, 0.06);
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 200px);
+        overflow: hidden;
+      }
+      .setup-card h2 {
+        margin-bottom: 12px;
+      }
+      .setup-card form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .field { margin-top: 16px; }
+      .input { width: 100%; padding: 12px 14px; border: 1px solid #dbe3f0; border-radius: 12px; background: white; }
+      .input:focus-visible { outline: none; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.12); }
+      .label { display: block; margin-bottom: 8px; font-weight: 600; }
+      .helper { font-size: 0.95rem; color: #64748b; margin-top: 6px; }
+      .button-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 18px; }
+      .btn { min-width: 150px; padding: 12px 18px; border-radius: 12px; }
+      .btn.btn-primary { background: #2563eb; color: white; border: none; }
+      .btn.btn-ghost { background: rgba(15,23,42,0.05); color: #0f172a; border: 1px solid rgba(15,23,42,0.12); }
+      .feedback { min-height: 24px; color: #dc2626; font-weight: 500; margin-top: 8px; }
+      @media (max-width: 860px) {
+        .setup-shell { grid-template-columns: 1fr; max-height: none; }
+        .setup-hero { padding: 22px; }
+        .setup-panel { padding: 22px; }
+      }
+      @media (max-width: 640px) {
+        body { padding: 12px; }
+        .setup-shell { border-radius: 18px; }
+        .setup-hero, .setup-panel { padding: 20px; }
+        .button-row { flex-direction: column; align-items: stretch; }
+        .btn { width: 100%; min-width: auto; }
+      }
+      .setup-card form::-webkit-scrollbar {
+        width: 8px;
+      }
+      .setup-card form::-webkit-scrollbar-thumb {
+        background: rgba(15,23,42,0.18);
+        border-radius: 999px;
+      }
+      .setup-card form::-webkit-scrollbar-track {
+        background: rgba(15,23,42,0.04);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="setup-shell">
+      <div class="setup-hero">
+        <div>
+          <div style="font-size:.85rem;text-transform:uppercase;letter-spacing:.12em;opacity:.9;">Admin setup</div>
+          <h1>Register your first admin account.</h1>
+        </div>
+        <p>Use a strong secret to protect JSON Web Token generation and keep your admin session secure.</p>
+      </div>
+
+      <div class="setup-panel">
+        <div class="setup-card">
+          <h2 style="margin:0 0 8px 0;font-size:1.25rem">Create admin user</h2>
+          <p class="muted">This admin account will control the app and manage cashier profiles.</p>
+
+          <form id="admin-setup-form">
+            <div class="field">
+              <label for="admin-username" class="label">Username</label>
+              <input id="admin-username" type="text" class="input" required placeholder="admin" />
+            </div>
+            <div class="field">
+              <label for="admin-fullname" class="label">Full name</label>
+              <input id="admin-fullname" type="text" class="input" placeholder="Admin Name" />
+            </div>
+            <div class="field">
+              <label for="admin-password" class="label">Password</label>
+              <input id="admin-password" type="password" class="input" required placeholder="Create a password" />
+            </div>
+            <div class="field">
+              <label for="admin-password-confirm" class="label">Confirm password</label>
+              <input id="admin-password-confirm" type="password" class="input" required placeholder="Confirm password" />
+            </div>
+            <div class="field">
+              <label for="admin-jwt-secret" class="label">JWT Secret</label>
+              <input id="admin-jwt-secret" type="password" class="input" required placeholder="Enter a strong secret" />
+              <p class="helper">This secret signs admin session tokens. Keep it safe.</p>
+            </div>
+            <div class="field">
+              <label for="admin-jwt-secret-confirm" class="label">Confirm JWT secret</label>
+              <input id="admin-jwt-secret-confirm" type="password" class="input" required placeholder="Confirm secret" />
+            </div>
+
+            <div class="feedback" id="admin-setup-feedback"></div>
+            <div class="button-row">
+              <button type="submit" class="btn btn-primary">Create admin account</button>
+              <a href="index.html" class="btn btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Back to sign in</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="assets/js/db.js"></script>
+    <script>
+      const API_BASE_URL = (() => {
+        try {
+          if (window.location.protocol.startsWith('http')) {
+            return `${window.location.protocol}//${window.location.host}`;
+          }
+        } catch (e) {
+          // file:// or unsupported environment
+        }
+        return 'http://localhost:3000';
+      })();
+
+      async function fetchBackend(path, options = {}) {
+        const url = `${API_BASE_URL}${path}`;
+        const response = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options));
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          const error = body && body.error ? body.error : response.statusText || 'backend_error';
+          throw new Error(error);
+        }
+        return response.json();
+      }
+
+      (async function(){
+        await RestaurantDB.init();
+        const form = document.getElementById('admin-setup-form');
+        const feedback = document.getElementById('admin-setup-feedback');
+
+        async function setFeedback(message, isError = true){
+          feedback.textContent = message;
+          feedback.style.color = isError ? '#dc2626' : '#16a34a';
+        }
+
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          feedback.textContent = '';
+
+          const username = document.getElementById('admin-username').value.trim();
+          const fullName = document.getElementById('admin-fullname').value.trim();
+          const password = document.getElementById('admin-password').value;
+          const confirmPassword = document.getElementById('admin-password-confirm').value;
+          const jwtSecret = document.getElementById('admin-jwt-secret').value;
+          const jwtSecretConfirm = document.getElementById('admin-jwt-secret-confirm').value;
+
+          if (!username || !password || !confirmPassword || !jwtSecret || !jwtSecretConfirm) {
+            setFeedback('Please complete every field.');
+            return;
+          }
+
+          if (password !== confirmPassword) {
+            setFeedback('Passwords do not match.');
+            return;
+          }
+          if (jwtSecret !== jwtSecretConfirm) {
+            setFeedback('JWT secrets do not match.');
+            return;
+          }
+
+          try {
+            const payload = {
+              username,
+              fullName: fullName || username,
+              password,
+              jwtSecret
+            };
+            const result = await fetchBackend('/api/admin/setup', {
+              method: 'POST',
+              body: JSON.stringify(payload)
+            });
+            if (result.success) {
+              setFeedback('Admin account created successfully. Redirecting to sign in...', false);
+              setTimeout(() => window.location.href = 'index.html', 1300);
+              return;
+            }
+            throw new Error(result.error || 'Failed to create admin account.');
+          } catch (err) {
+            if (err.message === 'backend_unreachable' || err.message === 'Failed to fetch') {
+              try {
+                const users = await RestaurantDB.getAllUsers();
+                const existingAdmin = (users || []).find(u => u.role === 'admin');
+                if (existingAdmin) {
+                  setFeedback('An admin account already exists. Please sign in instead.');
+                  return;
+                }
+                await RestaurantDB.setSetting('jwtSecret', jwtSecret);
+                await RestaurantDB.createUser({ username, password, fullName: fullName || username, role: 'admin', status: 'active' });
+                setFeedback('Admin account created locally. Redirecting to sign in...', false);
+                setTimeout(() => window.location.href = 'index.html', 1300);
+                return;
+              } catch (fallbackErr) {
+                setFeedback(fallbackErr.message || 'Failed to create admin account locally.');
+                return;
+              }
+            }
+            setFeedback(err.message || 'Failed to create admin account.');
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
