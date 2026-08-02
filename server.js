@@ -437,18 +437,7 @@ async function startAdminServer(port = 3000) {
   };
 
   app.use(cors({
-    origin: (origin, callback) => {
-      if (process.env.NODE_ENV === 'production' || process.env.ALLOW_ALL_ORIGINS === 'true') {
-        callback(null, true);
-        return;
-      }
-
-      if (isAllowedOrigin(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('CORS policy: origin not allowed'));
-      }
-    },
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
