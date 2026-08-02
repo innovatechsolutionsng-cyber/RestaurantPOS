@@ -344,6 +344,8 @@
   const $ = (id) => document.getElementById(id);
   let currentWaiterOrders = [];
   let currentOrderStatusFilter = 'all';
+  let realtimeRefreshTimer = null;
+  const REALTIME_REFRESH_INTERVAL = 15000;
 
   function applyStatusFilter(orders) {
     if (!Array.isArray(orders)) return [];
@@ -383,9 +385,25 @@
     });
   }
 
+  async function refreshWaiterRealtime() {
+    try {
+      await refreshDashboard();
+    } catch (err) {
+      console.warn('Failed to refresh waiter realtime dashboard:', err);
+    }
+  }
+
+  function startWaiterRealtimeRefresh() {
+    if (realtimeRefreshTimer) {
+      clearInterval(realtimeRefreshTimer);
+    }
+    realtimeRefreshTimer = setInterval(refreshWaiterRealtime, REALTIME_REFRESH_INTERVAL);
+  }
+
   await refreshDashboard();
   scheduleBusinessDayRefresh();
   bindStatusTabEvents();
+  startWaiterRealtimeRefresh();
 
   const btnLogout = document.getElementById('btn-logout');
   function showConfirmDialog({ title, message, confirmText = 'Yes', cancelText = 'Cancel', onConfirm }) {

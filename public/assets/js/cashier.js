@@ -128,6 +128,8 @@ function showToast(message, type = 'success', duration = 3000) {
 
   let businessDayCutoff = '00:00';
   let businessDayRefreshTimer = null;
+  let cashierRealtimeRefreshTimer = null;
+  const REALTIME_REFRESH_INTERVAL = 15000;
   let stockCountEnabled = false;
   let receiptSettings = {
     businessName: '',
@@ -213,6 +215,19 @@ function showToast(message, type = 'success', duration = 3000) {
         scheduleBusinessDayRefresh();
       }
     }, delay);
+  }
+
+  function startCashierRealtimeRefresh() {
+    if (cashierRealtimeRefreshTimer) {
+      clearInterval(cashierRealtimeRefreshTimer);
+    }
+    cashierRealtimeRefreshTimer = setInterval(async () => {
+      try {
+        await loadAndRenderOrders();
+      } catch (err) {
+        console.warn('Failed to refresh cashier realtime dashboard:', err);
+      }
+    }, REALTIME_REFRESH_INTERVAL);
   }
 
   async function loadBusinessDayCutoff() {
@@ -6091,6 +6106,8 @@ function showToast(message, type = 'success', duration = 3000) {
     await loadAndRenderOrders();
     console.log('cashier.js: loadAndRenderOrders completed');
     scheduleBusinessDayRefresh();
+    startCashierRealtimeRefresh();
+    console.log('cashier.js: Real-time refresh timer scheduled');
     console.log('cashier.js: Business day refresh timer scheduled');
     console.log('cashier.js: POS initialization complete - script ready for user interaction');
   } catch (initErr) {

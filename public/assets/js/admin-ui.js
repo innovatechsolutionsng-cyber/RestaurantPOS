@@ -121,6 +121,8 @@ function showToast(message, type = 'success', duration = 3000) {
   let btnResetBusinessDay = null;
   let businessDaySettingsMessage = null;
   let businessDayRefreshTimer = null;
+  let realtimeRefreshTimer = null;
+  const REALTIME_REFRESH_INTERVAL = 15000;
 
   let receiptSettings = {
     businessName: '',
@@ -194,6 +196,25 @@ function showToast(message, type = 'success', duration = 3000) {
         scheduleBusinessDayRefresh();
       }
     }, delay);
+  }
+
+  async function refreshAdminRealtime() {
+    try {
+      await updateOperationalSnapshotCounts();
+      await renderRecentSalesTable();
+      if (typeof loadSalesPanel === 'function') {
+        await loadSalesPanel();
+      }
+    } catch (err) {
+      console.warn('Failed to refresh admin realtime dashboard:', err);
+    }
+  }
+
+  function startAdminRealtimeRefresh() {
+    if (realtimeRefreshTimer) {
+      clearInterval(realtimeRefreshTimer);
+    }
+    realtimeRefreshTimer = setInterval(refreshAdminRealtime, REALTIME_REFRESH_INTERVAL);
   }
 
   async function updateOperationalSnapshotCounts() {
@@ -1926,6 +1947,7 @@ function showToast(message, type = 'success', duration = 3000) {
     await loadReceiptSettings().catch(err => console.error('Failed to load receipt settings:', err));
     scheduleBusinessDayRefresh();
     await updateOperationalSnapshotCounts();
+    startAdminRealtimeRefresh();
   })();
 
     // Settings: Billing & Charges
