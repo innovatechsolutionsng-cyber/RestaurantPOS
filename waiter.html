@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Waiter — Restaurant</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+      .waiter-theme .overview-hero {
+        background: linear-gradient(135deg, #14532d, #22c55e);
+        color: white;
+      }
+      .waiter-theme .overview-hero .page-title {
+        color: #ffffff;
+      }
+      .waiter-theme .overview-hero .hero-badge {
+        background: rgba(255,255,255,0.22);
+        color: #ffffff;
+      }
+      .waiter-theme .nav-link.active {
+        background: linear-gradient(90deg, #16a34a, #65a30d);
+        color: #fff;
+        box-shadow: var(--shadow-sm);
+      }
+      .waiter-theme .nav-link.active svg {
+        color: #fff;
+      }
+      .waiter-theme .sidebar-card {
+        background: linear-gradient(180deg, #ecfdf5, #f0fdf4);
+        border-color: #d1fae5;
+      }
+      .waiter-theme .sidebar-card .nav-link {
+        color: #134e4a;
+      }
+      .waiter-theme .sidebar-card .nav-link:hover {
+        background: rgba(16,185,129,0.12);
+        color: #0f172a;
+      }
+      .waiter-theme .sidebar-card:hover,
+      .waiter-theme .sidebar-card.expanded,
+      .waiter-theme .split.sidebar-expanded .sidebar-card {
+        width: 240px;
+        padding: 16px 14px;
+      }
+      .waiter-theme .sidebar-footer {
+        border-color: #d1fae5;
+      }
+      .waiter-theme .sidebar-card.expanded .nav-account,
+      .waiter-theme .split.sidebar-expanded .nav-account {
+        justify-content: flex-start;
+      }
+      .waiter-theme .sidebar-card.expanded .nav-account .meta,
+      .waiter-theme .split.sidebar-expanded .nav-account .meta {
+        display: flex;
+      }
+      .waiter-theme .sidebar-card:hover .nav-link span,
+      .waiter-theme .sidebar-card.expanded .nav-link span,
+      .waiter-theme .split.sidebar-expanded .nav-link span {
+        display: inline;
+      }
+      .waiter-theme .split {
+        transition: grid-template-columns 0.25s ease;
+      }
+      .waiter-theme .sidebar-card {
+        transition: width 0.25s ease, padding 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+      }
+      .waiter-theme .overview-hero {
+        margin-bottom: 24px;
+      }
+      .waiter-theme .overview-summary {
+        min-width: 220px;
+      }
+      .waiter-theme .stats-grid,
+      .waiter-theme .quick-actions-grid,
+      .waiter-theme .report-grid {
+        gap: 16px;
+      }
+      .pos-card-grid {
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+        gap:12px;
+      }
+      .status-tabs {
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+      }
+      .status-tab {
+        padding:10px 16px;
+        border-radius:999px;
+        border:1px solid rgba(59,130,246,0.18);
+        background:rgba(59,130,246,0.08);
+        color:#0f172a;
+        font-weight:700;
+        cursor:pointer;
+        transition:background .18s ease,border-color .18s ease,color .18s ease;
+      }
+      .status-tab:hover {
+        background:rgba(59,130,246,0.12);
+      }
+      .status-tab.active {
+        background:#3b82f6;
+        border-color:#2563eb;
+        color:#ffffff;
+      }
+      .pos-card {
+        border:1px solid var(--border);
+        border-radius:18px;
+        background:#ffffff;
+        padding:16px;
+        box-shadow:var(--shadow-sm);
+      }
+      .pos-card-title {
+        font-weight:700;
+        margin-bottom:10px;
+        display:block;
+      }
+      .pos-chip {
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        padding:12px 16px;
+        border-radius:16px;
+        border:1px solid rgba(59,130,246,0.18);
+        background:rgba(59,130,246,0.08);
+        color:#0f172a;
+        cursor:pointer;
+        transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease;
+        font-size:0.94rem;
+        font-weight:600;
+      }
+      .pos-chip:hover {
+        transform:translateY(-1px);
+        background:rgba(59,130,246,0.12);
+      }
+      .pos-chip.selected {
+        background:#eff6ff;
+        border-color:#3b82f6;
+        box-shadow:0 0 0 3px rgba(59,130,246,0.08);
+      }
+      .pos-chip.category,
+      .pos-chip.table {
+        min-width:0;
+      }
+      .pos-chip-label {
+        flex:1;
+      }
+      .pos-chip-check {
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        width:22px;
+        height:22px;
+        border-radius:999px;
+        background:#3b82f6;
+        color:#fff;
+        font-size:0.85rem;
+        font-weight:700;
+        margin-left:8px;
+      }
+      .pos-section-empty {
+        padding:16px;
+        color:#475569;
+        border-radius:14px;
+        background:#f8fafc;
+      }
+      .waiter-order-modal .pos-list {
+        display:grid;
+        grid-template-columns:repeat(3,minmax(120px,1fr));
+        grid-template-rows:repeat(2,minmax(48px,auto));
+        gap:12px;
+        min-height:calc(2 * 48px + 12px);
+      }
+      .pos-product-card {
+        border:1px solid rgba(59,130,246,0.18);
+        border-radius:16px;
+        background:rgba(59,130,246,0.08);
+        padding:14px 16px;
+        cursor:pointer;
+        transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease;
+        min-height:64px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        box-shadow:none;
+      }
+      .pos-product-card:hover {
+        transform:translateY(-1px);
+        background:rgba(59,130,246,0.12);
+        box-shadow:0 10px 18px rgba(15,23,42,0.06);
+      }
+      .pos-product-card.selected {
+        border-color:#3b82f6;
+        background:#eff6ff;
+      }
+      .pos-product-card .pos-product-name {
+        font-size:0.98rem;
+        line-height:1.4;
+        color:#0f172a;
+        font-weight:700;
+      }
+      .pos-product-card .pos-product-selected {
+        font-size:1rem;
+        font-weight:700;
+        color:#2563eb;
+        min-width:24px;
+        text-align:center;
+      }
+      .pos-product-card .pos-product-added {
+        align-self:flex-start;
+        padding:6px 10px;
+        border-radius:999px;
+        background:rgba(59,130,246,0.16);
+        color:#1d4ed8;
+        font-size:0.82rem;
+        font-weight:700;
+      }
+      .pos-product-name {
+        font-weight:700;
+        margin-bottom:10px;
+        line-height:1.3;
+      }
+      .pos-product-meta {
+        color:#475569;
+        font-size:0.92rem;
+      }
+      .waiter-order-modal {
+        max-width:900px;
+        width:min(95vw,900px);
+        padding:28px;
+      }
+      .waiter-order-modal .modal-header {
+        padding-bottom:8px;
+        margin-bottom:12px;
+        border-bottom:1px solid rgba(14,20,30,0.08);
+      }
+      .waiter-order-modal .modal-header h3 {
+        font-size:1.4rem;
+        letter-spacing:-0.02em;
+      }
+      .waiter-order-modal .modal-body {
+        display:grid;
+        gap:20px;
+        max-height:70vh;
+        overflow:auto;
+      }
+      .waiter-order-modal .field {
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+      }
+      .waiter-order-modal .label {
+        font-size:0.95rem;
+        color:var(--muted);
+        font-weight:700;
+      }
+      .waiter-order-modal .modal-section-box {
+        border:1px solid rgba(14,20,30,0.08);
+        border-radius:16px;
+        padding:16px;
+        background:#ffffff;
+      }
+      .waiter-order-modal .order-products-grid {
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:12px;
+      }
+      .waiter-order-modal .order-summary {
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        padding-top:14px;
+        margin-top:10px;
+        border-top:1px solid rgba(14,20,30,0.08);
+        font-weight:700;
+      }
+      .waiter-order-modal #modal-order-items {
+        border:1px solid rgba(14,20,30,0.12);
+        border-radius:18px;
+        padding:16px;
+        background:#e0f2fe;
+        min-height:160px;
+      }
+      .waiter-order-modal .order-item-row {
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:12px;
+        align-items:center;
+        padding:14px 0;
+        border-bottom:1px solid rgba(14,20,30,0.08);
+      }
+      .waiter-order-modal .order-item-row:last-child {
+        border-bottom:none;
+      }
+      .waiter-order-modal .order-item-details {
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+      }
+      .waiter-order-modal .item-name {
+        font-size:1rem;
+        font-weight:700;
+        color:#0f172a;
+      }
+      .waiter-order-modal .item-meta {
+        color:#475569;
+        font-size:0.92rem;
+      }
+      .waiter-order-modal .order-item-right {
+        display:flex;
+        flex-direction:column;
+        align-items:flex-end;
+        gap:10px;
+      }
+      .waiter-order-modal .item-total {
+        font-weight:700;
+        color:#0f172a;
+        font-size:0.98rem;
+      }
+      .waiter-order-modal .order-item-actions {
+        display:flex;
+        align-items:center;
+        gap:8px;
+      }
+      .waiter-order-modal .order-item-actions .btn {
+        min-width:34px;
+        height:34px;
+        padding:0;
+      }
+      .btn-primary.icon-left {
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+      }
+      .btn-primary.icon-left::before {
+        content:'+';
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        width:20px;
+        height:20px;
+        border-radius:50%;
+        background:rgba(255,255,255,0.25);
+        font-weight:700;
+      }
+      .waiter-order-modal .order-summary-total {
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        padding:16px;
+        margin-top:12px;
+        border-radius:16px;
+        background:#2563eb;
+        color:#ffffff;
+        box-shadow:0 10px 24px rgba(37,99,235,0.12);
+      }
+      .waiter-order-modal .order-summary-total strong {
+        font-size:1.05rem;
+      }
+      .waiter-order-modal .input {
+        width:100%;
+        min-height:44px;
+        padding:14px 16px;
+        border-radius:14px;
+        border:1px solid rgba(14,20,30,0.12);
+        background:#ffffff;
+        transition:border-color .15s ease,box-shadow .15s ease;
+      }
+      .waiter-order-modal .input:focus-visible {
+        outline:none;
+        border-color:rgba(59,130,246,0.8);
+        box-shadow:0 0 0 5px rgba(59,130,246,0.08);
+      }
+      .waiter-order-modal .pos-list {
+        display:grid;
+        grid-template-columns:repeat(3,minmax(120px,1fr));
+        grid-template-rows:repeat(2,minmax(48px,auto));
+        gap:12px;
+      }
+      .waiter-order-modal .modal-footer {
+        display:flex;
+        justify-content:flex-end;
+        gap:12px;
+        margin-top:18px;
+      }
+      .waiter-order-modal #modal-order-items {
+        border:1px solid rgba(14,20,30,0.08);
+        border-radius:14px;
+        padding:14px;
+        background:#f8fafc;
+      }
+      @media (max-width: 760px) {
+        .waiter-order-modal {
+          width: min(98vw, 100%);
+          max-width: 98vw;
+          padding:18px 14px;
+        }
+        .waiter-order-modal .modal-body {
+          gap:16px;
+          overflow-x:hidden;
+        }
+        .waiter-order-modal .modal-section-box {
+          padding:14px;
+        }
+        .waiter-order-modal .order-products-grid,
+        .waiter-order-modal .pos-list {
+          display:grid;
+          grid-template-columns:repeat(3,minmax(0,1fr));
+          grid-auto-rows:minmax(56px,auto);
+          gap:10px;
+          min-width:0;
+        }
+        .waiter-order-modal .pos-chip {
+          width:auto;
+          justify-content:center;
+          white-space:normal;
+          text-align:center;
+        }
+        .waiter-order-modal .order-products-grid {
+          grid-template-columns:repeat(3,minmax(0,1fr));
+        }
+      }
+      .waiter-order-modal .order-item-row {
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        padding:12px 0;
+        border-bottom:1px solid rgba(14,20,30,0.06);
+      }
+      .waiter-order-modal .order-item-row:last-child { border-bottom:none; }
+      .waiter-order-modal .order-item-actions {
+        display:flex;
+        align-items:center;
+        gap:8px;
+      }
+      .waiter-order-modal .order-item-actions .btn {
+        min-width:34px;
+        height:34px;
+        padding:0;
+      }
+      .waiter-order-modal .modal-close {
+        color:var(--muted);
+      }
+    </style>
+  </head>
+  <body class="waiter-theme">
+    <div class="mobile-sidebar-backdrop" id="sidebar-backdrop"></div>
+    <div class="container">
+      <header class="page-header">
+        <div class="header-brand">
+          <img src="assets/images/logo.png" alt="Restaurant logo" class="logo-img" />
+          <div>
+            <div class="page-title">Restaurant</div>
+            <div class="muted subtitle">Waiter station</div>
+          </div>
+        </div>
+        <button class="mobile-nav-toggle header-toggle" id="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar" title="Open navigation">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        <div class="header-actions">
+          <button id="btn-settings" class="icon-action-btn" type="button" title="Settings" aria-label="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.607 2.296.07 2.572-1.065z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="btn-logout" class="icon-action-btn" type="button" title="Logout" aria-label="Logout">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l1.41-1.41L9.83 14H20v-2H9.83l1.58-1.59L10 9l-4 4 4 4zm-6 2h8v2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h8v2H4v16z" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="split" role="application">
+        <aside id="sidebar" class="sidebar-card" aria-label="Primary navigation">
+          <div class="caps">Main</div>
+          <nav>
+            <ul class="nav-list" role="list">
+              <li><a href="#dashboard" class="nav-link active" data-panel="dashboard"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h7v7H4V4zm0 9h7v7H4v-7zm9-9h7v7h-7V4zm0 9h7v7h-7v-7z" fill="currentColor"/></svg><span>Dashboard</span></a></li>
+              <li><a href="#pos" class="nav-link" data-panel="pos"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16v3H4V7zm0 5h16v6H4v-6zm2 1v4h3v-4H6zm9 0v4h3v-4h-3z" fill="currentColor"/><path d="M7 2h10v3H7V2z" fill="currentColor"/></svg><span>Point of Sale</span></a></li>
+              <li><a href="#reports" class="nav-link" data-panel="reports"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 17h4v-7H4v7zm6 0h4v-4h-4v4zm6 0h4v-10h-4v10z" fill="currentColor"/></svg><span>Reports</span></a></li>
+            </ul>
+          </nav>
+
+          <div class="sidebar-footer">
+            <div class="nav-account">
+              <div id="cashier-avatar" class="avatar avatar--gradient" aria-hidden="true">W</div>
+              <div class="meta">
+                <div class="fw-700" id="cashier-name">Waiter</div>
+                <div class="muted" id="cashier-role">Waiter</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main>
+          <!-- Dashboard Panel -->
+          <section id="dashboard" class="panel" role="region" aria-hidden="false">
+            <div class="card overview-hero">
+              <div>
+                <div class="hero-badge">Waiter Dashboard</div>
+                <h2 class="page-title" style="margin-bottom:4px;color:#fff;">Service flow made simple</h2>
+                <div class="muted" style="color:rgba(255,255,255,0.86);">Manage active tables, update orders, and stay synced with the kitchen.</div>
+              </div>
+              <div class="overview-summary">
+                <div class="summary-chip">Smooth table service</div>
+                <div class="summary-chip">Order updates fast</div>
+                <div class="summary-chip">Less time walking</div>
+              </div>
+            </div>
+
+            <div class="stagger-container stats-grid">
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-7.5 4 2-7L1 9h7z" fill="currentColor"/></svg>
+                  <div class="muted">Total Revenue</div>
+                </div>
+                <div class="stat-value" id="stat-revenue">—</div>
+              </div>
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z" fill="currentColor"/></svg>
+                  <div class="muted">Total Orders</div>
+                </div>
+                <div class="stat-value" id="stat-orders">—</div>
+              </div>
+              <div class="card stagger-item stat-card">
+                <div class="stat-meta">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2a2 2 0 0 1 2 2v6h6a2 2 0 0 1 0 4h-6v6a2 2 0 0 1-4 0v-6H4a2 2 0 0 1 0-4h6V4a2 2 0 0 1 2-2z" fill="currentColor"/></svg>
+                  <div class="muted">Pending Orders</div>
+                </div>
+                <div class="stat-value" id="stat-pending-orders">—</div>
+              </div>
+            </div>
+
+            <div class="section-subtitle muted" style="margin-top:18px;">Quick Actions</div>
+            <div class="quick-actions-grid">
+              <button id="btn-qa-create-order" class="quick-action-card" type="button" aria-label="Create order">
+                <div class="quick-action-icon" style="background:rgba(16,185,129,0.14);color:#047857;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <div class="quick-action-title">Create Orders</div>
+                  <div class="quick-action-text">Start a new table order quickly.</div>
+                </div>
+              </button>
+              <button id="btn-qa-view-sales" class="quick-action-card" type="button" aria-label="View sales">
+                <div class="quick-action-icon" style="background:rgba(37,99,235,0.14);color:#1d4ed8;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4M12 16V8M17 16v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <div class="quick-action-title">View Sales</div>
+                  <div class="quick-action-text">Jump to the recent sales table.</div>
+                </div>
+              </button>
+              <button id="btn-qa-view-report" class="quick-action-card" type="button" aria-label="View report">
+                <div class="quick-action-icon" style="background:rgba(245,158,11,0.16);color:#92400e;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l5 5v13H7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <div class="quick-action-title">View Report</div>
+                  <div class="quick-action-text">Open POS report metrics instantly.</div>
+                </div>
+              </button>
+            </div>
+
+            <div id="recent-sales-section" class="card" style="margin-top:16px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                <h3 class="no-top" style="margin:0;">Recent Sales</h3>
+                <div class="muted" id="recent-sales-total">Total: ₦0.00</div>
+              </div>
+              <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;min-width:0;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);">Time</th>
+                      <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);">Table</th>
+                      <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);">Waiter</th>
+                      <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);">Cashier</th>
+                      <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);">Items</th>
+                      <th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);">Status</th>
+                      <th style="text-align:right;padding:8px;border-bottom:1px solid var(--border);">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recent-sales-body">
+                    <tr><td colspan="7" class="muted" style="padding:12px;text-align:center;">No sales yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="pos" class="panel" role="region" aria-hidden="true" style="margin-top:24px;">
+              <div class="card">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                  <div>
+                    <h2 class="page-title">Point of Sale</h2>
+                    <div class="muted">Open the waiter POS modal to pick a table, category, subcategory and products.</div>
+                  </div>
+                  <button id="btn-create-order" class="btn btn-primary icon-left">Create Order</button>
+                </div>
+                <div id="pos-status-tabs" class="status-tabs" style="margin-top:16px;">
+                  <button type="button" id="pos-status-all" class="status-tab active">All</button>
+                  <button type="button" id="pos-status-pending" class="status-tab">Pending</button>
+                  <button type="button" id="pos-status-completed" class="status-tab">Completed</button>
+                </div>
+                <div class="pos-card-grid" style="margin-top:20px;">
+                  <div class="pos-card">
+                    <span class="pos-card-title">Assigned tables</span>
+                    <div id="pos-assigned-tables" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;">Loading…</div>
+                  </div>
+                  <div class="pos-card">
+                    <span class="pos-card-title">Order instructions</span>
+                    <p class="muted" style="margin:0;line-height:1.6;">Click “Create Order” to choose a customer name, select your assigned table, then browse categories, subcategories, and products.</p>
+                  </div>
+                </div>
+                <div id="pos-order-cards" class="pos-card-grid" style="margin-top:20px;"></div>
+              </div>
+            </section>
+
+          <!-- Reports Panel -->
+          <section id="reports" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Daily Summary Report</h2>
+            <div class="section-subtitle muted">Summary of today's sales by item, category, and payment method.</div>
+
+            <div class="report-actions" style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px 0;gap:12px;flex-wrap:wrap;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <label class="muted" style="margin-right:6px;font-weight:600;">Range</label>
+                <select id="report-range" class="input" style="min-width:140px;">
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                  <option value="this-week">This Week</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+                <input id="report-start" type="date" class="input" style="display:none;margin-left:6px;" />
+                <input id="report-end" type="date" class="input" style="display:none;margin-left:6px;" />
+              </div>
+              <div class="muted">Report for: <strong id="report-date">Today</strong></div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button id="btn-refresh-report" class="btn btn-secondary">Refresh</button>
+                <button id="btn-export-report" class="btn btn-primary">Export CSV</button>
+              </div>
+            </div>
+
+            <div class="report-grid">
+              <div class="report-card">
+                <div class="report-card-head">
+                  <div>
+                    <div class="report-title">Sales By Item</div>
+                    <div class="muted">Top items sold by quantity and revenue</div>
+                  </div>
+                  <div id="report-item-total" class="report-card-meta">Total: ₦0.00</div>
+                </div>
+                <div class="report-body">
+                  <div class="chart-container" style="margin-bottom:12px;"><canvas id="chart-top-items" height="160"></canvas></div>
+                  <table class="report-table" id="report-items-table">
+                    <thead>
+                      <tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Revenue</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="report-card">
+                <div class="report-card-head">
+                  <div>
+                    <div class="report-title">Sales By Category</div>
+                    <div class="muted">Aggregate revenue per category</div>
+                  </div>
+                  <div id="report-category-total" class="report-card-meta">Total: ₦0.00</div>
+                </div>
+                <div class="report-body">
+                  <table class="report-table" id="report-categories-table">
+                    <thead>
+                      <tr><th>Category</th><th style="text-align:center">Items</th><th style="text-align:right">Revenue</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="report-card">
+                <div class="report-card-head">
+                  <div>
+                    <div class="report-title">Sales By Subcategory</div>
+                    <div class="muted">Aggregate revenue per subcategory</div>
+                  </div>
+                  <div id="report-subcategory-total" class="report-card-meta">Total: ₦0.00</div>
+                </div>
+                <div class="report-body">
+                  <table class="report-table" id="report-subcategories-table">
+                    <thead>
+                      <tr><th>Subcategory</th><th style="text-align:center">Items</th><th style="text-align:right">Revenue</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="report-card">
+                <div class="report-card-head">
+                  <div class="report-title">Voided Items</div>
+                  <div class="muted">Items voided during the day</div>
+                </div>
+                <div class="report-body">
+                  <table class="report-table" id="report-voided-table">
+                    <thead>
+                      <tr><th>Item</th><th style="text-align:center">Qty</th><th style="text-align:left">Table</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No voided items</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="report-card payments-full">
+                <div class="report-card-head">
+                  <div class="report-title">Payment Method Breakdown</div>
+                  <div class="muted">Totals by payment type</div>
+                </div>
+                <div class="report-body" id="report-payments">
+                  <div class="chart-container" style="margin-bottom:12px;"><canvas id="chart-payments" height="160"></canvas></div>
+                  <div class="report-payments-list">
+                    <div class="muted" style="text-align:center;padding:12px;">No payments yet</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script src="assets/js/db.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script src="assets/js/waiter.js"></script>
+  </body>
+</html>
