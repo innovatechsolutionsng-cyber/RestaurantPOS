@@ -2765,6 +2765,12 @@ function showToast(message, type = 'success', duration = 3000) {
     orders.forEach(order => {
       const totalItems = (order.items || []).reduce((sum, item) => sum + item.quantity, 0);
       const totalAmount = order.totalAmount || 0;
+      const latestMergedTable = Array.isArray(order.mergedTables) && order.mergedTables.length > 0
+        ? order.mergedTables[order.mergedTables.length - 1]
+        : null;
+      const mergedBadgeText = latestMergedTable
+        ? `Merged Table ${latestMergedTable.tableName || 'Unknown'} • ${latestMergedTable.waiterName || 'Waiter'}`
+        : '';
       
       // Determine badge styling based on status and split info
       let statusBadgeStyle = '';
@@ -2809,6 +2815,12 @@ function showToast(message, type = 'success', duration = 3000) {
             ${splitBadgeText ? `<span class="order-card-badge" style="${splitBadgeStyle}">${splitBadgeText}</span>` : ''}
           </div>
         </div>
+        ${mergedBadgeText ? `
+        <div style="margin-top: 8px; padding: 8px 10px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; width: fit-content;">
+          <span>🔀</span>
+          <span>${mergedBadgeText}</span>
+        </div>
+        ` : ''}
         <div class="order-card-detail">
           <span class="order-card-label">Waiter:</span>
           <span class="order-card-value">${order.waiterName}</span>
@@ -3806,8 +3818,7 @@ function showToast(message, type = 'success', duration = 3000) {
             : (targetTableName || sourceTableName || 'Merged Table');
 
           const mergedOrder = {
-            id: targetOrder.id,
-            tableName: referenceTableName,
+            tableName: targetOrder.tableName || referenceTableName,
             waiterName: combinedWaiter,
             clientName: targetOrder.clientName || '',
             cashierName: getCurrentCashierName(),
@@ -3831,8 +3842,33 @@ function showToast(message, type = 'success', duration = 3000) {
             ]
           };
 
-          await syncOrdersToBackend([mergedOrder]);
+          const syncResult = await syncOrdersToBackend([mergedOrder]);
+          const mergedSavedOrder = (syncResult || [])[0] || { ...mergedOrder };
+
           await deleteOrderFromBackend(sourceId);
+          await deleteOrderFromBackend(targetOrder.id);
+
+          if (Array.isArray(allOrdersCache)) {
+            allOrdersCache = allOrdersCache.filter((order) => {
+              const orderId = String(order.id || '');
+              return orderId !== String(sourceId) && orderId !== String(targetOrder.id);
+            });
+          }
+
+          if (mergedSavedOrder && (mergedSavedOrder.id || mergedSavedOrder.tableName)) {
+            allOrdersCache.push({
+              ...mergedSavedOrder,
+              tableName: targetOrder.tableName || referenceTableName,
+              waiterName: combinedWaiter,
+              items: mergedItems,
+              subtotal: newSubtotal,
+              totalAmount: newBreakdown.total,
+              billingBreakdown: newBreakdown,
+              status: 'pending',
+              allowCashierDelete: false,
+              createdFrom: 'cashier-update'
+            });
+          }
 
           await loadAndRenderOrders();
           editingOrderId = null;
@@ -3841,7 +3877,7 @@ function showToast(message, type = 'success', duration = 3000) {
           originalOrderItems = [];
 
           closeOrderModal();
-          showToast(`Merged ${sourceTableName} into ${referenceTableName}.`, 'success', 3200);
+          showToast(`Merged ${sourceTableName} into ${referenceTableName}. Only the merged table remains.`, 'success', 3200);
         } catch (err) {
           console.error('Join tables error:', err);
           alert('Error joining tables: ' + err.message);
