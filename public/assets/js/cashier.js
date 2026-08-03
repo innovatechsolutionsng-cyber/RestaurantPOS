@@ -3773,12 +3773,20 @@ function showToast(message, type = 'success', duration = 3000) {
         }
         
         try {
-          const normalizeJoinItem = (item) => ({
-            productId: item.productId || item.id || item.product?.id || null,
-            productName: item.productName || item.name || item.product?.name || 'Unknown',
-            unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
-            quantity: Number(item.quantity ?? item.qty ?? 0)
-          });
+          const normalizeJoinItem = (item = {}) => {
+            const unitPrice = Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0);
+            const quantity = Number(item.quantity ?? item.qty ?? 0);
+            const productName = item.productName || item.name || item.product?.name || 'Unknown';
+            return {
+              productId: item.productId || item.id || item.product?.id || null,
+              productName,
+              name: productName,
+              unitPrice,
+              price: unitPrice,
+              quantity,
+              qty: quantity
+            };
+          };
 
           const targetItems = (targetOrder.items || []).map(normalizeJoinItem);
           const sourceItems = (sourceOrder.items || []).map(normalizeJoinItem);
@@ -3789,12 +3797,16 @@ function showToast(message, type = 'success', duration = 3000) {
             const existing = mergedItemsMap.get(key);
             if (existing) {
               existing.quantity = Number(existing.quantity || 0) + Number(item.quantity || 0);
+              existing.qty = Number(existing.qty || 0) + Number(item.quantity || 0);
             } else {
               mergedItemsMap.set(key, {
                 productId: item.productId,
                 productName: item.productName || item.name || 'Unknown',
+                name: item.productName || item.name || 'Unknown',
                 unitPrice: Number(item.unitPrice || 0),
-                quantity: Number(item.quantity || 0)
+                price: Number(item.unitPrice || 0),
+                quantity: Number(item.quantity || 0),
+                qty: Number(item.quantity || 0)
               });
             }
           };
@@ -3802,7 +3814,16 @@ function showToast(message, type = 'success', duration = 3000) {
           targetItems.forEach(addMergedItem);
           sourceItems.forEach(addMergedItem);
 
-          const mergedItems = Array.from(mergedItemsMap.values());
+          const mergedItems = Array.from(mergedItemsMap.values()).map((item) => ({
+            ...item,
+            productName: item.productName || item.name || 'Unknown',
+            name: item.productName || item.name || 'Unknown',
+            unitPrice: Number(item.unitPrice || 0),
+            price: Number(item.unitPrice || 0),
+            quantity: Number(item.quantity || 0),
+            qty: Number(item.quantity || 0)
+          }));
+
           let newSubtotal = 0;
           mergedItems.forEach(item => {
             newSubtotal += Number(item.unitPrice || 0) * Number(item.quantity || 0);
@@ -3821,7 +3842,7 @@ function showToast(message, type = 'success', duration = 3000) {
 
           const mergedOrder = {
             id: `merge-${Date.now()}-${targetOrder.id || sourceId}`,
-            tableName: targetOrder.tableName || referenceTableName,
+            tableName: targetTableName || referenceTableName,
             waiterName: combinedWaiter,
             clientName: targetOrder.clientName || '',
             cashierName: getCurrentCashierName(),
@@ -3845,11 +3866,10 @@ function showToast(message, type = 'success', duration = 3000) {
             ]
           };
 
-          const syncResult = await syncOrdersToBackend([mergedOrder]);
-          const mergedSavedOrder = (syncResult || [])[0] || { ...mergedOrder };
-
-          await deleteOrderFromBackend(sourceId);
-          await deleteOrderFromBackend(targetOrder.id);
+          await Promise.allSettled([
+            deleteOrderFromBackend(String(sourceId)),
+            deleteOrderFromBackend(String(targetOrder.id))
+          ]);
 
           if (Array.isArray(allOrdersCache)) {
             allOrdersCache = allOrdersCache.filter((order) => {
@@ -3858,10 +3878,13 @@ function showToast(message, type = 'success', duration = 3000) {
             });
           }
 
+          const syncResult = await syncOrdersToBackend([mergedOrder]);
+          const mergedSavedOrder = (syncResult || [])[0] || { ...mergedOrder };
+
           const mergedCardOrder = {
             ...mergedSavedOrder,
             id: mergedSavedOrder.id || mergedOrder.id,
-            tableName: targetOrder.tableName || referenceTableName,
+            tableName: targetTableName || referenceTableName,
             waiterName: combinedWaiter,
             items: mergedItems,
             subtotal: newSubtotal,
