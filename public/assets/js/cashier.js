@@ -2763,8 +2763,8 @@ function showToast(message, type = 'success', duration = 3000) {
     container.innerHTML = '';
     
     orders.forEach(order => {
-      const totalItems = (order.items || []).reduce((sum, item) => sum + item.quantity, 0);
-      const totalAmount = order.totalAmount || 0;
+      const totalItems = (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      const totalAmount = Number(order.totalAmount ?? order.billingBreakdown?.total ?? order.subtotal ?? 0);
       const latestMergedTable = Array.isArray(order.mergedTables) && order.mergedTables.length > 0
         ? order.mergedTables[order.mergedTables.length - 1]
         : null;
@@ -3818,6 +3818,7 @@ function showToast(message, type = 'success', duration = 3000) {
             : (targetTableName || sourceTableName || 'Merged Table');
 
           const mergedOrder = {
+            id: `merge-${Date.now()}-${targetOrder.id || sourceId}`,
             tableName: targetOrder.tableName || referenceTableName,
             waiterName: combinedWaiter,
             clientName: targetOrder.clientName || '',
@@ -3855,19 +3856,22 @@ function showToast(message, type = 'success', duration = 3000) {
             });
           }
 
-          if (mergedSavedOrder && (mergedSavedOrder.id || mergedSavedOrder.tableName)) {
-            allOrdersCache.push({
-              ...mergedSavedOrder,
-              tableName: targetOrder.tableName || referenceTableName,
-              waiterName: combinedWaiter,
-              items: mergedItems,
-              subtotal: newSubtotal,
-              totalAmount: newBreakdown.total,
-              billingBreakdown: newBreakdown,
-              status: 'pending',
-              allowCashierDelete: false,
-              createdFrom: 'cashier-update'
-            });
+          const mergedCardOrder = {
+            ...mergedSavedOrder,
+            id: mergedSavedOrder.id || mergedOrder.id,
+            tableName: targetOrder.tableName || referenceTableName,
+            waiterName: combinedWaiter,
+            items: mergedItems,
+            subtotal: newSubtotal,
+            totalAmount: newBreakdown.total,
+            billingBreakdown: newBreakdown,
+            status: 'pending',
+            allowCashierDelete: false,
+            createdFrom: 'cashier-update'
+          };
+
+          if (mergedCardOrder && (mergedCardOrder.id || mergedCardOrder.tableName)) {
+            allOrdersCache.push(mergedCardOrder);
           }
 
           await loadAndRenderOrders();
