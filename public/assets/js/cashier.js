@@ -413,6 +413,12 @@ function showToast(message, type = 'success', duration = 3000) {
     if (order.createdFrom && String(order.createdFrom).includes('cashier-update')) {
       return false;
     }
+    if (Array.isArray(order.mergedTables) && order.mergedTables.length > 0) {
+      return false;
+    }
+    if (order.splitReference || order.splitFromBillId || order.splitPlace || order.splitTotal) {
+      return false;
+    }
     return isOrderUnmodified(order);
   }
 
@@ -3767,19 +3773,15 @@ function showToast(message, type = 'success', duration = 3000) {
         }
         
         try {
-          const targetItems = (targetOrder.items || []).map(item => ({
-            productId: item.productId,
-            productName: item.productName || item.name || 'Unknown',
-            unitPrice: Number(item.unitPrice ?? item.price ?? 0),
-            quantity: Number(item.quantity || 0)
-          }));
+          const normalizeJoinItem = (item) => ({
+            productId: item.productId || item.id || item.product?.id || null,
+            productName: item.productName || item.name || item.product?.name || 'Unknown',
+            unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
+            quantity: Number(item.quantity ?? item.qty ?? 0)
+          });
 
-          const sourceItems = (sourceOrder.items || []).map(item => ({
-            productId: item.productId,
-            productName: item.productName || item.name || 'Unknown',
-            unitPrice: Number(item.unitPrice ?? item.price ?? 0),
-            quantity: Number(item.quantity || 0)
-          }));
+          const targetItems = (targetOrder.items || []).map(normalizeJoinItem);
+          const sourceItems = (sourceOrder.items || []).map(normalizeJoinItem);
 
           const mergedItemsMap = new Map();
           const addMergedItem = (item) => {
