@@ -404,6 +404,15 @@ function showToast(message, type = 'success', duration = 3000) {
     if (order.allowCashierDelete === false || String(order.allowCashierDelete).toLowerCase() === 'false') {
       return false;
     }
+    if (order.createdFrom && String(order.createdFrom).includes('update')) {
+      return false;
+    }
+    if (order.createdFrom && String(order.createdFrom).includes('waiter-update')) {
+      return false;
+    }
+    if (order.createdFrom && String(order.createdFrom).includes('cashier-update')) {
+      return false;
+    }
     return isOrderUnmodified(order);
   }
 
@@ -2175,7 +2184,8 @@ function showToast(message, type = 'success', duration = 3000) {
         cashierName: getCurrentCashierName(),
         cashier: getCurrentCashierName(),
         createdBy: getCurrentCashierName(),
-        allowCashierDelete: editingOrderId ? (editingOrder?.allowCashierDelete === false ? false : true) : true,
+        allowCashierDelete: editingOrderId ? false : true,
+        createdFrom: editingOrderId ? (editingOrder?.createdFrom || 'cashier-update') : (editingOrder?.createdFrom || 'cashier-create'),
         clientName: clientInput?.value || '',
         items: currentOrderItems.map(item => ({
           productId: item.productId,
@@ -3745,73 +3755,93 @@ function showToast(message, type = 'success', duration = 3000) {
         }
         
         try {
-          // Deep clone items from both orders
           const targetItems = (targetOrder.items || []).map(item => ({
             productId: item.productId,
-            productName: item.productName,
-            unitPrice: item.unitPrice,
-            quantity: item.quantity
+            productName: item.productName || item.name || 'Unknown',
+            unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+            quantity: Number(item.quantity || 0)
           }));
-          
+
           const sourceItems = (sourceOrder.items || []).map(item => ({
             productId: item.productId,
-            productName: item.productName,
-            unitPrice: item.unitPrice,
-            quantity: item.quantity
+            productName: item.productName || item.name || 'Unknown',
+            unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+            quantity: Number(item.quantity || 0)
           }));
-          
-          // Merge all items from both tables
-          const mergedItems = [...targetItems, ...sourceItems];
-          
-          // Calculate combined total
+
+          const mergedItemsMap = new Map();
+          const addMergedItem = (item) => {
+            const key = `${item.productId || 'na'}:${Number(item.unitPrice || 0)}`;
+            const existing = mergedItemsMap.get(key);
+            if (existing) {
+              existing.quantity = Number(existing.quantity || 0) + Number(item.quantity || 0);
+            } else {
+              mergedItemsMap.set(key, {
+                productId: item.productId,
+                productName: item.productName || item.name || 'Unknown',
+                unitPrice: Number(item.unitPrice || 0),
+                quantity: Number(item.quantity || 0)
+              });
+            }
+          };
+
+          targetItems.forEach(addMergedItem);
+          sourceItems.forEach(addMergedItem);
+
+          const mergedItems = Array.from(mergedItemsMap.values());
           let newSubtotal = 0;
           mergedItems.forEach(item => {
-            newSubtotal += item.unitPrice * item.quantity;
+            newSubtotal += Number(item.unitPrice || 0) * Number(item.quantity || 0);
           });
-          
+
           const newBreakdown = calculateBillingBreakdown(newSubtotal);
-          
-          // Combine waiter names if different
-          const combinedWaiter = sourceOrder.waiterName === targetOrder.waiterName 
-            ? targetOrder.waiterName 
-            : `${targetOrder.waiterName} & ${sourceOrder.waiterName}`;
-          
-          // Create a brand new merged order
+          const combinedWaiter = sourceOrder.waiterName === targetOrder.waiterName
+            ? targetOrder.waiterName
+            : `${targetOrder.waiterName || 'Unassigned'} & ${sourceOrder.waiterName || 'Unassigned'}`;
+
+          const targetTableName = String(targetOrder.tableName || '').trim();
+          const sourceTableName = String(sourceOrder.tableName || '').trim();
+          const referenceTableName = targetTableName && sourceTableName
+            ? (targetTableName.includes(sourceTableName) ? targetTableName : `${targetTableName} + ${sourceTableName}`)
+            : (targetTableName || sourceTableName || 'Merged Table');
+
           const mergedOrder = {
-            tableName: targetOrder.tableName,
+            id: targetOrder.id,
+            tableName: referenceTableName,
             waiterName: combinedWaiter,
             clientName: targetOrder.clientName || '',
             cashierName: getCurrentCashierName(),
             createdBy: getCurrentCashierName(),
+            allowCashierDelete: false,
+            createdFrom: 'cashier-update',
             items: mergedItems,
             status: 'pending',
             subtotal: newSubtotal,
             billingBreakdown: newBreakdown,
             totalAmount: newBreakdown.total,
-            createdAt: new Date().toISOString(),
+            createdAt: targetOrder.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             mergedTables: [
+              ...(Array.isArray(targetOrder.mergedTables) ? targetOrder.mergedTables : []),
               {
-                tableName: sourceOrder.tableName,
+                tableName: sourceTableName,
                 waiterName: sourceOrder.waiterName,
                 joinedAt: new Date().toISOString()
               }
             ]
           };
-          
-          // Persist the merged target order and remove the source order from the backend
+
           await syncOrdersToBackend([mergedOrder]);
           await deleteOrderFromBackend(sourceId);
-          
-          // Refresh orders list and clear editing state
+
           await loadAndRenderOrders();
           editingOrderId = null;
           editingOrder = null;
           currentOrderItems = [];
           originalOrderItems = [];
-          
+
           closeOrderModal();
-          alert(`Successfully merged ${sourceOrder.tableName} with ${targetOrder.tableName}!\nMerged items: ${mergedItems.length}\nWaiters: ${combinedWaiter}`);
+          showToast(`Merged ${sourceTableName} into ${referenceTableName}.`, 'success', 3200);
         } catch (err) {
           console.error('Join tables error:', err);
           alert('Error joining tables: ' + err.message);
@@ -4575,12 +4605,10 @@ function showToast(message, type = 'success', duration = 3000) {
   // Split bill (enhanced version with read-only fields and proper UI)
   // Multi-step split bill process
   async function splitBill(){
-    // If no order is being edited, show a list to select from
     if (!editingOrderId) {
       const modal = document.getElementById('order-modal');
       if (!modal) return;
 
-      // Store original modal content
       const originalHTML = modal.innerHTML;
       const oldPanel = modal.querySelector('.modal-panel');
       if (oldPanel) {
@@ -4592,94 +4620,104 @@ function showToast(message, type = 'success', duration = 3000) {
       modal.removeAttribute('inert');
 
       const modalPanel = modal.querySelector('.modal-panel');
+      const todayOrders = (filterBusinessDayOrders(allOrdersCache) || []).filter((order) => {
+        const status = String(order.status || '').toLowerCase();
+        return status !== 'completed' && status !== 'closed' && status !== 'cancelled' && status !== 'canceled';
+      });
 
-      // Get pending orders (not completed)
-      const pendingOrders = allOrdersCache.filter(order => order.status !== 'completed');
-
-      if (pendingOrders.length === 0) {
-        alert('No pending orders to split');
+      if (todayOrders.length === 0) {
+        alert('No pending orders for today to split');
         return;
       }
 
-      // Build orders list
-      let ordersHTML = '<div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px;">';
-      
-      pendingOrders.forEach(order => {
-        const totalAmount = order.items ? order.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0) : 0;
-        ordersHTML += `
-          <div class="order-list-item" style="padding: 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; border-radius: 6px; transition: background 0.2s;" data-order-id="${order.id}">
+      const ordersHTML = todayOrders.map((order) => {
+        const itemCount = Array.isArray(order.items) ? order.items.length : 0;
+        const totalAmount = (order.items || []).reduce((sum, item) => sum + (Number(item.unitPrice ?? item.price ?? 0) * Number(item.quantity || 0)), 0);
+        const createdAt = getOrderCreatedAt(order);
+        const createdLabel = Number.isNaN(createdAt.getTime()) ? 'Unknown time' : createdAt.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+        return `
+          <div class="split-order-card" data-order-id="${order.id}" style="display:grid;grid-template-columns:1.4fr auto auto;gap:12px;align-items:center;padding:14px 12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;cursor:pointer;transition:all 0.2s ease;">
             <div>
-              <div style="font-weight: 600; margin-bottom: 4px;">${order.tableName}</div>
-              <div style="font-size: 0.9em; color: var(--text-muted);">
-                Waiter: ${order.waiterName} | Items: ${order.items ? order.items.length : 0}
+              <div style="font-weight:700;color:#111827;margin-bottom:4px;">${order.tableName || 'Unassigned table'}</div>
+              <div style="font-size:0.9rem;color:#6b7280;line-height:1.45;">
+                <div>Waiter: <strong>${order.waiterName || 'Unassigned'}</strong></div>
+                <div>Items: <strong>${itemCount}</strong> · Created: <strong>${createdLabel}</strong></div>
               </div>
             </div>
-            <div style="text-align: right;">
-              <div style="font-weight: 700; font-size: 1.1em;">${formatCurrency(totalAmount)}</div>
+            <div style="text-align:right;">
+              <div style="font-size:0.8rem;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;">Amount</div>
+              <div style="font-weight:700;color:#2563eb;">${formatCurrency(totalAmount)}</div>
+            </div>
+            <div>
+              <button type="button" class="btn btn-accent" style="margin:0;padding:9px 12px;">Select</button>
             </div>
           </div>
         `;
-      });
-
-      ordersHTML += '</div>';
+      }).join('');
 
       modalPanel.innerHTML = `
-        <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
-          <h3 style="margin:0;">Split Bill - Select Order</h3>
+        <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <h3 style="margin:0;">Split Bill - Select Order</h3>
+            <div style="margin-top:6px;font-size:0.9rem;color:#6b7280;">Choose a pending order from today to split.</div>
+          </div>
           <button id="btn-close-select-order" class="btn btn-ghost" aria-label="Close">✕</button>
         </div>
         <div class="modal-body">
-          <div style="padding: 12px; background: #e8f4f8; border-left: 4px solid #0891b2; border-radius: 4px; margin-bottom: 16px;">
-            <p style="margin: 0; font-size: 0.9em;"><strong>Select an order to split:</strong></p>
+          <div style="padding:12px 14px;background:#e8f4f8;border-left:4px solid #0891b2;border-radius:8px;margin-bottom:16px;">
+            <div style="font-weight:700;color:#0f172a;margin-bottom:4px;">Today’s pending orders</div>
+            <div style="font-size:0.92rem;color:#475569;">Each order below shows the waiter, item quantity, and amount so you can choose the correct bill to split.</div>
           </div>
-          
-          ${ordersHTML}
+          <div style="display:grid;gap:10px;max-height:420px;overflow-y:auto;">
+            ${ordersHTML}
+          </div>
         </div>
-        <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+        <div class="modal-footer" style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
           <button id="btn-cancel-select-order" class="btn btn-ghost">Cancel</button>
         </div>
       `;
 
       const closeHandler = () => {
-        // Reset split bill state
         editingOrderId = null;
         editingOrder = null;
         currentOrderItems = [];
         originalOrderItems = [];
-        
+
         modal.innerHTML = originalHTML;
         modal.setAttribute('aria-hidden', 'true');
         modal.setAttribute('inert', '');
         rewireModalButtons();
       };
 
-      document.getElementById('btn-close-select-order').addEventListener('click', closeHandler, { once: true });
-      document.getElementById('btn-cancel-select-order').addEventListener('click', closeHandler, { once: true });
+      document.getElementById('btn-close-select-order')?.addEventListener('click', closeHandler, { once: true });
+      document.getElementById('btn-cancel-select-order')?.addEventListener('click', closeHandler, { once: true });
 
-      // Wire up order selection
-      document.querySelectorAll('.order-list-item').forEach(item => {
-        item.addEventListener('click', async () => {
-          const orderId = item.getAttribute('data-order-id');
-          const order = allOrdersCache.find(o => String(o.id) === String(orderId));
+      document.querySelectorAll('.split-order-card').forEach((card) => {
+        card.addEventListener('click', async () => {
+          const orderId = card.getAttribute('data-order-id');
+          const order = allOrdersCache.find((entry) => String(entry.id) === String(orderId));
 
           if (!order) {
             alert('Order not found');
             return;
           }
 
-          // Load this order into editing state
           editingOrderId = orderId;
           editingOrder = order;
-          currentOrderItems = order.items || [];
+          currentOrderItems = Array.isArray(order.items) ? order.items.map((item) => ({
+            ...item,
+            productName: item.productName || item.name || 'Unknown',
+            unitPrice: Number(item.unitPrice ?? item.price ?? 0),
+            quantity: Number(item.quantity || 0)
+          })) : [];
           originalOrderItems = JSON.parse(JSON.stringify(currentOrderItems));
 
-          // Close the selection modal
           modal.innerHTML = originalHTML;
           modal.setAttribute('aria-hidden', 'true');
           modal.setAttribute('inert', '');
           rewireModalButtons();
 
-          // Now proceed with the split bill flow
           splitBillForOrder();
         });
       });
@@ -4687,17 +4725,16 @@ function showToast(message, type = 'success', duration = 3000) {
       return;
     }
 
-    // If an order is being edited, proceed with split bill flow
     splitBillForOrder();
   }
 
   // Split bill flow for a selected order
   async function splitBillForOrder(){
     if (!editingOrderId) {
-      alert('You must be editing an order to split a bill');
+      alert('You must select an order to split a bill');
       return;
     }
-    
+
     if (currentOrderItems.length === 0) {
       alert('No items to split');
       return;
@@ -4706,70 +4743,58 @@ function showToast(message, type = 'success', duration = 3000) {
     const modal = document.getElementById('order-modal');
     if (!modal) return;
 
-    // Store original modal content and clean up any leftover event listeners
     const originalHTML = modal.innerHTML;
     const oldPanel = modal.querySelector('.modal-panel');
     if (oldPanel) {
       const clonedPanel = oldPanel.cloneNode(true);
       modal.replaceChild(clonedPanel, oldPanel);
     }
-    
+
     modal.setAttribute('aria-hidden', 'false');
     modal.removeAttribute('inert');
-    
+
     const modalPanel = modal.querySelector('.modal-panel');
-    
-    // Step 1: Ask which table bill to split and how many places
-    const showStep1 = () => {
+
+    const showSplitConfig = () => {
       let splitPlaces = 2;
-      
+
       modalPanel.innerHTML = `
-        <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
-          <h3 style="margin:0;">Split Bill - Step 1 of 2</h3>
+        <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <h3 style="margin:0;">Split Bill - Configure</h3>
+            <div style="margin-top:6px;font-size:0.9rem;color:#6b7280;">Choose how many places this bill should be split into.</div>
+          </div>
           <button id="btn-close-split" class="btn btn-ghost" aria-label="Close">✕</button>
         </div>
         <div class="modal-body">
-          <div style="padding: 12px; background: #e8f4f8; border-left: 4px solid #0891b2; border-radius: 4px; margin-bottom: 16px;">
-            <p style="margin: 0; font-size: 0.9em;"><strong>Step 1 of 2:</strong> Configure split details</p>
-          </div>
-          
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">Original Bill Information:</label>
-            <div style="padding: 12px; background: #f3f4f6; border-radius: 6px; border-left: 4px solid #3b82f6;">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div>
-                  <div style="font-size: 0.85em; color: #666; margin-bottom: 4px;">Table Number:</div>
-                  <div style="font-size: 1.1em; font-weight: 700; color: #000;">${editingOrder.tableName}</div>
-                </div>
-                <div>
-                  <div style="font-size: 0.85em; color: #666; margin-bottom: 4px;">Waiter:</div>
-                  <div style="font-size: 1.1em; font-weight: 700; color: #000;">${editingOrder.waiterName}</div>
-                </div>
-              </div>
+          <div style="padding:12px 14px;background:#f8fafc;border:1px solid #dbeafe;border-left:4px solid #3b82f6;border-radius:8px;margin-bottom:16px;">
+            <div style="font-weight:700;color:#111827;margin-bottom:6px;">Bill information</div>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;font-size:0.95rem;color:#334155;">
+              <div><span style="color:#64748b;display:block;margin-bottom:4px;">Table</span><strong>${editingOrder.tableName || 'Unassigned'}</strong></div>
+              <div><span style="color:#64748b;display:block;margin-bottom:4px;">Waiter</span><strong>${editingOrder.waiterName || 'Unassigned'}</strong></div>
+              <div><span style="color:#64748b;display:block;margin-bottom:4px;">Items</span><strong>${currentOrderItems.length}</strong></div>
+              <div><span style="color:#64748b;display:block;margin-bottom:4px;">Amount</span><strong>${formatCurrency((currentOrderItems || []).reduce((sum, item) => sum + (Number(item.unitPrice || 0) * Number(item.quantity || 0)), 0))}</strong></div>
             </div>
           </div>
-          
-          <div style="margin-bottom: 20px;">
-            <label for="split-places" style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">
-              How many places do you want to split this bill into?
-            </label>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <input type="number" id="split-places" min="2" max="20" value="2" style="width: 80px; padding: 10px; border: 2px solid #3b82f6; border-radius: 6px; font-size: 1em; font-weight: 600; text-align: center;" />
-              <span style="font-size: 0.9em; color: #666;">places (minimum 2)</span>
+          <div style="margin-bottom:20px;">
+            <label for="split-places" style="display:block;font-weight:700;color:#111827;margin-bottom:8px;">How many places do you want to split this bill into?</label>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <input type="number" id="split-places" min="2" max="20" value="2" style="width:90px;padding:10px;border:2px solid #3b82f6;border-radius:8px;font-size:1rem;font-weight:700;text-align:center;" />
+              <span style="font-size:0.92rem;color:#6b7280;">Minimum 2 places</span>
             </div>
-            <p style="margin: 12px 0 0 0; font-size: 0.85em; color: #666;">You can then distribute items among the different places</p>
+            <p style="margin:10px 0 0 0;font-size:0.9rem;color:#6b7280;">Place 1 stays on the original bill, and the remaining places become separate split bills.</p>
           </div>
-          
-          <div style="padding: 12px; background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 4px;">
-            <p style="margin: 0; font-size: 0.9em;"><strong>Note:</strong> Each split bill will have its own reference number and can be paid separately.</p>
+          <div style="padding:12px 14px;background:#f0fdf4;border-left:4px solid #10b981;border-radius:8px;">
+            <div style="font-weight:700;color:#065f46;">Next step</div>
+            <div style="margin-top:4px;font-size:0.92rem;color:#475569;">After you click next, you will distribute the items across the selected places.</div>
           </div>
         </div>
-        <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+        <div class="modal-footer" style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
           <button id="btn-cancel-split" class="btn btn-ghost">Cancel</button>
-          <button id="btn-next-split" class="btn btn-accent">Next: Select Items</button>
+          <button id="btn-next-split" class="btn btn-accent">Next</button>
         </div>
       `;
-      
+
       const placesInput = document.getElementById('split-places');
       const closeHandler = () => {
         modal.innerHTML = originalHTML;
@@ -4777,176 +4802,149 @@ function showToast(message, type = 'success', duration = 3000) {
         modal.setAttribute('inert', '');
         rewireModalButtons();
       };
-      
-      document.getElementById('btn-close-split').addEventListener('click', closeHandler, { once: true });
-      document.getElementById('btn-cancel-split').addEventListener('click', closeHandler, { once: true });
-      
-      document.getElementById('btn-next-split').addEventListener('click', () => {
-        splitPlaces = parseInt(placesInput.value) || 2;
+
+      document.getElementById('btn-close-split')?.addEventListener('click', closeHandler, { once: true });
+      document.getElementById('btn-cancel-split')?.addEventListener('click', closeHandler, { once: true });
+
+      document.getElementById('btn-next-split')?.addEventListener('click', () => {
+        const splitPlaces = parseInt(placesInput?.value) || 2;
         if (splitPlaces < 2 || splitPlaces > 20) {
           alert('Please enter a valid number between 2 and 20');
           return;
         }
-        showStep2(splitPlaces);
+        showSplitDistribution(splitPlaces);
       }, { once: true });
     };
-    
-    // Step 2: Distribute items among split places
-    const showStep2 = (numPlaces) => {
-      // Initialize distribution - stores {itemIndex: {place: quantity}}
+
+    const showSplitDistribution = (numPlaces) => {
       const itemDistribution = {};
       currentOrderItems.forEach((item, index) => {
         itemDistribution[index] = {};
-        itemDistribution[index][1] = item.quantity; // Default all to place 1
+        itemDistribution[index][1] = item.quantity;
       });
-      
-      let itemsHTML = `<div style="max-height: 450px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px;">`;
-      
+
+      let itemsHTML = `<div style="max-height:450px;overflow-y:auto;border:1px solid #e5e7eb;padding:10px;border-radius:10px;">`;
+
       currentOrderItems.forEach((item, index) => {
-        const itemTotal = item.unitPrice * item.quantity;
+        const itemTotal = Number(item.unitPrice || 0) * Number(item.quantity || 0);
         let placeInputsHTML = '';
         for (let i = 1; i <= numPlaces; i++) {
           if (i === 1) {
-            // P1 (original bill) - show as read-only label with auto-calculated remaining quantity
             placeInputsHTML += `
-              <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-                <label style="font-weight: 600; font-size: 0.9em;">P1:</label>
-                <input type="number" id="qty-${index}-place-${i}" class="place-qty-input place-1-qty" data-item-index="${index}" data-place="${i}" min="0" max="${item.quantity}" value="${item.quantity}" style="width: 50px; padding: 4px; border: 1px solid var(--border); border-radius: 4px; text-align: center; font-size: 0.9em; background: #f0f0f0; color: #666; cursor: not-allowed;" readonly />
+              <div style="display:flex;align-items:center;gap:6px;flex:1;">
+                <label style="font-weight:700;font-size:0.9em;">P1:</label>
+                <input type="number" id="qty-${index}-place-${i}" class="place-qty-input place-1-qty" data-item-index="${index}" data-place="${i}" min="0" max="${item.quantity}" value="${item.quantity}" style="width:54px;padding:4px;border:1px solid #d1d5db;border-radius:6px;text-align:center;font-size:0.9em;background:#f3f4f6;color:#6b7280;cursor:not-allowed;" readonly />
               </div>
             `;
           } else {
-            // P2, P3, etc - editable
             placeInputsHTML += `
-              <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
-                <label for="qty-${index}-place-${i}" style="font-weight: 600; font-size: 0.9em;">P${i}:</label>
-                <input type="number" id="qty-${index}-place-${i}" class="place-qty-input other-place-qty" data-item-index="${index}" data-place="${i}" min="0" max="${item.quantity}" value="0" style="width: 50px; padding: 4px; border: 1px solid var(--border); border-radius: 4px; text-align: center; font-size: 0.9em;" />
+              <div style="display:flex;align-items:center;gap:6px;flex:1;">
+                <label for="qty-${index}-place-${i}" style="font-weight:700;font-size:0.9em;">P${i}:</label>
+                <input type="number" id="qty-${index}-place-${i}" class="place-qty-input other-place-qty" data-item-index="${index}" data-place="${i}" min="0" max="${item.quantity}" value="0" style="width:54px;padding:4px;border:1px solid #d1d5db;border-radius:6px;text-align:center;font-size:0.9em;" />
               </div>
             `;
           }
         }
-        
+
         itemsHTML += `
-          <div style="padding: 12px; border-bottom: 1px solid var(--border); background: #f9fafb; border-radius: 4px; margin-bottom: 8px;">
-            <div style="font-weight: 600; margin-bottom: 8px;">${item.productName}</div>
-            <div style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px;">
-              Available: ${item.quantity} units @ ${formatCurrency(item.unitPrice)} = ${formatCurrency(itemTotal)}
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
-              ${placeInputsHTML}
-            </div>
+          <div style="padding:12px;border-bottom:1px solid #e5e7eb;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
+            <div style="font-weight:700;margin-bottom:6px;">${item.productName || 'Unknown item'}</div>
+            <div style="font-size:0.85rem;color:#6b7280;margin-bottom:10px;">Available: ${item.quantity} units · ${formatCurrency(item.unitPrice)} each · ${formatCurrency(itemTotal)}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;">${placeInputsHTML}</div>
           </div>
         `;
       });
-      
+
       itemsHTML += '</div>';
-      
-      let placeAmountsHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px;">';
+
+      let placeAmountsHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px;">';
       for (let i = 1; i <= numPlaces; i++) {
         placeAmountsHTML += `
-          <div style="padding: 12px; background: #f3f4f6; border-radius: 6px; border: 2px solid #e5e7eb;">
-            <div style="font-size: 0.85em; color: #666; margin-bottom: 4px; font-weight: 600;">Place ${i}</div>
-            <div style="font-size: 1.2em; font-weight: 700; color: #2563eb;" id="place-${i}-total">₦0.00</div>
+          <div style="padding:12px;background:#f3f4f6;border-radius:8px;border:2px solid #e5e7eb;">
+            <div style="font-size:0.8rem;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;font-weight:700;">Place ${i}</div>
+            <div style="font-size:1.1rem;font-weight:700;color:#2563eb;" id="place-${i}-total">₦0.00</div>
           </div>
         `;
       }
       placeAmountsHTML += '</div>';
-      
+
       modalPanel.innerHTML = `
-        <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
-          <h3 style="margin:0;">Split Bill - Step 2 of 2</h3>
+        <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <h3 style="margin:0;">Split Bill - Distribute</h3>
+            <div style="margin-top:6px;font-size:0.9rem;color:#6b7280;">Assign quantities to each place. Place 1 is the original bill.</div>
+          </div>
           <button id="btn-close-split" class="btn btn-ghost" aria-label="Close">✕</button>
         </div>
-        <div class="modal-body" style="display: flex; flex-direction: column; height: 100%;">
-          <div style="padding: 12px; background: #e8f4f8; border-left: 4px solid #0891b2; border-radius: 4px; margin-bottom: 16px;">
-            <p style="margin: 0; font-size: 0.9em;"><strong>Step 2 of 2:</strong> Distribute items across ${numPlaces} place(s)</p>
+        <div class="modal-body" style="display:flex;flex-direction:column;height:100%;">
+          <div style="padding:12px 14px;background:#e8f4f8;border-left:4px solid #0891b2;border-radius:8px;margin-bottom:16px;">
+            <div style="font-weight:700;color:#0f172a;margin-bottom:4px;">Distribution preview</div>
+            <div style="font-size:0.92rem;color:#475569;">Review the amounts below and move quantities to each place before creating the split orders.</div>
           </div>
-          
-          <div style="margin-bottom: 16px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">Amount per Place:</label>
-            ${placeAmountsHTML}
-          </div>
-          
-          <!-- Distribution Summary Table -->
-          <div style="margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
-            <div style="background: #f3f4f6; padding: 10px; font-weight: 600; font-size: 0.95rem; color: #333;">Distribution Summary</div>
-            <div style="overflow-x: auto; max-height: 250px; overflow-y: auto;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                <thead style="background: #e5e7eb; position: sticky; top: 0;">
-                  <tr style="border-bottom: 1px solid var(--border);">
-                    <th style="padding: 8px; text-align: left; font-weight: 600;">Item</th>
-                    <th style="padding: 8px; text-align: center; font-weight: 600;">Original</th>
-                    ${Array.from({length: numPlaces}, (_, i) => `<th style="padding: 8px; text-align: center; font-weight: 600; background: ${i === 0 ? '#f0f0f0' : '#fff'};">P${i + 1}</th>`).join('')}
+          <div style="margin-bottom:16px;">${placeAmountsHTML}</div>
+          <div style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+            <div style="background:#f3f4f6;padding:10px;font-weight:700;color:#111827;">Distribution summary</div>
+            <div style="overflow-x:auto;max-height:250px;overflow-y:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                <thead style="background:#e5e7eb;position:sticky;top:0;">
+                  <tr>
+                    <th style="padding:8px;text-align:left;font-weight:700;">Item</th>
+                    <th style="padding:8px;text-align:center;font-weight:700;">Original</th>
+                    ${Array.from({ length: numPlaces }, (_, i) => `<th style="padding:8px;text-align:center;font-weight:700;background:${i === 0 ? '#f3f4f6' : '#fff'};">P${i + 1}</th>`).join('')}
                   </tr>
                 </thead>
                 <tbody>
                   ${currentOrderItems.map((item, idx) => `
-                    <tr style="border-bottom: 1px solid var(--border); background: ${idx % 2 === 0 ? '#fff' : '#f9fafb'};">
-                      <td style="padding: 8px; text-align: left;">${item.productName}</td>
-                      <td style="padding: 8px; text-align: center; font-weight: 600;">${item.quantity}</td>
-                      ${Array.from({length: numPlaces}, (_, i) => `<td style="padding: 8px; text-align: center; background: ${i === 0 ? '#f0f0f0' : '#fff'};" id="summary-qty-${idx}-${i + 1}">-</td>`).join('')}
+                    <tr style="border-bottom:1px solid #e5e7eb;background:${idx % 2 === 0 ? '#fff' : '#f9fafb'};">
+                      <td style="padding:8px;text-align:left;">${item.productName || 'Unknown item'}</td>
+                      <td style="padding:8px;text-align:center;font-weight:700;">${item.quantity}</td>
+                      ${Array.from({ length: numPlaces }, (_, i) => `<td style="padding:8px;text-align:center;background:${i === 0 ? '#f3f4f6' : '#fff'};" id="summary-qty-${idx}-${i + 1}">-</td>`).join('')}
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
             </div>
           </div>
-          
-          <div style="margin-bottom: 12px;">
-            <p style="margin: 0; font-weight: 600; color: #333;">Edit quantities below:</p>
-            <p style="margin: 4px 0 0 0; font-size: 0.85em; color: #666;">P1 (grey) updates automatically as you adjust other places</p>
-          </div>
-          
-          <div style="flex: 1; overflow-y: auto;">
-            ${itemsHTML}
-          </div>
+          <div style="margin-bottom:10px;font-weight:700;color:#111827;">Edit quantities below</div>
+          <div style="flex:1;overflow-y:auto;">${itemsHTML}</div>
         </div>
-        <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+        <div class="modal-footer" style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
           <button id="btn-back-split" class="btn btn-secondary">Back</button>
           <button id="btn-cancel-split" class="btn btn-ghost">Cancel</button>
           <button id="btn-confirm-split" class="btn btn-accent">Create Split Bills</button>
         </div>
       `;
-      
-      // Apply wider width to modal-panel for Step 2
+
       modalPanel.style.maxWidth = '1400px';
       modalPanel.style.width = '90vw';
-      
+
       const otherPlaceInputs = document.querySelectorAll('.other-place-qty');
       const updateSummaries = () => {
-        // Calculate totals from P2 onwards and auto-adjust P1
         const itemQtysPerPlace = {};
-        for (let i = 1; i <= numPlaces; i++) {
-          itemQtysPerPlace[i] = {};
-        }
-        
-        // Collect quantities for P2 onwards (editable inputs)
-        document.querySelectorAll('.other-place-qty').forEach(input => {
+        for (let i = 1; i <= numPlaces; i++) itemQtysPerPlace[i] = {};
+
+        document.querySelectorAll('.other-place-qty').forEach((input) => {
           const place = parseInt(input.getAttribute('data-place'));
           const itemIndex = parseInt(input.getAttribute('data-item-index'));
           const quantity = parseInt(input.value) || 0;
           itemQtysPerPlace[place][itemIndex] = quantity;
         });
-        
-        // Auto-calculate P1 quantities by subtracting P2+ from original
+
         currentOrderItems.forEach((item, index) => {
           let totalMovedQty = 0;
           for (let place = 2; place <= numPlaces; place++) {
             totalMovedQty += itemQtysPerPlace[place][index] || 0;
           }
-          
-          // Validate that total doesn't exceed original quantity
+
           if (totalMovedQty > item.quantity) {
-            // Too much moved, reset the input
             const changedInput = document.querySelector('.other-place-qty:focus');
             if (changedInput) changedInput.value = Math.max(0, item.quantity - (totalMovedQty - (parseInt(changedInput.value) || 0)));
             totalMovedQty = item.quantity;
           }
-          
-          // Set P1 quantity to remaining
+
           const p1Input = document.getElementById(`qty-${index}-place-1`);
           if (p1Input) p1Input.value = item.quantity - totalMovedQty;
-          
-          // Update distribution summary table
+
           for (let place = 1; place <= numPlaces; place++) {
             const summaryCell = document.getElementById(`summary-qty-${index}-${place}`);
             if (summaryCell) {
@@ -4954,100 +4952,84 @@ function showToast(message, type = 'success', duration = 3000) {
             }
           }
         });
-        
-        // Calculate place totals
+
         const placeAmounts = {};
-        for (let i = 1; i <= numPlaces; i++) {
-          placeAmounts[i] = 0;
-        }
-        
-        document.querySelectorAll('.place-qty-input').forEach(input => {
+        for (let i = 1; i <= numPlaces; i++) placeAmounts[i] = 0;
+
+        document.querySelectorAll('.place-qty-input').forEach((input) => {
           const place = parseInt(input.getAttribute('data-place'));
           const itemIndex = parseInt(input.getAttribute('data-item-index'));
           const quantity = parseInt(input.value) || 0;
           const item = currentOrderItems[itemIndex];
-          placeAmounts[place] += item.unitPrice * quantity;
+          placeAmounts[place] += Number(item.unitPrice || 0) * quantity;
         });
-        
+
         for (let i = 1; i <= numPlaces; i++) {
           const el = document.getElementById(`place-${i}-total`);
           if (el) el.textContent = formatCurrency(placeAmounts[i]);
         }
       };
-      
-      otherPlaceInputs.forEach(input => {
+
+      otherPlaceInputs.forEach((input) => {
         input.addEventListener('change', updateSummaries);
         input.addEventListener('input', updateSummaries);
       });
-      
-      // Initial update
       updateSummaries();
-      
+
       const closeHandler = () => {
         modal.innerHTML = originalHTML;
         modal.setAttribute('aria-hidden', 'true');
         modal.setAttribute('inert', '');
         rewireModalButtons();
       };
-      
-      document.getElementById('btn-close-split').addEventListener('click', closeHandler, { once: true });
-      document.getElementById('btn-cancel-split').addEventListener('click', closeHandler, { once: true });
-      document.getElementById('btn-back-split').addEventListener('click', showStep1, { once: true });
-      
-      document.getElementById('btn-confirm-split').addEventListener('click', async () => {
+
+      document.getElementById('btn-close-split')?.addEventListener('click', closeHandler, { once: true });
+      document.getElementById('btn-cancel-split')?.addEventListener('click', closeHandler, { once: true });
+      document.getElementById('btn-back-split')?.addEventListener('click', showSplitConfig, { once: true });
+
+      document.getElementById('btn-confirm-split')?.addEventListener('click', async () => {
         try {
-          // Validate distribution - collect items by place with quantities
           const placeDistribution = {};
-          for (let i = 1; i <= numPlaces; i++) {
-            placeDistribution[i] = [];
-          }
-          
-          document.querySelectorAll('.place-qty-input').forEach(input => {
+          for (let i = 1; i <= numPlaces; i++) placeDistribution[i] = [];
+
+          document.querySelectorAll('.place-qty-input').forEach((input) => {
             const place = parseInt(input.getAttribute('data-place'));
             const itemIndex = parseInt(input.getAttribute('data-item-index'));
             const quantity = parseInt(input.value) || 0;
-            
+
             if (quantity > 0) {
               const item = currentOrderItems[itemIndex];
               placeDistribution[place].push({
                 ...item,
-                quantity: quantity,
+                quantity,
                 originalIndex: itemIndex
               });
             }
           });
-          
-          // Check if all places have at least one item
-          let emptyPlaces = [];
+
+          const emptyPlaces = [];
           for (let i = 1; i <= numPlaces; i++) {
-            if (placeDistribution[i].length === 0) {
-              emptyPlaces.push(i);
-            }
+            if (placeDistribution[i].length === 0) emptyPlaces.push(i);
           }
-          
+
           if (emptyPlaces.length > 0) {
             alert(`Place(s) ${emptyPlaces.join(', ')} have no items assigned. Please assign items to all places or reduce the number of places.`);
             return;
           }
-          
-          // Create split reference
+
           const splitReference = String(editingOrderId).substring(0, 8).toUpperCase();
           const ordersToSync = [];
-          
-          // Create a split bill for each place (except the first one stays as original)
+
           for (let place = 1; place <= numPlaces; place++) {
             const items = placeDistribution[place];
-            const itemsTotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-            
-            // Calculate billing breakdown for split bill (includes tax and service charge)
+            const itemsTotal = items.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * Number(item.quantity || 0)), 0);
             const splitBreakdown = calculateBillingBreakdown(itemsTotal);
-            
+
             if (place === 1) {
-              // Update original order with items from place 1 and update totalAmount to reflect moved items
               const updatedOrder = {
                 ...editingOrder,
                 id: editingOrder.id,
-                items: items,
+                items,
                 subtotal: itemsTotal,
                 billingBreakdown: {
                   taxPercentage: billingSettings.taxPercentage,
@@ -5063,12 +5045,11 @@ function showToast(message, type = 'success', duration = 3000) {
                 splitTotal: numPlaces,
                 updatedAt: new Date().toISOString()
               };
-              
+
               ordersToSync.push(updatedOrder);
-              editingOrder = updatedOrder; // Update in-memory copy
-              currentOrderItems = items; // Update current items to reflect split
+              editingOrder = updatedOrder;
+              currentOrderItems = items;
             } else {
-              // Create new order for each additional place
               const { id: _removedId, ...restOrder } = editingOrder;
               const newOrderData = {
                 ...restOrder,
@@ -5077,7 +5058,7 @@ function showToast(message, type = 'success', duration = 3000) {
                 clientName: editingOrder.clientName || '',
                 cashierName: getCurrentCashierName(),
                 createdBy: getCurrentCashierName(),
-                items: items,
+                items,
                 status: 'pending',
                 subtotal: itemsTotal,
                 billingBreakdown: {
@@ -5096,32 +5077,29 @@ function showToast(message, type = 'success', duration = 3000) {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               };
-              
+
               ordersToSync.push(newOrderData);
             }
           }
 
           await syncOrdersToBackend(ordersToSync);
-          
-          // Close the split dialog
+
           modal.innerHTML = originalHTML;
           modal.setAttribute('aria-hidden', 'true');
           modal.setAttribute('inert', '');
           rewireModalButtons();
-          
-          // Reload and display updated orders
+
           await loadAndRenderOrders();
-          
+
           const splitDetails = [];
           for (let place = 1; place <= numPlaces; place++) {
             const items = placeDistribution[place];
-            const amount = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-            splitDetails.push(`Place ${place}: ₦${amount.toFixed(2)}`);
+            const amount = items.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * Number(item.quantity || 0)), 0);
+            splitDetails.push(`Place ${place}: ${formatCurrency(amount)}`);
           }
-          
+
           alert(`Bill split successfully into ${numPlaces} places!\n\n${splitDetails.join('\n')}\n\nReference: SPLIT-${splitReference}`);
-          
-          // Reset modal state and close
+
           currentOrderItems = [];
           editingOrderId = null;
           editingOrder = null;
@@ -5130,8 +5108,7 @@ function showToast(message, type = 'success', duration = 3000) {
         } catch (err) {
           console.error('Split bill error:', err);
           alert('Error splitting bill: ' + err.message);
-          
-          // Restore modal on error
+
           modal.innerHTML = originalHTML;
           modal.setAttribute('aria-hidden', 'true');
           modal.setAttribute('inert', '');
@@ -5139,9 +5116,8 @@ function showToast(message, type = 'success', duration = 3000) {
         }
       }, { once: true });
     };
-    
-    // Start with step 1
-    showStep1();
+
+    showSplitConfig();
   }
 
   // Close bill - mark order as completed
