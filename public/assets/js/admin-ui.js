@@ -134,28 +134,33 @@ function showToast(message, type = 'success', duration = 3000) {
       <div class="modal-backdrop"></div>
       <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="low-stock-modal-title">
         <header class="modal-header">
-          <h3 id="low-stock-modal-title">Low-stock items</h3>
+          <div>
+            <div class="modal-badge">Low stock alert</div>
+            <h3 id="low-stock-modal-title">${products.length} item${products.length === 1 ? '' : 's'} need restocking</h3>
+          </div>
           <button type="button" class="modal-close" aria-label="Close">✕</button>
         </header>
         <div class="modal-body">
-          <p class="muted">These products are running low in stock. Review and replenish them to avoid shortages.</p>
-          <div style="display:grid;gap:12px;margin-top:16px;">
+          <p class="muted">These products are low in inventory. Replenish them soon to keep service smooth and avoid stockouts.</p>
+          <div class="low-stock-list">
             ${products.length > 0 ? products.map(product => {
               const quantity = Number(product.quantity || 0);
               return `
-                <div style="padding:14px 16px;border:1px solid rgba(148,163,184,0.25);border-radius:12px;background:rgba(254,243,199,0.4);">
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <div style="font-weight:700;color:#0f172a;">${product.name || product.productName || 'Unnamed product'}</div>
-                    <div style="color:#b45309;font-weight:700;">${quantity} left</div>
+                <article class="product-alert-card">
+                  <div class="product-alert-row">
+                    <div>
+                      <p class="product-alert-title">${product.name || product.productName || 'Unnamed product'}</p>
+                      <p class="product-alert-meta">ID: ${product.id || product.productId || 'N/A'}</p>
+                    </div>
+                    <span class="product-alert-count">${quantity} left</span>
                   </div>
-                  <div style="margin-top:8px;color:#475569;font-size:.95rem;">ID: ${product.id || product.productId || 'N/A'}</div>
-                </div>
+                </article>
               `;
-            }).join('') : '<div style="padding:18px 16px;border:1px solid rgba(148,163,184,0.25);border-radius:12px;background:rgba(226,232,240,0.35);color:#475569;">No low-stock items found.</div>'}
+            }).join('') : '<div class="modal-empty-state">No low-stock items found. Inventory is healthy at the moment.</div>'}
           </div>
         </div>
-        <footer class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
-          <button type="button" class="btn btn-ghost modal-close">Close</button>
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close">Close</button>
         </footer>
       </div>
     `;
