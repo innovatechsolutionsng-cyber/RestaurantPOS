@@ -441,7 +441,7 @@
         message: 'Are you sure you want to logout?',
         confirmText: 'Logout',
         cancelText: 'Stay logged in',
-        onConfirm: () => { Auth.logout(); location.href = 'login.html'; }
+        onConfirm: () => { Auth.logout(); location.replace('index.html'); }
       });
     });
   }
@@ -941,8 +941,8 @@
     selectedSubcategoryId = null;
     currentOrderItems = Array.isArray(order?.items) ? order.items.map((item) => ({
       productId: item.productId,
-      name: item.name,
-      price: Number(item.price || 0),
+      name: item.name || item.productName || item.product?.name || 'Unknown',
+      price: Number(item.price ?? item.unitPrice ?? item.product?.price ?? 0),
       quantity: Number(item.quantity || 1),
       isExisting: true
     })) : [];

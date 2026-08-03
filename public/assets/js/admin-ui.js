@@ -768,7 +768,7 @@ function showToast(message, type = 'success', duration = 3000) {
     modal.querySelector('.cancel-btn')?.addEventListener('click', close);
     modal.querySelector('.confirm-btn')?.addEventListener('click', () => { onConfirm?.(); close(); });
   }
-  if(logoutBtn) logoutBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); showConfirmDialog({ title: 'Logout confirmation', message: 'Are you sure you want to logout?', confirmText: 'Logout', cancelText: 'Stay logged in', onConfirm: () => { Auth.logout(); location.href='login.html'; } }); });
+  if(logoutBtn) logoutBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); showConfirmDialog({ title: 'Logout confirmation', message: 'Are you sure you want to logout?', confirmText: 'Logout', cancelText: 'Stay logged in', onConfirm: () => { Auth.logout(); location.replace('index.html'); } }); });
   if(settingsBtn){ settingsBtn.addEventListener('click', ()=>{ showPanel('settings'); document.querySelectorAll('.nav-link[data-panel]').forEach((link)=>{ link.classList.toggle('active', link.dataset.panel === 'settings'); }); }); }
   const form = document.getElementById('create-cashier');
   if(form){

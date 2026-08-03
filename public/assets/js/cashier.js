@@ -519,7 +519,7 @@ function showToast(message, type = 'success', duration = 3000) {
     if(!s || (s.role !== 'cashier' && s.role !== 'waiter')){
       // redirect to login if not a cashier or waiter
       console.log('cashier.js: Not authenticated or not an allowed role, redirecting');
-      location.href = 'login.html';
+      location.replace('index.html');
       return;
     }
     console.log('cashier.js: User authenticated as cashier/waiter, proceeding');
@@ -569,7 +569,7 @@ function showToast(message, type = 'success', duration = 3000) {
     modal.querySelector('.cancel-btn')?.addEventListener('click', close);
     modal.querySelector('.confirm-btn')?.addEventListener('click', () => { onConfirm?.(); close(); });
   }
-  if(logoutBtn) logoutBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); showConfirmDialog({ title: 'Logout confirmation', message: 'Are you sure you want to logout?', confirmText: 'Logout', cancelText: 'Stay logged in', onConfirm: () => { Auth.logout(); location.href='login.html'; } }); });
+  if(logoutBtn) logoutBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); showConfirmDialog({ title: 'Logout confirmation', message: 'Are you sure you want to logout?', confirmText: 'Logout', cancelText: 'Stay logged in', onConfirm: () => { Auth.logout(); location.replace('index.html'); } }); });
   const settingsBtn = document.getElementById('btn-settings');
 
   // Initialize panels on page load - restore last active panel or show dashboard
@@ -2083,8 +2083,10 @@ function showToast(message, type = 'success', duration = 3000) {
         items: currentOrderItems.map(item => ({
           productId: item.productId,
           productName: item.productName,
+          name: item.productName || item.name || item.product?.name || 'Unknown',
           quantity: item.quantity,
-          unitPrice: item.unitPrice
+          unitPrice: item.unitPrice,
+          price: item.unitPrice
         })),
         status: (typeof statusOverride !== 'undefined') ? statusOverride : (editingOrderId ? editingOrder.status : 'pending'),
         subtotal: subtotal,
@@ -2805,7 +2807,7 @@ function showToast(message, type = 'success', duration = 3000) {
   function voidItems(){
     const checkboxes = document.querySelectorAll('.item-checkbox:checked');
     if (checkboxes.length === 0) {
-      alert('Please select items to void');
+      showToast('Please select items to void', 'error');
       return;
     }
     
@@ -2937,59 +2939,63 @@ function showToast(message, type = 'success', duration = 3000) {
       
       if (!isValid) return;
       
-      // Remove modal
+      // Remove modal and confirm void action
       modal.remove();
       
       // Process void items
       if (voidedItems.length === 0) return;
       
-      if (!confirm(`Void ${voidedItems.reduce((sum, item) => sum + item.quantity, 0)} total item(s)?`)) {
-        return;
-      }
-      
-      // Update items in currentOrderItems
-      const indicesToRemove = [];
-      voidedItems.forEach(voidedItem => {
-        // Find the item in currentOrderItems
-        for (let i = 0; i < currentOrderItems.length; i++) {
-          if (currentOrderItems[i].productId === voidedItem.productId && 
-              currentOrderItems[i].unitPrice === voidedItem.unitPrice) {
-            // Check if voiding all or partial
-            if (voidedItem.quantity < currentOrderItems[i].quantity) {
-              currentOrderItems[i].quantity -= voidedItem.quantity;
-            } else {
-              indicesToRemove.push(i);
+      showConfirmDialog({
+        title: 'Confirm Void',
+        message: `Void ${voidedItems.reduce((sum, item) => sum + item.quantity, 0)} total item(s)?`,
+        confirmText: 'Void Items',
+        cancelText: 'Cancel',
+        onConfirm: () => {
+          // Update items in currentOrderItems
+          const indicesToRemove = [];
+          voidedItems.forEach(voidedItem => {
+            // Find the item in currentOrderItems
+            for (let i = 0; i < currentOrderItems.length; i++) {
+              if (currentOrderItems[i].productId === voidedItem.productId && 
+                  currentOrderItems[i].unitPrice === voidedItem.unitPrice) {
+                // Check if voiding all or partial
+                if (voidedItem.quantity < currentOrderItems[i].quantity) {
+                  currentOrderItems[i].quantity -= voidedItem.quantity;
+                } else {
+                  indicesToRemove.push(i);
+                }
+                break;
+              }
             }
-            break;
-          }
+          });
+          
+          // Remove items from highest index to lowest
+          indicesToRemove.sort((a, b) => b - a);
+          indicesToRemove.forEach(index => {
+            currentOrderItems.splice(index, 1);
+          });
+          
+          // Add voided items and remark to tracking
+          currentVoidedItems.push(...voidedItems);
+          currentVoidRemark = voidRemark;
+          
+          // Print voided items
+          printVoidedItems(voidedItems, voidRemark);
+          renderOrderItemsTable();
+          
+          // Update stats
+          updatePOSStats();
+          
+          // Auto-save order
+          console.log('voidItems: Auto-saving order after voiding items');
+          saveOrder().then(() => {
+            console.log('voidItems: Order saved, closing modal');
+            closeOrderModal();
+          }).catch(err => {
+            console.error('voidItems: Failed to save order:', err);
+            alert('Failed to save voided items. Please try again.');
+          });
         }
-      });
-      
-      // Remove items from highest index to lowest
-      indicesToRemove.sort((a, b) => b - a);
-      indicesToRemove.forEach(index => {
-        currentOrderItems.splice(index, 1);
-      });
-      
-      // Add voided items and remark to tracking
-      currentVoidedItems.push(...voidedItems);
-      currentVoidRemark = voidRemark;
-      
-      // Print voided items
-      printVoidedItems(voidedItems, voidRemark);
-      renderOrderItemsTable();
-      
-      // Update stats
-      updatePOSStats();
-      
-      // Auto-save order
-      console.log('voidItems: Auto-saving order after voiding items');
-      saveOrder().then(() => {
-        console.log('voidItems: Order saved, closing modal');
-        closeOrderModal();
-      }).catch(err => {
-        console.error('voidItems: Failed to save order:', err);
-        alert('Failed to save voided items. Please try again.');
       });
     });
   }

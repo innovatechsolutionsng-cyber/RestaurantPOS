@@ -130,11 +130,11 @@ const Auth = (function(){
 
   function requireRole(required){
     const s = getSession();
-    if(!s) { location.href = 'login.html'; return false; }
+    if(!s) { location.replace('index.html'); return false; }
     if(Array.isArray(required)){
-      if(!required.includes(s.role)){ location.href = 'login.html'; return false; }
+      if(!required.includes(s.role)){ location.replace('index.html'); return false; }
     } else {
-      if(s.role !== required){ location.href = 'login.html'; return false; }
+      if(s.role !== required){ location.replace('index.html'); return false; }
     }
     return true;
   }
