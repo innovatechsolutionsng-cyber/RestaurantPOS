@@ -700,3 +700,45 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
       #product-management .flex-row > select{width:100%}
       .dashboard-grid > .card:nth-child(2){max-width:none}
     }
+
+    @media (max-width:900px){
+      .container{padding:14px 12px 24px}
+      .page-header{padding:14px 14px 14px 72px;min-height:74px}
+      .page-header .logo-img{height:40px}
+      .page-header .page-title{font-size:1.05rem}
+      .overview-hero,.card,.quick-action-card,.report-card,.stat-card,.order-card,.bi-card,.bi-list-card{border-radius:14px}
+      .card,.quick-action-card,.report-card,.stat-card,.order-card{padding:14px}
+      .overview-hero{padding:16px}
+      .overview-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      .stats-grid{gap:12px}
+      .report-actions,.form-actions,.modal-footer{flex-direction:column;align-items:stretch}
+      .report-actions .input,.report-actions .btn,.form-actions .btn,.modal-footer .btn{width:100%;justify-content:center}
+      .profile-form-grid{grid-template-columns:1fr}
+      .settings-feature-panel{flex-direction:column;align-items:flex-start}
+      .settings-tabs{flex-direction:column}
+      .settings-tab{width:100%;justify-content:center}
+      .modal-panel{width:min(94vw,560px);min-width:0;padding:16px;border-radius:18px}
+      .modal-body{max-height:min(72vh,520px);padding-right:4px}
+    }
+
+    @media (max-width:640px){
+      .container{padding:10px 10px 18px}
+      .page-header{padding:12px 12px 14px 68px;gap:8px;min-height:72px}
+      .page-header .page-title{font-size:1.02rem}
+      .page-header .subtitle{font-size:0.82rem}
+      .header-actions{gap:6px}
+      .icon-action-btn,.mobile-nav-toggle{width:40px;height:40px;border-radius:10px}
+      .overview-hero{padding:14px}
+      .overview-summary{grid-template-columns:1fr}
+      .summary-chip{justify-content:flex-start;padding:8px 10px;width:100%}
+      .stat-card{min-height:88px}
+      .quick-action-card{min-height:84px}
+      .quick-action-icon{width:42px;height:42px;border-radius:12px}
+      .table-responsive,.report-body{overflow-x:auto;-webkit-overflow-scrolling:touch}
+      .report-table,.table-responsive table{min-width:560px}
+      .report-actions .input,.report-actions .btn,.form-actions .btn,.modal-footer .btn{min-height:44px}
+      .form-row{grid-template-columns:1fr}
+      .profile-summary-item,.settings-summary-row{flex-direction:column;align-items:flex-start;gap:4px}
+      .tree-item-header{padding:10px}
+      .tree-item-meta{flex-wrap:wrap;gap:8px}
+    }
