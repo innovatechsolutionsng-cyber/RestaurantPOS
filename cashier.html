@@ -560,21 +560,37 @@
             <h2 class="page-title">Settings</h2>
             <div class="card">
               <div class="list">
-                <div class="muted">Manage account settings</div>
+                <div class="muted">Manage your account information and password.</div>
                 <div class="mt-sm">
-                  <h3 class="no-top">Change Password</h3>
-                  <form id="change-my-pw">
+                  <h3 class="no-top">Profile</h3>
+                  <form id="profile-settings-form">
                     <div class="field">
-                      <label for="current-pw" class="label">Current Password</label>
-                      <input id="current-pw" type="password" placeholder="Enter current password" required class="input">
+                      <label for="profile-full-name" class="label">Full Name</label>
+                      <input id="profile-full-name" type="text" placeholder="Enter your full name" required class="input">
                     </div>
                     <div class="field">
-                      <label for="new-pw" class="label">New Password</label>
-                      <input id="new-pw" type="password" placeholder="Enter new password" required class="input">
+                      <label for="profile-username" class="label">Username</label>
+                      <input id="profile-username" type="text" placeholder="Enter your username" required class="input">
                     </div>
-                    <div style="margin-top:8px"><button type="submit" class="btn btn-primary">Change Password</button></div>
+                    <div class="field">
+                      <label for="profile-current-password" class="label">Current Password</label>
+                      <input id="profile-current-password" type="password" placeholder="Enter current password" class="input">
+                      <p class="muted" style="margin-top:6px;">Provide this only if you want to change your password.</p>
+                    </div>
+                    <div class="field">
+                      <label for="profile-new-password" class="label">New Password</label>
+                      <input id="profile-new-password" type="password" placeholder="Enter new password" class="input">
+                    </div>
+                    <div class="field">
+                      <label for="profile-new-password-confirm" class="label">Confirm New Password</label>
+                      <input id="profile-new-password-confirm" type="password" placeholder="Confirm new password" class="input">
+                    </div>
+                    <div style="margin-top:8px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                      <button type="submit" class="btn btn-primary">Save Profile</button>
+                      <span class="muted">Full name and username are required.</span>
+                    </div>
                   </form>
-                  <div id="pw-msg" class="muted" style="margin-top:8px"></div>
+                  <div id="profile-settings-message" class="muted" style="margin-top:8px"></div>
                 </div>
               </div>
             </div>

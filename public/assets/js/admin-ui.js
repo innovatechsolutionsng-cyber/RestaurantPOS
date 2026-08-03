@@ -2001,6 +2001,7 @@ function showToast(message, type = 'success', duration = 3000) {
     }
     await loadBusinessDaySetting().catch(err => console.error('Failed to load business day cutoff setting:', err));
     await loadReceiptSettings().catch(err => console.error('Failed to load receipt settings:', err));
+    await loadProfileInfo().catch(err => console.error('Failed to load profile info:', err));
     scheduleBusinessDayRefresh();
     await updateOperationalSnapshotCounts();
     startAdminRealtimeRefresh();
@@ -2019,7 +2020,61 @@ function showToast(message, type = 'success', duration = 3000) {
     const enableLowStockAlertsCheckbox = document.getElementById('enable-low-stock-alerts');
     const lowStockThresholdInput = document.getElementById('low-stock-threshold');
     const systemTimeoutInput = document.getElementById('system-timeout-minutes');
-    const btnSaveStockSettings = document.getElementById('btn-save-stock-settings');
+    const btnSaveSystemSettings = document.getElementById('btn-save-system-settings');
+    const statusStockCountBadge = document.getElementById('status-stock-count');
+    const statusLowStockBadge = document.getElementById('status-low-stock-alerts');
+    const statusLowStockThresholdLabel = document.getElementById('status-low-stock-threshold');
+    const statusSessionTimeoutLabel = document.getElementById('status-session-timeout');
+
+    const profileFullName = document.getElementById('profile-full-name');
+    const profileUsername = document.getElementById('profile-username');
+    const profileCurrentPassword = document.getElementById('profile-current-password');
+    const profileNewPassword = document.getElementById('profile-new-password');
+    const profileNewPasswordConfirm = document.getElementById('profile-new-password-confirm');
+    const profileIdDisplay = document.getElementById('profile-id-display');
+    const profileRoleDisplay = document.getElementById('profile-role-display');
+    const profileSettingsMessage = document.getElementById('profile-settings-message');
+    const btnSaveProfileSettings = document.getElementById('btn-save-profile-settings');
+
+    function refreshSystemSettingsSummary(){
+      const stockEnabled = enableStockCountCheckbox ? enableStockCountCheckbox.checked : false;
+      const lowStockEnabled = enableLowStockAlertsCheckbox ? enableLowStockAlertsCheckbox.checked : false;
+      const lowStockThreshold = lowStockThresholdInput ? parseInt(lowStockThresholdInput.value || '0', 10) : 0;
+      const timeoutMinutes = systemTimeoutInput ? parseInt(systemTimeoutInput.value || '0', 10) : 0;
+
+      if (statusStockCountBadge) {
+        statusStockCountBadge.textContent = stockEnabled ? 'Active' : 'Inactive';
+        statusStockCountBadge.classList.toggle('status-active', stockEnabled);
+        statusStockCountBadge.classList.toggle('status-inactive', !stockEnabled);
+      }
+      if (statusLowStockBadge) {
+        statusLowStockBadge.textContent = lowStockEnabled ? 'Active' : 'Inactive';
+        statusLowStockBadge.classList.toggle('status-active', lowStockEnabled);
+        statusLowStockBadge.classList.toggle('status-inactive', !lowStockEnabled);
+      }
+      if (statusLowStockThresholdLabel) {
+        statusLowStockThresholdLabel.textContent = lowStockThreshold > 0 ? `${lowStockThreshold}` : 'Not set';
+      }
+      if (statusSessionTimeoutLabel) {
+        statusSessionTimeoutLabel.textContent = timeoutMinutes > 0 ? `${timeoutMinutes} min` : 'Not set';
+      }
+    }
+
+    async function loadProfileInfo(){
+      try {
+        const session = Auth.getSession();
+        if (!session) return;
+        if (profileFullName) profileFullName.value = String(session.fullName || session.username || '').trim();
+        if (profileUsername) profileUsername.value = String(session.username || '').trim();
+        if (profileIdDisplay) profileIdDisplay.textContent = String(session.id || '—');
+        if (profileRoleDisplay) {
+          const roleText = String(session.role || 'Admin');
+          profileRoleDisplay.textContent = roleText.charAt(0).toUpperCase() + roleText.slice(1);
+        }
+      } catch (err) {
+        console.warn('Failed to load profile info:', err);
+      }
+    }
 
     // Load settings on page load
     async function loadBillingSettings(){
@@ -2039,6 +2094,7 @@ function showToast(message, type = 'success', duration = 3000) {
         if (enableLowStockAlertsCheckbox && lowStockAlertSetting) enableLowStockAlertsCheckbox.checked = lowStockAlertSetting.value === true || lowStockAlertSetting.value === 'true';
         if (lowStockThresholdInput && lowStockThresholdSetting) lowStockThresholdInput.value = String(lowStockThresholdSetting.value || '');
         if (systemTimeoutInput && timeoutSetting) systemTimeoutInput.value = String(timeoutSetting.value || '');
+        refreshSystemSettingsSummary();
       } catch (err) {
         console.error('Failed to load billing settings:', err);
       }
@@ -2113,9 +2169,9 @@ function showToast(message, type = 'success', duration = 3000) {
       });
     }
 
-    // Stock Count Settings
-    if (btnSaveStockSettings) {
-      btnSaveStockSettings.addEventListener('click', async () => {
+    // System settings save
+    if (btnSaveSystemSettings) {
+      btnSaveSystemSettings.addEventListener('click', async () => {
         try {
           const stockCountEnabled = enableStockCountCheckbox ? enableStockCountCheckbox.checked : false;
           const lowStockAlertsEnabled = enableLowStockAlertsCheckbox ? enableLowStockAlertsCheckbox.checked : false;
@@ -2135,6 +2191,7 @@ function showToast(message, type = 'success', duration = 3000) {
           await RestaurantDB.setSetting('lowStockThreshold', lowStockThreshold);
           await RestaurantDB.setSetting('sessionTimeoutMinutes', timeoutMinutes);
           
+          refreshSystemSettingsSummary();
           if (stockSettingsMessage) {
             stockSettingsMessage.style.display = 'block';
             stockSettingsMessage.style.background = '#dcfce7';
@@ -2154,6 +2211,83 @@ function showToast(message, type = 'success', duration = 3000) {
             stockSettingsMessage.style.color = '#991b1b';
             stockSettingsMessage.style.border = '1px solid #fca5a5';
             stockSettingsMessage.textContent = '✗ Error: ' + err.message;
+          }
+        }
+      });
+    }
+
+    if (btnSaveProfileSettings) {
+      btnSaveProfileSettings.addEventListener('click', async () => {
+        try {
+          const fullName = profileFullName ? String(profileFullName.value || '').trim() : '';
+          const username = profileUsername ? String(profileUsername.value || '').trim() : '';
+          const currentPassword = profileCurrentPassword ? String(profileCurrentPassword.value || '') : '';
+          const newPassword = profileNewPassword ? String(profileNewPassword.value || '') : '';
+          const confirmPassword = profileNewPasswordConfirm ? String(profileNewPasswordConfirm.value || '') : '';
+
+          if (!fullName || !username) {
+            throw new Error('Please provide your full name and username.');
+          }
+
+          const session = Auth.getSession();
+          if (!session) {
+            throw new Error('Session expired, please log in again.');
+          }
+
+          if (newPassword || confirmPassword || currentPassword) {
+            if (!currentPassword) {
+              throw new Error('Please enter your current password to change password.');
+            }
+            if (!newPassword) {
+              throw new Error('Please enter a new password.');
+            }
+            if (newPassword.length < 6) {
+              throw new Error('New password must be at least 6 characters.');
+            }
+            if (newPassword !== confirmPassword) {
+              throw new Error('New password and confirmation do not match.');
+            }
+            await Auth.changePassword(currentPassword, newPassword);
+          }
+
+          const payload = {
+            id: String(session.id),
+            username,
+            role: session.role || 'admin',
+            fullName,
+            status: session.status || 'active',
+            tables: []
+          };
+          const response = await fetchBackend('/api/users/update', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+          if (!response || response.success !== true) {
+            throw new Error(response?.error || 'Unable to save profile.');
+          }
+
+          Auth.updateSession({ username, fullName, status: session.status || 'active' });
+          if (profileCurrentPassword) profileCurrentPassword.value = '';
+          if (profileNewPassword) profileNewPassword.value = '';
+          if (profileNewPasswordConfirm) profileNewPasswordConfirm.value = '';
+          if (profileSettingsMessage) {
+            profileSettingsMessage.style.display = 'block';
+            profileSettingsMessage.style.background = '#dcfce7';
+            profileSettingsMessage.style.color = '#166534';
+            profileSettingsMessage.style.border = '1px solid #86efac';
+            profileSettingsMessage.textContent = '✓ Profile updated successfully.';
+          }
+          await loadProfileInfo();
+          setTimeout(() => {
+            if (profileSettingsMessage) profileSettingsMessage.style.display = 'none';
+          }, 3000);
+        } catch (err) {
+          if (profileSettingsMessage) {
+            profileSettingsMessage.style.display = 'block';
+            profileSettingsMessage.style.background = '#fee2e2';
+            profileSettingsMessage.style.color = '#991b1b';
+            profileSettingsMessage.style.border = '1px solid #fca5a5';
+            profileSettingsMessage.textContent = '✗ ' + err.message;
           }
         }
       });

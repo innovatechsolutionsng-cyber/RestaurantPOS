@@ -479,6 +479,7 @@
               <li><a href="#dashboard" class="nav-link active" data-panel="dashboard"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h7v7H4V4zm0 9h7v7H4v-7zm9-9h7v7h-7V4zm0 9h7v7h-7v-7z" fill="currentColor"/></svg><span>Dashboard</span></a></li>
               <li><a href="#pos" class="nav-link" data-panel="pos"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16v3H4V7zm0 5h16v6H4v-6zm2 1v4h3v-4H6zm9 0v4h3v-4h-3z" fill="currentColor"/><path d="M7 2h10v3H7V2z" fill="currentColor"/></svg><span>Point of Sale</span></a></li>
               <li><a href="#reports" class="nav-link" data-panel="reports"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 17h4v-7H4v7zm6 0h4v-4h-4v4zm6 0h4v-10h-4v10z" fill="currentColor"/></svg><span>Reports</span></a></li>
+              <li><a href="#settings" class="nav-link" data-panel="settings"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="currentColor"/><path d="M19.4 13.1a7.9 7.9 0 0 0 .1-2.2 7.9 7.9 0 0 0-.1-2.2l2.2-1.7a0.5 0.5 0 0 0 .1-0.7l-2.1-3.6a0.5 0.5 0 0 0-0.6-0.2l-2.6 1a8 8 0 0 0-1.9-1.1l-0.4-2.8A0.5 0.5 0 0 0 13.7 0h-4a0.5 0.5 0 0 0-0.5 0.4l-0.4 2.8a8 8 0 0 0-1.9 1.1l-2.6-1a0.5 0.5 0 0 0-0.6 0.2L1.6 6a0.5 0.5 0 0 0 .1 0.7l2.2 1.7a7.9 7.9 0 0 0-.1 2.2 7.9 7.9 0 0 0 .1 2.2L1.7 16.8a0.5 0.5 0 0 0-.1 0.7l2.1 3.6c0.1 0.2 0.4 0.3 0.6 0.2l2.6-1c0.6 0.3 1.2 0.6 1.9 1.1l0.4 2.8c0.1 0.2 0.3 0.4 0.5 0.4h4c0.2 0 0.4-0.2 0.5-0.4l0.4-2.8c0.7-0.4 1.3-0.8 1.9-1.1l2.6 1c0.2 0.1 0.5 0 0.6-0.2l2.1-3.6a0.5 0.5 0 0 0-0.1-0.7l-2.2-1.7z" fill="currentColor"/></svg><span>Settings</span></a></li>
             </ul>
           </nav>
 
@@ -731,6 +732,46 @@
                   <div class="report-payments-list">
                     <div class="muted" style="text-align:center;padding:12px;">No payments yet</div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="settings" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Settings</h2>
+            <div class="card">
+              <div class="list">
+                <div class="muted">Update your waiter profile and account settings.</div>
+                <div class="mt-sm">
+                  <h3 class="no-top">Profile</h3>
+                  <form id="profile-settings-form">
+                    <div class="field">
+                      <label for="profile-full-name" class="label">Full Name</label>
+                      <input id="profile-full-name" type="text" placeholder="Enter your full name" required class="input">
+                    </div>
+                    <div class="field">
+                      <label for="profile-username" class="label">Username</label>
+                      <input id="profile-username" type="text" placeholder="Enter your username" required class="input">
+                    </div>
+                    <div class="field">
+                      <label for="profile-current-password" class="label">Current Password</label>
+                      <input id="profile-current-password" type="password" placeholder="Enter current password" class="input">
+                      <p class="muted" style="margin-top:6px;">Required only when changing your password.</p>
+                    </div>
+                    <div class="field">
+                      <label for="profile-new-password" class="label">New Password</label>
+                      <input id="profile-new-password" type="password" placeholder="Enter new password" class="input">
+                    </div>
+                    <div class="field">
+                      <label for="profile-new-password-confirm" class="label">Confirm New Password</label>
+                      <input id="profile-new-password-confirm" type="password" placeholder="Confirm new password" class="input">
+                    </div>
+                    <div style="margin-top:8px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                      <button type="submit" class="btn btn-primary">Save Profile</button>
+                      <span class="muted">Full name and username are required.</span>
+                    </div>
+                  </form>
+                  <div id="profile-settings-message" class="muted" style="margin-top:8px"></div>
                 </div>
               </div>
             </div>

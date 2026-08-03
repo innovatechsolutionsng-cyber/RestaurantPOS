@@ -394,6 +394,16 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
   .settings-switch-row{display:flex;align-items:center;gap:14px}
   .checkbox-input{width:auto;cursor:pointer;margin-top:1px;min-height:auto}
   .settings-action-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .profile-summary-card,
+  .settings-summary-card{display:grid;gap:10px;padding:16px;border-radius:16px;background:rgba(248,250,252,0.95);border:1px solid rgba(14,20,30,0.08)}
+  .profile-summary-item,
+  .settings-summary-row{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:.95rem;color:var(--text)}
+  .profile-summary-label{font-weight:700;color:var(--text);}
+  .profile-summary-value{color:var(--muted);font-weight:700;}
+  .profile-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+  .profile-helper-text{font-size:.88rem;color:#6b7280;margin-top:6px;line-height:1.4}
+  .profile-form-grid .field{margin-bottom:0}
+  .settings-summary-row .status-badge{padding:6px 10px;font-size:.85rem}
   .settings-switch{padding:18px;border-radius:16px;border:1px solid rgba(14,20,30,0.08);background:rgba(248,250,252,0.9)}
   .settings-switch-row{display:flex;align-items:center;gap:14px}
   .checkbox-input{width:auto;cursor:pointer;margin-top:1px;min-height:auto}

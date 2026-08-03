@@ -687,18 +687,53 @@
                   <div class="muted">Keep your administrator profile up to date.</div>
                 </div>
                 <div class="settings-card-body">
-                  <div class="field">
-                    <label class="label">Full name</label>
-                    <input class="input" placeholder="Admin name" />
+                  <div class="profile-summary-card">
+                    <div class="profile-summary-item">
+                      <span class="profile-summary-label">Signed in as</span>
+                      <span id="profile-id-display" class="profile-summary-value">—</span>
+                    </div>
+                    <div class="profile-summary-item">
+                      <span class="profile-summary-label">Role</span>
+                      <span id="profile-role-display" class="profile-summary-value">—</span>
+                    </div>
                   </div>
-                  <div class="field">
-                    <label class="label">Email</label>
-                    <input class="input" type="email" placeholder="admin@restaurant.com" />
+
+                  <div class="profile-form-grid">
+                    <div class="field">
+                      <label class="label">Full name</label>
+                      <input id="profile-full-name" class="input" placeholder="Enter your full name" required />
+                      <div class="profile-helper-text">Use the name that appears on notifications and reports.</div>
+                    </div>
+
+                    <div class="field">
+                      <label class="label">Username</label>
+                      <input id="profile-username" class="input" placeholder="Enter your username" required />
+                      <div class="profile-helper-text">This is the login name used for your account.</div>
+                    </div>
+
+                    <div class="field">
+                      <label class="label">Current password</label>
+                      <input id="profile-current-password" class="input" type="password" placeholder="Enter current password" />
+                      <div class="profile-helper-text">Required only when changing the password.</div>
+                    </div>
+
+                    <div class="field">
+                      <label class="label">New password</label>
+                      <input id="profile-new-password" class="input" type="password" placeholder="Enter new password" />
+                    </div>
+
+                    <div class="field">
+                      <label class="label">Confirm new password</label>
+                      <input id="profile-new-password-confirm" class="input" type="password" placeholder="Confirm new password" />
+                    </div>
                   </div>
-                  <div class="field">
-                    <label class="label">Phone number</label>
-                    <input class="input" placeholder="Contact number" />
+
+                  <div class="settings-action-row">
+                    <button id="btn-save-profile-settings" class="btn btn-primary">Save Profile</button>
+                    <span class="status-tag">Always keep your profile details current.</span>
                   </div>
+
+                  <div id="profile-settings-message" class="status-message"></div>
                 </div>
               </div>
 
@@ -835,6 +870,25 @@
                     <span class="status-badge status-badge--info">Inventory tracking</span>
                   </div>
 
+                  <div class="settings-summary-card">
+                    <div class="settings-summary-row">
+                      <span>Stock count tracking</span>
+                      <span id="status-stock-count" class="status-badge status-inactive">Inactive</span>
+                    </div>
+                    <div class="settings-summary-row">
+                      <span>Low-stock alerts</span>
+                      <span id="status-low-stock-alerts" class="status-badge status-inactive">Inactive</span>
+                    </div>
+                    <div class="settings-summary-row">
+                      <span>Low-stock threshold</span>
+                      <span id="status-low-stock-threshold" class="muted">Not set</span>
+                    </div>
+                    <div class="settings-summary-row">
+                      <span>Session timeout</span>
+                      <span id="status-session-timeout" class="muted">Not set</span>
+                    </div>
+                  </div>
+
                   <div class="settings-switch">
                     <div class="settings-switch-row">
                       <input id="enable-stock-count" type="checkbox" class="input checkbox-input" />
@@ -868,7 +922,7 @@
                   </div>
 
                   <div class="settings-action-row">
-                    <button id="btn-save-stock-settings" class="btn btn-accent">Save Stock Settings</button>
+                    <button id="btn-save-system-settings" class="btn btn-accent">Save System Settings</button>
                     <span class="status-tag">Recommended for tighter inventory control</span>
                   </div>
 

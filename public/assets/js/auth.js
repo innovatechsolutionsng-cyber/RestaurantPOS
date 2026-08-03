@@ -76,6 +76,8 @@ const Auth = (function(){
       id: user.id,
       username: user.username,
       role: user.role,
+      fullName: user.fullName || user.username || null,
+      status: user.status || null,
       issuedAt: now,
       expiresAt: now + ttl,
       token: token || null
@@ -85,6 +87,14 @@ const Auth = (function(){
 
   function clearSession(){
     localStorage.removeItem(STORAGE_KEY);
+  }
+
+  function updateSession(changes){
+    const current = getSession();
+    if(!current) return null;
+    const updated = Object.assign({}, current, changes);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    return updated;
   }
 
   function getSession(){
@@ -128,6 +138,14 @@ const Auth = (function(){
     return response.success === true;
   }
 
+  function updateSession(changes){
+    const current = getSession();
+    if(!current) return null;
+    const updated = Object.assign({}, current, changes);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  }
+
   function requireRole(required){
     const s = getSession();
     if(!s) { location.replace('index.html'); return false; }
@@ -144,5 +162,5 @@ const Auth = (function(){
     return s ? s.token || null : null;
   }
 
-  return { login, logout, getSession, requireRole, changePassword, getToken, getJwtSecret };
+  return { login, logout, getSession, updateSession, requireRole, changePassword, getToken, getJwtSecret };
 })();

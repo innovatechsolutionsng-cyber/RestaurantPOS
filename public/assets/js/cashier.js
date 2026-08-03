@@ -704,18 +704,74 @@ function showToast(message, type = 'success', duration = 3000) {
   }
 
   // change password form
-  const cpForm = document.getElementById('change-my-pw');
-  if(cpForm){ cpForm.addEventListener('submit', async (ev)=>{
-    ev.preventDefault();
-    const cur = document.getElementById('current-pw').value;
-    const neu = document.getElementById('new-pw').value;
-    try{
-      await Auth.changePassword(cur, neu);
-      const msg = document.getElementById('pw-msg'); if(msg) msg.textContent = 'Password changed.';
-      cpForm.reset();
-    }catch(err){ alert('Change failed: '+err.message); }
-  }); }
-  console.log('cashier.js: Password form wired');
+  const profileForm = document.getElementById('profile-settings-form');
+  const profileFullName = document.getElementById('profile-full-name');
+  const profileUsername = document.getElementById('profile-username');
+  const profileCurrentPassword = document.getElementById('profile-current-password');
+  const profileNewPassword = document.getElementById('profile-new-password');
+  const profileNewPasswordConfirm = document.getElementById('profile-new-password-confirm');
+  const profileMessage = document.getElementById('profile-settings-message');
+
+  if(profileFullName) profileFullName.value = s.fullName || s.username || '';
+  if(profileUsername) profileUsername.value = s.username || '';
+
+  if(profileForm){
+    profileForm.addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      try {
+        const fullName = String(profileFullName?.value || '').trim();
+        const username = String(profileUsername?.value || '').trim();
+        const currentPassword = String(profileCurrentPassword?.value || '');
+        const newPassword = String(profileNewPassword?.value || '');
+        const confirmPassword = String(profileNewPasswordConfirm?.value || '');
+
+        if (!fullName || !username) {
+          throw new Error('Please enter both full name and username.');
+        }
+
+        if (currentPassword || newPassword || confirmPassword) {
+          if (!currentPassword) throw new Error('Current password is required to change password.');
+          if (!newPassword) throw new Error('New password is required.');
+          if (newPassword.length < 6) throw new Error('New password must be at least 6 characters.');
+          if (newPassword !== confirmPassword) throw new Error('New password and confirmation do not match.');
+          await Auth.changePassword(currentPassword, newPassword);
+        }
+
+        const payload = {
+          id: String(s.id),
+          username,
+          role: s.role || 'cashier',
+          fullName,
+          status: s.status || 'active',
+          tables: []
+        };
+        const response = await fetchBackend('/api/users/update', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        if (!response || response.success !== true) {
+          throw new Error(response?.error || 'Could not save profile.');
+        }
+
+        Auth.updateSession({ username, fullName, status: s.status || 'active' });
+        if (profileCurrentPassword) profileCurrentPassword.value = '';
+        if (profileNewPassword) profileNewPassword.value = '';
+        if (profileNewPasswordConfirm) profileNewPasswordConfirm.value = '';
+        if (profileMessage) {
+          profileMessage.textContent = 'Profile saved successfully.';
+          profileMessage.style.color = '#166534';
+        }
+      } catch (err) {
+        if (profileMessage) {
+          profileMessage.textContent = 'Error: ' + err.message;
+          profileMessage.style.color = '#991b1b';
+        } else {
+          alert('Change failed: ' + err.message);
+        }
+      }
+    });
+  }
+  console.log('cashier.js: Profile form wired');
 
   // ============================================
   // POS (Point of Sale) Functionality

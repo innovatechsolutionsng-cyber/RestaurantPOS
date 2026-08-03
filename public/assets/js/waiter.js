@@ -250,11 +250,86 @@
     });
   });
 
+  const settingsBtn = document.getElementById('btn-settings');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      const settingsLink = document.querySelector('.nav-link[data-panel="settings"]');
+      if (settingsLink) {
+        settingsLink.click();
+      }
+    });
+  }
+
   initializePanels();
 
   const session = Auth.getSession();
   if (waiterNameElement) waiterNameElement.textContent = session?.username || 'Waiter';
   if (roleNameElement) roleNameElement.textContent = 'Waiter';
+
+  const profileForm = document.getElementById('profile-settings-form');
+  const profileFullName = document.getElementById('profile-full-name');
+  const profileUsername = document.getElementById('profile-username');
+  const profileCurrentPassword = document.getElementById('profile-current-password');
+  const profileNewPassword = document.getElementById('profile-new-password');
+  const profileNewPasswordConfirm = document.getElementById('profile-new-password-confirm');
+  const profileMessage = document.getElementById('profile-settings-message');
+
+  if (profileFullName) profileFullName.value = session?.fullName || session?.username || '';
+  if (profileUsername) profileUsername.value = session?.username || '';
+
+  if (profileForm) {
+    profileForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const fullName = String(profileFullName?.value || '').trim();
+        const username = String(profileUsername?.value || '').trim();
+        const currentPassword = String(profileCurrentPassword?.value || '');
+        const newPassword = String(profileNewPassword?.value || '');
+        const confirmPassword = String(profileNewPasswordConfirm?.value || '');
+
+        if (!fullName || !username) {
+          throw new Error('Please provide your full name and username.');
+        }
+
+        if (currentPassword || newPassword || confirmPassword) {
+          if (!currentPassword) throw new Error('Please enter your current password to change your password.');
+          if (!newPassword) throw new Error('Please enter a new password.');
+          if (newPassword.length < 6) throw new Error('New password must be at least 6 characters.');
+          if (newPassword !== confirmPassword) throw new Error('New password and confirmation do not match.');
+          await Auth.changePassword(currentPassword, newPassword);
+        }
+
+        const updateResponse = await fetchBackend('/api/users/update', {
+          method: 'POST',
+          body: JSON.stringify({
+            id: String(session?.id),
+            username,
+            role: session?.role || 'waiter',
+            fullName,
+            status: session?.status || 'active',
+            tables: []
+          })
+        });
+        if (!updateResponse || updateResponse.success !== true) {
+          throw new Error(updateResponse?.error || 'Unable to save profile.');
+        }
+
+        Auth.updateSession({ username, fullName, status: session?.status || 'active' });
+        if (profileCurrentPassword) profileCurrentPassword.value = '';
+        if (profileNewPassword) profileNewPassword.value = '';
+        if (profileNewPasswordConfirm) profileNewPasswordConfirm.value = '';
+        if (profileMessage) {
+          profileMessage.textContent = 'Profile saved successfully.';
+          profileMessage.style.color = '#166534';
+        }
+      } catch (err) {
+        if (profileMessage) {
+          profileMessage.textContent = 'Error: ' + err.message;
+          profileMessage.style.color = '#991b1b';
+        }
+      }
+    });
+  }
 
   async function getOrders() {
     const waiterName = String(session?.username || '').trim().toLowerCase();
