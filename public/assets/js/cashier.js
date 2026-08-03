@@ -533,14 +533,18 @@ function showToast(message, type = 'success', duration = 3000) {
   const nameEl = document.getElementById('cashier-name');
   const avatarEl = document.getElementById('cashier-avatar');
   const roleEl = document.getElementById('cashier-role');
-  const fullName = (s.fullName && String(s.fullName).trim()) ? String(s.fullName).trim() : (s.username || 'Cashier');
-  const roleText = (s.role && String(s.role).trim()) ? String(s.role).trim() : 'cashier';
-  if(nameEl) nameEl.textContent = fullName;
-  if(roleEl) roleEl.textContent = roleText.charAt(0).toUpperCase() + roleText.slice(1).toLowerCase();
-  if(avatarEl){
-    const initial = fullName.charAt(0).toUpperCase() || 'C';
-    avatarEl.textContent = initial;
+
+  function refreshCashierSidebar(sessionData) {
+    const profile = sessionData || Auth.getSession();
+    if (!profile) return;
+    const fullNameValue = String(profile.fullName || profile.username || 'Cashier').trim();
+    const roleValue = String(profile.role || 'cashier').trim();
+    if (nameEl) nameEl.textContent = fullNameValue;
+    if (roleEl) roleEl.textContent = roleValue.charAt(0).toUpperCase() + roleValue.slice(1).toLowerCase();
+    if (avatarEl) avatarEl.textContent = fullNameValue.charAt(0).toUpperCase() || 'C';
   }
+
+  refreshCashierSidebar(s);
   const logoutBtn = document.getElementById('btn-logout');
   function showConfirmDialog({ title, message, confirmText = 'Yes', cancelText = 'Cancel', onConfirm }) {
     const modal = document.createElement('div');
@@ -754,6 +758,8 @@ function showToast(message, type = 'success', duration = 3000) {
         }
 
         Auth.updateSession({ username, fullName, status: s.status || 'active' });
+        s = Auth.getSession() || s;
+        refreshCashierSidebar(s);
         if (profileCurrentPassword) profileCurrentPassword.value = '';
         if (profileNewPassword) profileNewPassword.value = '';
         if (profileNewPasswordConfirm) profileNewPasswordConfirm.value = '';

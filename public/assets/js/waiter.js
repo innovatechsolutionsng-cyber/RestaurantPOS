@@ -130,6 +130,17 @@
   const roleNameElement = document.getElementById('cashier-role');
   const pendingOrdersEl = document.getElementById('stat-pending-orders');
   const totalOrdersEl = document.getElementById('stat-orders');
+
+  function refreshWaiterSidebar(sessionData) {
+    const profile = sessionData || Auth.getSession();
+    if (!profile) return;
+    const fullNameValue = String(profile.fullName || profile.username || 'Waiter').trim();
+    const roleValue = String(profile.role || 'waiter').trim();
+    if (waiterNameElement) waiterNameElement.textContent = fullNameValue;
+    if (roleNameElement) roleNameElement.textContent = roleValue.charAt(0).toUpperCase() + roleValue.slice(1).toLowerCase();
+    const avatarEl = document.getElementById('cashier-avatar');
+    if (avatarEl) avatarEl.textContent = fullNameValue.charAt(0).toUpperCase() || 'W';
+  }
   const revenueEl = document.getElementById('stat-revenue');
   const recentSalesBody = document.getElementById('recent-sales-body');
   const recentSalesTotal = document.getElementById('recent-sales-total');
@@ -263,8 +274,7 @@
   initializePanels();
 
   const session = Auth.getSession();
-  if (waiterNameElement) waiterNameElement.textContent = session?.username || 'Waiter';
-  if (roleNameElement) roleNameElement.textContent = 'Waiter';
+  refreshWaiterSidebar(session);
 
   const profileForm = document.getElementById('profile-settings-form');
   const profileFullName = document.getElementById('profile-full-name');
@@ -315,6 +325,8 @@
         }
 
         Auth.updateSession({ username, fullName, status: session?.status || 'active' });
+        const updatedSession = Auth.getSession();
+        refreshWaiterSidebar(updatedSession);
         if (profileCurrentPassword) profileCurrentPassword.value = '';
         if (profileNewPassword) profileNewPassword.value = '';
         if (profileNewPasswordConfirm) profileNewPasswordConfirm.value = '';

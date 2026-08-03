@@ -2002,6 +2002,7 @@ function showToast(message, type = 'success', duration = 3000) {
     await loadBusinessDaySetting().catch(err => console.error('Failed to load business day cutoff setting:', err));
     await loadReceiptSettings().catch(err => console.error('Failed to load receipt settings:', err));
     await loadProfileInfo().catch(err => console.error('Failed to load profile info:', err));
+    refreshSidebarProfileInfo();
     scheduleBusinessDayRefresh();
     await updateOperationalSnapshotCounts();
     startAdminRealtimeRefresh();
@@ -2073,6 +2074,24 @@ function showToast(message, type = 'success', duration = 3000) {
         }
       } catch (err) {
         console.warn('Failed to load profile info:', err);
+      }
+    }
+
+    function refreshSidebarProfileInfo() {
+      try {
+        const session = Auth.getSession();
+        if (!session) return;
+        const avatarEl = document.getElementById('admin-avatar');
+        const nameEl = document.getElementById('admin-name');
+        const roleEl = document.getElementById('admin-role');
+
+        const fullName = String(session.fullName || session.username || '').trim() || 'Admin';
+        const roleText = String(session.role || 'admin').trim();
+        if (avatarEl) avatarEl.textContent = fullName.charAt(0).toUpperCase() || 'A';
+        if (nameEl) nameEl.textContent = fullName;
+        if (roleEl) roleEl.textContent = roleText.charAt(0).toUpperCase() + roleText.slice(1).toLowerCase();
+      } catch (err) {
+        console.warn('Failed to refresh admin sidebar profile info:', err);
       }
     }
 
@@ -2267,6 +2286,7 @@ function showToast(message, type = 'success', duration = 3000) {
           }
 
           Auth.updateSession({ username, fullName, status: session.status || 'active' });
+          refreshSidebarProfileInfo();
           if (profileCurrentPassword) profileCurrentPassword.value = '';
           if (profileNewPassword) profileNewPassword.value = '';
           if (profileNewPasswordConfirm) profileNewPasswordConfirm.value = '';
