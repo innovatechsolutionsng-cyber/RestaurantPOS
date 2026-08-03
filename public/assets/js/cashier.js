@@ -2461,7 +2461,17 @@ function showToast(message, type = 'success', duration = 3000) {
       // cache orders so we can filter/search locally
       allOrdersCache = (orders || []).map(normalizeLoadedOrder);
       const currentBusinessDayOrders = filterBusinessDayOrders(allOrdersCache);
-      renderOrdersList(currentBusinessDayOrders);
+      const savedSort = getSavedOrderSortValue('newest');
+      const savedStatus = getSavedOrderStatusValue('');
+      const orderSortSelect = document.getElementById('order-sort');
+      const orderStatusFilter = document.getElementById('order-status-filter');
+      if (orderSortSelect) {
+        orderSortSelect.value = savedSort;
+      }
+      if (orderStatusFilter) {
+        orderStatusFilter.value = savedStatus;
+      }
+      renderFilteredOrders(currentBusinessDayOrders, { sortBy: savedSort, statusFilter: savedStatus, searchQuery: '' });
       // update dashboard stats after loading orders
       updateDashboardStats();
       // update POS stats cards
@@ -2473,11 +2483,86 @@ function showToast(message, type = 'success', duration = 3000) {
     }
   }
 
+  const ORDER_SORT_STORAGE_KEY = 'cashier:order-sort';
+  const ORDER_STATUS_FILTER_STORAGE_KEY = 'cashier:order-status-filter';
+
+  function getSavedOrderSortValue(defaultValue = 'newest') {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return defaultValue;
+      const value = window.localStorage.getItem(ORDER_SORT_STORAGE_KEY);
+      return value || defaultValue;
+    } catch (err) {
+      return defaultValue;
+    }
+  }
+
+  function setSavedOrderSortValue(sortBy) {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(ORDER_SORT_STORAGE_KEY, sortBy || 'newest');
+      }
+    } catch (err) {
+      console.warn('Could not save cashier sort preference:', err);
+    }
+  }
+
+  function getSavedOrderStatusValue(defaultValue = '') {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return defaultValue;
+      const value = window.localStorage.getItem(ORDER_STATUS_FILTER_STORAGE_KEY);
+      return value || defaultValue;
+    } catch (err) {
+      return defaultValue;
+    }
+  }
+
+  function setSavedOrderStatusValue(status) {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(ORDER_STATUS_FILTER_STORAGE_KEY, status || '');
+      }
+    } catch (err) {
+      console.warn('Could not save cashier status filter preference:', err);
+    }
+  }
+
+  function getCurrentOrderSortValue() {
+    const orderSortSelect = document.getElementById('order-sort');
+    if (orderSortSelect && orderSortSelect.value) {
+      return orderSortSelect.value;
+    }
+    return getSavedOrderSortValue('newest');
+  }
+
+  function renderFilteredOrders(orders, options = {}) {
+    const orderSortSelect = document.getElementById('order-sort');
+    const orderStatusFilter = document.getElementById('order-status-filter');
+    const orderSearchInput = document.getElementById('order-search');
+
+    const searchQuery = (options.searchQuery ?? (orderSearchInput ? orderSearchInput.value : '')).trim();
+    const statusFilter = options.statusFilter ?? (orderStatusFilter ? orderStatusFilter.value : getSavedOrderStatusValue(''));
+    const sortBy = options.sortBy ?? getCurrentOrderSortValue();
+
+    let filtered = searchQuery ? filterOrdersByQuery(searchQuery, orders) : (orders || []);
+    filtered = statusFilter ? filterOrdersByStatus(filtered, statusFilter) : filtered;
+
+    if (orderSortSelect && orderSortSelect.value !== sortBy) {
+      orderSortSelect.value = sortBy;
+    }
+    if (orderStatusFilter && orderStatusFilter.value !== statusFilter) {
+      orderStatusFilter.value = statusFilter;
+    }
+
+    const sorted = sortOrders(filtered, sortBy);
+    renderOrdersList(sorted);
+    return sorted;
+  }
+
   // Filter orders cache by query (table name or waiter)
-  function filterOrdersByQuery(query){
-    if (!query) return allOrdersCache;
+  function filterOrdersByQuery(query, sourceOrders = allOrdersCache){
+    if (!query) return sourceOrders || [];
     const q = query.trim().toLowerCase();
-    return allOrdersCache.filter(o => {
+    return (sourceOrders || []).filter(o => {
       const table = (o.tableName || '').toLowerCase();
       const waiter = (o.waiterName || '').toLowerCase();
       return table.includes(q) || waiter.includes(q);
@@ -6311,26 +6396,28 @@ function showToast(message, type = 'success', duration = 3000) {
     // Sort orders when dropdown changes
     if (orderSortSelect) {
       orderSortSelect.addEventListener('change', (e) => {
-        const sortBy = e.target.value;
-        const searchQuery = orderSearchInput ? (orderSearchInput.value || '').trim() : '';
-        const statusFilter = orderStatusFilter ? (orderStatusFilter.value || '').trim() : '';
-        let filtered = searchQuery ? filterOrdersByQuery(searchQuery) : allOrdersCache;
-        filtered = statusFilter ? filterOrdersByStatus(filtered, statusFilter) : filtered;
-        const sorted = sortOrders(filtered, sortBy);
-        renderOrdersList(sorted);
+        const sortBy = e.target.value || 'newest';
+        setSavedOrderSortValue(sortBy);
+        renderFilteredOrders(allOrdersCache, {
+          sortBy,
+          statusFilter: orderStatusFilter ? (orderStatusFilter.value || '').trim() : '',
+          searchQuery: orderSearchInput ? (orderSearchInput.value || '').trim() : ''
+        });
       });
     }
     
     // Status filter when dropdown changes
     if (orderStatusFilter) {
       orderStatusFilter.addEventListener('change', (e) => {
-        const statusFilter = e.target.value;
+        const statusFilter = e.target.value || '';
+        setSavedOrderStatusValue(statusFilter);
         const searchQuery = orderSearchInput ? (orderSearchInput.value || '').trim() : '';
         const sortValue = orderSortSelect ? orderSortSelect.value : 'newest';
-        let filtered = searchQuery ? filterOrdersByQuery(searchQuery) : allOrdersCache;
-        filtered = statusFilter ? filterOrdersByStatus(filtered, statusFilter) : filtered;
-        const sorted = sortOrders(filtered, sortValue);
-        renderOrdersList(sorted);
+        renderFilteredOrders(allOrdersCache, {
+          sortBy: sortValue,
+          statusFilter,
+          searchQuery
+        });
       });
     }
     
@@ -6338,12 +6425,12 @@ function showToast(message, type = 'success', duration = 3000) {
       orderSearchInput.addEventListener('input', (e) => {
         const q = (e.target.value || '').trim();
         const statusFilter = orderStatusFilter ? (orderStatusFilter.value || '').trim() : '';
-        let filtered = q ? filterOrdersByQuery(q) : allOrdersCache;
-        filtered = statusFilter ? filterOrdersByStatus(filtered, statusFilter) : filtered;
-        // Apply current sort filter
         const sortValue = orderSortSelect ? orderSortSelect.value : 'newest';
-        const sorted = sortOrders(filtered, sortValue);
-        renderOrdersList(sorted);
+        renderFilteredOrders(allOrdersCache, {
+          sortBy: sortValue,
+          statusFilter,
+          searchQuery: q
+        });
       });
     }
     
