@@ -3107,7 +3107,7 @@ function showToast(message, type = 'success', duration = 3000) {
           </div>
         </div>
         ${mergedBadgeText ? `
-        <div style="margin-top: 8px; padding: 8px 10px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; width: fit-content;">
+        <div style="margin-top: 6px; padding: 6px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; width: fit-content;">
           <span>🔀</span>
           <span>${mergedBadgeText}</span>
         </div>
@@ -3131,36 +3131,34 @@ function showToast(message, type = 'success', duration = 3000) {
           <span class="order-card-value">${formatCurrency(totalAmount)}</span>
         </div>
         ${order.splitReference ? `
-        <div style="background-color: ${order.splitFromBillId ? 'rgba(249, 115, 22, 0.08)' : 'rgba(139, 92, 246, 0.08)'}; padding: 8px; border-radius: 6px; margin-top: 8px; border-left: 3px solid ${order.splitFromBillId ? '#f97316' : '#8b5cf6'};">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
+        <div style="background-color: ${order.splitFromBillId ? 'rgba(249, 115, 22, 0.08)' : 'rgba(139, 92, 246, 0.08)'}; padding: 7px 8px; border-radius: 6px; margin-top: 6px; border-left: 3px solid ${order.splitFromBillId ? '#f97316' : '#8b5cf6'};">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <div style="min-width: 0;">
               <span class="order-card-label">Ref:</span>
-              <span class="order-card-value" style="font-family: monospace; font-size: 0.85rem;">${order.splitReference}</span>
+              <span class="order-card-value" style="font-family: monospace; font-size: 0.78rem;">${order.splitReference}</span>
             </div>
             ${order.splitPlace && order.splitTotal ? `
-            <div style="background: ${order.splitFromBillId ? '#f97316' : '#8b5cf6'}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">Place ${order.splitPlace}/${order.splitTotal}</div>
+            <div style="background: ${order.splitFromBillId ? '#f97316' : '#8b5cf6'}; color: white; padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">P${order.splitPlace}/${order.splitTotal}</div>
             ` : ''}
           </div>
         </div>
         ` : ''}
         ${order.mergedTables && order.mergedTables.length > 0 ? `
-        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-          <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
-            <div style="font-size: 0.8rem; font-weight: 700; color: #666;">Merged Tables:</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="font-size: 0.74rem; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.04em;">Merged Tables</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
               ${order.mergedTables.map((merged, idx) => {
                 const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316'];
                 const color = colors[idx % colors.length];
                 const itemCount = Number(merged.itemCount || 0);
                 const mergedTotal = Number(merged.totalAmount || 0);
                 return `
-                  <div style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; background: ${color}16; border: 1px solid ${color}; color: #374151; font-size: 0.72rem; font-weight: 600; line-height: 1;">
-                    <span style="width: 18px; height: 18px; border-radius: 50%; background: ${color}; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.68rem; flex-shrink: 0;">${String(merged.tableName || '').replace(/[^0-9]/g, '').slice(-2) || '1'}</span>
+                  <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 999px; background: ${color}16; border: 1px solid ${color}; color: #374151; font-size: 0.68rem; font-weight: 600; line-height: 1;">
+                    <span style="width: 15px; height: 15px; border-radius: 50%; background: ${color}; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.62rem; flex-shrink: 0;">${String(merged.tableName || '').replace(/[^0-9]/g, '').slice(-2) || '1'}</span>
                     <span style="white-space: nowrap;">${merged.waiterName || 'Unassigned'}</span>
                     <span style="color: #6b7280;">•</span>
-                    <span style="white-space: nowrap;">${itemCount} ${itemCount === 1 ? 'item' : 'items'}</span>
-                    <span style="color: #6b7280;">•</span>
-                    <span style="white-space: nowrap;">${formatCurrency(mergedTotal)}</span>
+                    <span style="white-space: nowrap;">${itemCount}</span>
                   </div>
                 `;
               }).join('')}
@@ -5199,40 +5197,46 @@ function showToast(message, type = 'success', duration = 3000) {
     };
 
     const showSplitDistribution = (numPlaces) => {
-      const itemDistribution = {};
-      currentOrderItems.forEach((item, index) => {
-        itemDistribution[index] = {};
-        itemDistribution[index][1] = item.quantity;
-      });
-
       let itemsHTML = `<div style="display:grid;gap:10px;">`;
 
       currentOrderItems.forEach((item, index) => {
         const itemTotal = Number(item.unitPrice || 0) * Number(item.quantity || 0);
-        let placeInputsHTML = '';
-        for (let i = 1; i <= numPlaces; i++) {
-          if (i === 1) {
-            placeInputsHTML += `
-              <div style="display:flex;align-items:center;gap:6px;flex:1;">
-                <label style="font-weight:700;font-size:0.9em;">P1:</label>
-                <input type="number" id="qty-${index}-place-${i}" class="place-qty-input place-1-qty" data-item-index="${index}" data-place="${i}" min="0" max="${item.quantity}" value="${item.quantity}" style="width:54px;padding:4px;border:1px solid #d1d5db;border-radius:6px;text-align:center;font-size:0.9em;background:#f3f4f6;color:#6b7280;cursor:not-allowed;" readonly />
-              </div>
-            `;
-          } else {
-            placeInputsHTML += `
-              <div style="display:flex;align-items:center;gap:6px;flex:1;">
-                <label for="qty-${index}-place-${i}" style="font-weight:700;font-size:0.9em;">P${i}:</label>
-                <input type="number" id="qty-${index}-place-${i}" class="place-qty-input other-place-qty" data-item-index="${index}" data-place="${i}" min="0" max="${item.quantity}" value="0" style="width:54px;padding:4px;border:1px solid #d1d5db;border-radius:6px;text-align:center;font-size:0.9em;" />
-              </div>
-            `;
-          }
-        }
+        const splitPlaceInputs = Array.from({ length: numPlaces - 1 }, (_, offset) => {
+          const placeNumber = offset + 2;
+          return `
+            <div class="split-place-field">
+              <label for="qty-${index}-place-${placeNumber}" class="split-place-label">Place ${placeNumber}</label>
+              <input type="number" id="qty-${index}-place-${placeNumber}" class="split-place-input" data-item-index="${index}" data-place="${placeNumber}" min="0" max="${item.quantity}" value="0" />
+            </div>
+          `;
+        }).join('');
 
         itemsHTML += `
-          <div style="padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;">
-            <div style="font-weight:700;margin-bottom:4px;">${item.productName || 'Unknown item'}</div>
-            <div style="font-size:0.82rem;color:#6b7280;margin-bottom:8px;">Available: ${item.quantity} units · ${formatCurrency(item.unitPrice)} each · ${formatCurrency(itemTotal)}</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;">${placeInputsHTML}</div>
+          <div class="split-item-card">
+            <div class="split-item-head">
+              <div>
+                <div class="split-item-title">${item.productName || 'Unknown item'}</div>
+                <div class="split-item-subtitle">Original quantity: ${item.quantity} · ${formatCurrency(item.unitPrice)} each · ${formatCurrency(itemTotal)}</div>
+              </div>
+              <div class="split-item-badge">Qty ${item.quantity}</div>
+            </div>
+            <div class="split-summary-grid">
+              <div class="split-summary-pill">
+                <div class="split-summary-label">Original bill</div>
+                <div class="split-summary-value" id="place1-qty-${index}">${item.quantity}</div>
+              </div>
+              <div class="split-summary-pill">
+                <div class="split-summary-label">Split places</div>
+                <div class="split-summary-value" id="split-qty-${index}">0</div>
+              </div>
+            </div>
+            <div class="split-place-grid">
+              <div class="split-place-field is-original">
+                <label class="split-place-label">Place 1</label>
+                <div class="split-place-value" id="place1-display-${index}">${item.quantity}</div>
+              </div>
+              ${splitPlaceInputs}
+            </div>
           </div>
         `;
       });
@@ -5254,14 +5258,18 @@ function showToast(message, type = 'success', duration = 3000) {
         <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <div>
             <h3 style="margin:0;">Split Bill - Distribute</h3>
-            <div style="margin-top:6px;font-size:0.9rem;color:#6b7280;">Assign quantities to each place. Place 1 remains the original bill.</div>
+            <div style="margin-top:6px;font-size:0.9rem;color:#6b7280;">Choose how much of each item moves to each split place. The remaining quantity stays on the original bill automatically.</div>
           </div>
           <button id="btn-close-split" class="btn btn-ghost" aria-label="Close">✕</button>
         </div>
         <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
           <div style="padding:12px 14px;background:#e8f4f8;border-left:4px solid #0891b2;border-radius:8px;">
-            <div style="font-weight:700;color:#0f172a;margin-bottom:4px;">Distribution preview</div>
-            <div style="font-size:0.92rem;color:#475569;">Review the place totals and distribute the quantities before creating split bills.</div>
+            <div style="font-weight:700;color:#0f172a;margin-bottom:4px;">Simple distribution</div>
+            <div style="font-size:0.92rem;color:#475569;">Enter the quantities to move into each split place and the original bill updates itself in real time.</div>
+          </div>
+          <div class="split-help-bar">
+            <div class="split-help-text">Use the fields below to move quantities to the split places. The original bill keeps whatever remains.</div>
+            <button type="button" id="btn-reset-split" class="split-helper-btn">Reset</button>
           </div>
           <div>${placeAmountsHTML}</div>
           <div style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
@@ -5287,7 +5295,7 @@ function showToast(message, type = 'success', duration = 3000) {
               </table>
             </div>
           </div>
-          <div style="font-weight:700;color:#111827;">Edit quantities below</div>
+          <div style="font-weight:700;color:#111827;">Distribute each item below</div>
           <div>${itemsHTML}</div>
         </div>
         <div class="modal-footer" style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
@@ -5300,37 +5308,31 @@ function showToast(message, type = 'success', duration = 3000) {
       modalPanel.style.maxWidth = '1400px';
       modalPanel.style.width = '90vw';
 
-      const otherPlaceInputs = document.querySelectorAll('.other-place-qty');
       const updateSummaries = () => {
-        const itemQtysPerPlace = {};
-        for (let i = 1; i <= numPlaces; i++) itemQtysPerPlace[i] = {};
-
-        document.querySelectorAll('.other-place-qty').forEach((input) => {
-          const place = parseInt(input.getAttribute('data-place'));
-          const itemIndex = parseInt(input.getAttribute('data-item-index'));
-          const quantity = parseInt(input.value) || 0;
-          itemQtysPerPlace[place][itemIndex] = quantity;
-        });
-
         currentOrderItems.forEach((item, index) => {
-          let totalMovedQty = 0;
-          for (let place = 2; place <= numPlaces; place++) {
-            totalMovedQty += itemQtysPerPlace[place][index] || 0;
+          const itemInputs = Array.from(document.querySelectorAll(`.split-place-input[data-item-index="${index}"]`));
+          let assignedToSplit = itemInputs.reduce((sum, input) => sum + (parseInt(input.value) || 0), 0);
+          const focusedInput = document.querySelector('.split-place-input:focus');
+          if (focusedInput) {
+            const focusedValue = parseInt(focusedInput.value) || 0;
+            if (assignedToSplit > item.quantity) {
+              focusedInput.value = Math.max(0, focusedValue - (assignedToSplit - item.quantity));
+              assignedToSplit = itemInputs.reduce((sum, input) => sum + (parseInt(input.value) || 0), 0);
+            }
           }
 
-          if (totalMovedQty > item.quantity) {
-            const changedInput = document.querySelector('.other-place-qty:focus');
-            if (changedInput) changedInput.value = Math.max(0, item.quantity - (totalMovedQty - (parseInt(changedInput.value) || 0)));
-            totalMovedQty = item.quantity;
-          }
-
-          const p1Input = document.getElementById(`qty-${index}-place-1`);
-          if (p1Input) p1Input.value = item.quantity - totalMovedQty;
+          const place1Qty = Math.max(0, item.quantity - assignedToSplit);
+          const place1Display = document.getElementById(`place1-display-${index}`);
+          const place1QtyEl = document.getElementById(`place1-qty-${index}`);
+          const splitQtyEl = document.getElementById(`split-qty-${index}`);
+          if (place1Display) place1Display.textContent = place1Qty;
+          if (place1QtyEl) place1QtyEl.textContent = place1Qty;
+          if (splitQtyEl) splitQtyEl.textContent = assignedToSplit;
 
           for (let place = 1; place <= numPlaces; place++) {
             const summaryCell = document.getElementById(`summary-qty-${index}-${place}`);
             if (summaryCell) {
-              summaryCell.textContent = document.getElementById(`qty-${index}-place-${place}`)?.value || 0;
+              summaryCell.textContent = place === 1 ? place1Qty : (document.getElementById(`qty-${index}-place-${place}`)?.value || 0);
             }
           }
         });
@@ -5338,12 +5340,15 @@ function showToast(message, type = 'success', duration = 3000) {
         const placeAmounts = {};
         for (let i = 1; i <= numPlaces; i++) placeAmounts[i] = 0;
 
-        document.querySelectorAll('.place-qty-input').forEach((input) => {
-          const place = parseInt(input.getAttribute('data-place'));
-          const itemIndex = parseInt(input.getAttribute('data-item-index'));
-          const quantity = parseInt(input.value) || 0;
-          const item = currentOrderItems[itemIndex];
-          placeAmounts[place] += Number(item.unitPrice || 0) * quantity;
+        currentOrderItems.forEach((item, index) => {
+          const place1Qty = parseInt(document.getElementById(`place1-qty-${index}`)?.textContent || 0) || 0;
+          const itemInputs = Array.from(document.querySelectorAll(`.split-place-input[data-item-index="${index}"]`));
+          placeAmounts[1] += Number(item.unitPrice || 0) * place1Qty;
+          itemInputs.forEach((input) => {
+            const place = parseInt(input.getAttribute('data-place'));
+            const quantity = parseInt(input.value) || 0;
+            placeAmounts[place] += Number(item.unitPrice || 0) * quantity;
+          });
         });
 
         for (let i = 1; i <= numPlaces; i++) {
@@ -5352,9 +5357,16 @@ function showToast(message, type = 'success', duration = 3000) {
         }
       };
 
-      otherPlaceInputs.forEach((input) => {
+      document.querySelectorAll('.split-place-input').forEach((input) => {
         input.addEventListener('change', updateSummaries);
         input.addEventListener('input', updateSummaries);
+      });
+
+      document.getElementById('btn-reset-split')?.addEventListener('click', () => {
+        document.querySelectorAll('.split-place-input').forEach((input) => {
+          input.value = 0;
+        });
+        updateSummaries();
       });
       updateSummaries();
 
@@ -5374,19 +5386,34 @@ function showToast(message, type = 'success', duration = 3000) {
           const placeDistribution = {};
           for (let i = 1; i <= numPlaces; i++) placeDistribution[i] = [];
 
-          document.querySelectorAll('.place-qty-input').forEach((input) => {
-            const place = parseInt(input.getAttribute('data-place'));
-            const itemIndex = parseInt(input.getAttribute('data-item-index'));
-            const quantity = parseInt(input.value) || 0;
+          currentOrderItems.forEach((item, itemIndex) => {
+            const itemInputs = Array.from(document.querySelectorAll(`.split-place-input[data-item-index="${itemIndex}"]`));
+            const quantitiesByPlace = { 1: item.quantity };
+            itemInputs.forEach((input) => {
+              const place = parseInt(input.getAttribute('data-place'));
+              const quantity = parseInt(input.value) || 0;
+              quantitiesByPlace[place] = quantity;
+            });
 
-            if (quantity > 0) {
-              const item = currentOrderItems[itemIndex];
-              placeDistribution[place].push({
-                ...item,
-                quantity,
-                originalIndex: itemIndex
-              });
+            const assignedToSplit = Object.keys(quantitiesByPlace).filter((place) => Number(place) > 1).reduce((sum, place) => sum + (quantitiesByPlace[Number(place)] || 0), 0);
+            quantitiesByPlace[1] = Math.max(0, item.quantity - assignedToSplit);
+
+            const totalForItem = Object.values(quantitiesByPlace).reduce((sum, amount) => sum + Number(amount || 0), 0);
+            if (totalForItem !== item.quantity) {
+              throw new Error(`The quantities for ${item.productName || 'an item'} must add up to the original quantity.`);
             }
+
+            Object.keys(quantitiesByPlace).forEach((placeKey) => {
+              const place = Number(placeKey);
+              const quantity = Number(quantitiesByPlace[place] || 0);
+              if (quantity > 0) {
+                placeDistribution[place].push({
+                  ...item,
+                  quantity,
+                  originalIndex: itemIndex
+                });
+              }
+            });
           });
 
           const emptyPlaces = [];
