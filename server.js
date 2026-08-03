@@ -1573,6 +1573,55 @@ async function startAdminServer(port = 3000) {
     }
   });
 
+  app.get('/api/bi/summary', async (req, res) => {
+    try {
+      if (!useMySQL || !dbPool) { return res.status(500).json({ success: false, error: 'database_unavailable' }); }
+      const connection = await dbPool.getConnection();
+      try {
+        const [productRows] = await connection.query('SELECT id, name, price, quantity, barcode, cat, sub, created_at AS createdAt, updated_at AS updatedAt FROM products ORDER BY name ASC');
+        const [orderRows] = await connection.query('SELECT order_data, created_at, updated_at FROM orders');
+
+        const products = (productRows || []).map((row) => ({
+          id: row.id,
+          name: row.name,
+          price: Number(row.price || 0),
+          quantity: Number(row.quantity || 0),
+          barcode: row.barcode || null,
+          category: row.cat || null,
+          subcategory: row.sub || null,
+          createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+          updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt
+        }));
+
+        const orders = [];
+        for (const row of orderRows || []) {
+          let order = {};
+          try {
+            order = JSON.parse(row.order_data || '{}');
+          } catch (err) {
+            order = {};
+          }
+          if (!order.createdAt && row.created_at) {
+            const createdAt = row.created_at instanceof Date ? row.created_at.toISOString() : new Date(row.created_at).toISOString();
+            if (!Number.isNaN(new Date(createdAt).getTime())) order.createdAt = createdAt;
+          }
+          if (!order.updatedAt && row.updated_at) {
+            const updatedAt = row.updated_at instanceof Date ? row.updated_at.toISOString() : new Date(row.updated_at).toISOString();
+            if (!Number.isNaN(new Date(updatedAt).getTime())) order.updatedAt = updatedAt;
+          }
+          orders.push(order);
+        }
+
+        res.json({ success: true, orders, products });
+      } finally {
+        connection.release();
+      }
+    } catch (err) {
+      console.error('Error fetching BI summary:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // ====== CASH TRACKING ======
 
   /**

@@ -808,6 +808,140 @@ function showToast(message, type = 'success', duration = 3000) {
     }
   }
 
+  async function renderBIReport() {
+    const bestSellerNameEl = document.getElementById('bi-best-seller-name');
+    const todayRevenueEl = document.getElementById('bi-today-revenue');
+    const yesterdayRevenueEl = document.getElementById('bi-yesterday-revenue');
+    const salesDeltaEl = document.getElementById('bi-sales-delta');
+    const topCategoryEl = document.getElementById('bi-top-category');
+    const topProductsEl = document.getElementById('bi-top-products');
+    const topStaffEl = document.getElementById('bi-top-staff');
+    const lowStockFastMoversEl = document.getElementById('bi-low-stock-fast-movers');
+    const todayBarEl = document.getElementById('bi-today-bar');
+    const yesterdayBarEl = document.getElementById('bi-yesterday-bar');
+
+    if (!bestSellerNameEl || !todayRevenueEl || !yesterdayRevenueEl || !salesDeltaEl || !topCategoryEl || !topProductsEl || !topStaffEl || !lowStockFastMoversEl || !todayBarEl || !yesterdayBarEl) return;
+
+    try {
+      const [summaryRes, fallbackOrders, fallbackProducts] = await Promise.all([
+        BACKEND_AVAILABLE ? fetchBackend('/api/bi/summary').catch(() => ({ orders: [], products: [] })) : Promise.resolve(null),
+        RestaurantDB.getAllOrders().catch(() => []),
+        RestaurantDB.getAllProducts().catch(() => [])
+      ]);
+
+      const orders = BACKEND_AVAILABLE && summaryRes ? (Array.isArray(summaryRes.orders) ? summaryRes.orders : []) : (Array.isArray(fallbackOrders) ? fallbackOrders : []);
+      const products = BACKEND_AVAILABLE && summaryRes ? (Array.isArray(summaryRes.products) ? summaryRes.products : []) : (Array.isArray(fallbackProducts) ? fallbackProducts : []);
+      const range = getBusinessDayRange(businessDayCutoff);
+      const yesterdayRange = { start: new Date(range.start), end: new Date(range.end) };
+      yesterdayRange.start.setDate(yesterdayRange.start.getDate() - 1);
+      yesterdayRange.end.setDate(yesterdayRange.end.getDate() - 1);
+
+      const completedOrders = orders.filter((order) => getOrderStatus(order) === 'completed');
+      const todaysOrders = completedOrders.filter((order) => {
+        const createdAt = getOrderCreatedAt(order);
+        return !Number.isNaN(createdAt.getTime()) && createdAt >= range.start && createdAt < range.end;
+      });
+      const yesterdaysOrders = completedOrders.filter((order) => {
+        const createdAt = getOrderCreatedAt(order);
+        return !Number.isNaN(createdAt.getTime()) && createdAt >= yesterdayRange.start && createdAt < yesterdayRange.end;
+      });
+
+      const todayRevenue = todaysOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
+      const yesterdayRevenue = yesterdaysOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
+      const delta = yesterdayRevenue === 0 ? (todayRevenue === 0 ? 0 : 100) : ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100;
+      const deltaLabel = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
+
+      const itemSummary = {};
+      const categorySummary = {};
+      const staffSummary = { waiters: {}, cashiers: {} };
+
+      completedOrders.forEach((order) => {
+        const items = Array.isArray(order.items) ? order.items : [];
+        const orderAmount = getOrderAmount(order);
+        const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']);
+        const cashier = getOrderPerson(order, ['cashierName', 'cashier', 'createdBy', 'created_by', 'orderData.cashierName', 'orderData.cashier', 'orderData.createdBy', 'orderData.created_by', 'order.orderData.cashierName', 'order.orderData.cashier', 'order.orderData.createdBy', 'order.orderData.created_by']);
+
+        if (waiter) {
+          staffSummary.waiters[waiter] = (staffSummary.waiters[waiter] || 0) + orderAmount;
+        }
+        if (cashier) {
+          staffSummary.cashiers[cashier] = (staffSummary.cashiers[cashier] || 0) + orderAmount;
+        }
+
+        items.forEach((item) => {
+          const name = (item.productName || item.name || item.title || 'Unknown').toString();
+          const quantity = Number(item.quantity || item.qty || 0);
+          const key = name.toLowerCase();
+          if (!itemSummary[key]) {
+            itemSummary[key] = { name, quantity: 0, value: 0 };
+          }
+          itemSummary[key].quantity += quantity;
+          const unitPrice = Number(item.unitPrice || item.price || item.amount || 0);
+          itemSummary[key].value += quantity * unitPrice;
+
+          const product = products.find((p) => String(p.name || '').toLowerCase() === key);
+          const category = product ? (product.category || product.cat || 'Uncategorized') : 'Uncategorized';
+          categorySummary[category] = (categorySummary[category] || 0) + (quantity * unitPrice);
+        });
+      });
+
+      const productList = Object.values(itemSummary).sort((a, b) => b.quantity - a.quantity).slice(0, 6);
+      const bestSeller = productList[0] || null;
+      const topCategoryEntry = Object.entries(categorySummary).sort((a, b) => b[1] - a[1])[0] || ['Uncategorized', 0];
+      const topWaiterEntry = Object.entries(staffSummary.waiters).sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+      const topCashierEntry = Object.entries(staffSummary.cashiers).sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+
+      bestSellerNameEl.textContent = bestSeller ? `${bestSeller.name} (${bestSeller.quantity} sold)` : 'No sales yet';
+      todayRevenueEl.textContent = `₦${formatCurrency(todayRevenue)}`;
+      yesterdayRevenueEl.textContent = `₦${formatCurrency(yesterdayRevenue)}`;
+      salesDeltaEl.textContent = deltaLabel;
+      topCategoryEl.textContent = `${topCategoryEntry[0]} (${formatCurrency(topCategoryEntry[1])})`;
+
+      topProductsEl.innerHTML = productList.length === 0 ? '<li>No products sold yet</li>' : productList.map((item) => `
+        <li style="margin-bottom: 10px;">
+          <strong>${item.name}</strong><br><span class="muted" style="font-size:0.9rem;">${item.quantity} sold · ₦${formatCurrency(item.value)}</span>
+        </li>
+      `).join('');
+
+      topStaffEl.innerHTML = `
+        <div style="padding:14px;border-radius:12px;background:#eef2ff;">
+          <div class="eyebrow">Top waiter</div>
+          <div style="margin-top:10px;font-weight:700;">${topWaiterEntry[0]}</div>
+          <div class="muted" style="margin-top:6px;">₦${formatCurrency(topWaiterEntry[1])} revenue</div>
+        </div>
+        <div style="padding:14px;border-radius:12px;background:#ecfdf5;">
+          <div class="eyebrow">Top cashier</div>
+          <div style="margin-top:10px;font-weight:700;">${topCashierEntry[0]}</div>
+          <div class="muted" style="margin-top:6px;">₦${formatCurrency(topCashierEntry[1])} revenue</div>
+        </div>
+      `;
+
+      const lowStockProducts = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5).sort((a, b) => Number(a.quantity || 0) - Number(b.quantity || 0)).slice(0, 5);
+      lowStockFastMoversEl.innerHTML = lowStockProducts.length === 0 ? '<div class="muted">No low-stock fast movers at the moment.</div>' : lowStockProducts.map((product) => `
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px;border-radius:10px;background:#f8fafc;">
+          <div>
+            <div style="font-weight:700;">${product.name || 'Unnamed product'}</div>
+            <div class="muted" style="font-size:0.9rem;">Qty left: ${product.quantity}</div>
+          </div>
+          <div style="font-size:0.9rem;color:#0f766e;">₦${formatCurrency(Number(product.price || 0))}</div>
+        </div>
+      `).join('');
+
+      const maxValue = Math.max(todayRevenue, yesterdayRevenue, 1);
+      const todayBarHeight = Math.round((todayRevenue / maxValue) * 100);
+      const yesterdayBarHeight = Math.round((yesterdayRevenue / maxValue) * 100);
+      todayBarEl.style.height = `${Math.max(todayBarHeight, 12)}%`;
+      yesterdayBarEl.style.height = `${Math.max(yesterdayBarHeight, 12)}%`;
+    } catch (err) {
+      console.error('Failed to render BI report:', err);
+    }
+  }
+
+  const btnRefreshBIReport = document.getElementById('btn-refresh-bi-report');
+  if (btnRefreshBIReport) {
+    btnRefreshBIReport.addEventListener('click', renderBIReport);
+  }
+
   async function isBackendAvailable() {
     try {
       const response = await fetchBackend('/health');
@@ -992,6 +1126,9 @@ function showToast(message, type = 'success', duration = 3000) {
     localStorage.setItem('admin-active-panel', panelId);
     if (panelId === 'sales') {
       loadSalesPanel();
+    }
+    if (panelId === 'bi-report') {
+      renderBIReport();
     }
   };
 
