@@ -31,6 +31,69 @@
   let businessDayCutoff = '00:00';
   let businessDayRefreshTimer = null;
 
+  function showToast(message, type = 'success', duration = 3000) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 2147483647;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+      max-width: min(360px, calc(100vw - 24px));
+      line-height: 1.4;
+      pointer-events: none;
+    `;
+
+    if (type === 'success') {
+      toast.style.backgroundColor = '#dcfce7';
+      toast.style.color = '#166534';
+      toast.style.border = '1px solid #86efac';
+      toast.textContent = '✓ ' + message;
+    } else if (type === 'error') {
+      toast.style.backgroundColor = '#fee2e2';
+      toast.style.color = '#991b1b';
+      toast.style.border = '1px solid #fca5a5';
+      toast.textContent = '✗ ' + message;
+    } else if (type === 'warning') {
+      toast.style.backgroundColor = '#fef3c7';
+      toast.style.color = '#92400e';
+      toast.style.border = '1px solid #fcd34d';
+      toast.textContent = '⚠️ ' + message;
+    } else {
+      toast.style.backgroundColor = '#dbeafe';
+      toast.style.color = '#1e40af';
+      toast.style.border = '1px solid #93c5fd';
+      toast.textContent = 'ℹ ' + message;
+    }
+
+    let container = document.getElementById('waiter-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'waiter-toast-container';
+      container.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-end;
+        z-index: 2147483647;
+        pointer-events: none;
+        max-width: min(360px, calc(100vw - 24px));
+      `;
+      document.body.appendChild(container);
+    }
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.remove();
+    }, duration);
+  }
+
   function parseBusinessDayCutoff(value) {
     if (!value || typeof value !== 'string') return null;
     const match = value.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
@@ -267,6 +330,8 @@
       const settingsLink = document.querySelector('.nav-link[data-panel="settings"]');
       if (settingsLink) {
         settingsLink.click();
+      } else {
+        showPanel('settings');
       }
     });
   }
@@ -719,6 +784,11 @@
     return currentOrderItems.find((item) => String(item.productId) === String(productId));
   }
 
+  function isTableOccupied(tableName) {
+    if (!tableName || currentOrderId) return false;
+    return existingTableOrderMap.has(String(tableName).trim().toLowerCase());
+  }
+
   function renderModalTableCards(modal) {
     const container = modal.querySelector('#modal-table-container');
     if (!container) return;
@@ -737,13 +807,12 @@
     }
     container.innerHTML = waiterTables.map((table) => {
       const normalizedTable = String(table).trim();
-      const isOccupied = !currentOrderId && existingTableOrderMap.has(normalizedTable.toLowerCase());
+      const isOccupied = isTableOccupied(normalizedTable);
       const isSelected = String(selectedTableId) === normalizedTable;
-      const disabledAttr = isOccupied ? ' disabled aria-disabled="true"' : '';
       const selectedClass = isSelected ? ' selected' : '';
       const occupiedLabel = isOccupied ? '<span class="muted" style="font-size:0.8rem;margin-left:8px;">In use</span>' : '';
       return `
-        <button type="button" class="pos-chip table${selectedClass}" data-table="${normalizedTable}"${disabledAttr} style="${isOccupied ? 'opacity:0.65;cursor:not-allowed;' : ''}">
+        <button type="button" class="pos-chip table${selectedClass}" data-table="${normalizedTable}" style="${isOccupied ? 'opacity:0.65;cursor:not-allowed;' : ''}">
           <span class="pos-chip-label">${normalizedTable}</span>
           ${occupiedLabel}
           ${isSelected ? '<span class="pos-chip-check">✓</span>' : ''}
@@ -752,8 +821,12 @@
     }).join('');
     container.querySelectorAll('.pos-chip.table').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (btn.hasAttribute('disabled')) return;
-        selectedTableId = btn.dataset.table;
+        const tableName = btn.dataset.table;
+        if (isTableOccupied(tableName)) {
+          showToast(`An order already exists for table ${tableName}. Use Update Order to add items.`, 'error', 3200);
+          return;
+        }
+        selectedTableId = tableName;
         renderModalTableCards(modal);
       });
     });
@@ -825,6 +898,10 @@
     if (!container) return;
     if (!selectedSubcategoryId) {
       container.innerHTML = '<div class="pos-section-empty">Select a subcategory to view products.</div>';
+      return;
+    }
+    if (!currentOrderId && selectedTableId && isTableOccupied(selectedTableId)) {
+      container.innerHTML = '<div class="pos-section-empty">This table already has an order. Use Update Order to add items.</div>';
       return;
     }
     const matches = allProducts.filter((product) => String(product.sub) === String(selectedSubcategoryId));
@@ -926,6 +1003,10 @@
   }
 
   function addProductToOrder(productId) {
+    if (!currentOrderId && selectedTableId && isTableOccupied(selectedTableId)) {
+      showToast(`An order already exists for table ${selectedTableId}. Use Update Order to add items.`, 'error', 3200);
+      return;
+    }
     const product = findProductById(productId);
     if (!product) return;
     const existing = getOrderItem(productId);

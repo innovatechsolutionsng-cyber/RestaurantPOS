@@ -279,11 +279,12 @@ function showToast(message, type = 'success', duration = 3000) {
   }
 
   function getCurrentCashierName() {
-    return (fullName && String(fullName).trim())
-      ? String(fullName).trim()
-      : (s?.fullName && String(s.fullName).trim())
-        ? String(s.fullName).trim()
-        : (s?.username || 'Cashier');
+    const activeSession = Auth.getSession() || s;
+    return (activeSession?.fullName && String(activeSession.fullName).trim())
+      ? String(activeSession.fullName).trim()
+      : (activeSession?.username && String(activeSession.username).trim())
+        ? String(activeSession.username).trim()
+        : 'Cashier';
   }
 
   function normalizeOrderForBackend(orderData) {
