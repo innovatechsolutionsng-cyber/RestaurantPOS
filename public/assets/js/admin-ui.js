@@ -138,10 +138,10 @@ function showToast(message, type = 'success', duration = 3000) {
             <div class="modal-badge">Low stock alert</div>
             <h3 id="low-stock-modal-title">${products.length} item${products.length === 1 ? '' : 's'} need restocking</h3>
           </div>
-          <button type="button" class="modal-close" aria-label="Close">✕</button>
         </header>
         <div class="modal-body">
           <p class="muted">These products are low in inventory. Replenish them soon to keep service smooth and avoid stockouts.</p>
+          <p class="modal-note">Tap outside the panel to close this overview.</p>
           <div class="low-stock-list">
             ${products.length > 0 ? products.map(product => {
               const quantity = Number(product.quantity || 0);
@@ -159,13 +159,10 @@ function showToast(message, type = 'success', duration = 3000) {
             }).join('') : '<div class="modal-empty-state">No low-stock items found. Inventory is healthy at the moment.</div>'}
           </div>
         </div>
-        <footer class="modal-footer">
-          <button type="button" class="btn btn-secondary modal-close">Close</button>
-        </footer>
       </div>
     `;
     document.body.appendChild(modal);
-    modal.querySelectorAll('.modal-backdrop, .modal-close').forEach((el) => {
+    modal.querySelectorAll('.modal-backdrop').forEach((el) => {
       if (el) el.addEventListener('click', () => modal.remove());
     });
   }
