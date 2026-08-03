@@ -326,7 +326,16 @@
               <div class="list">
                 <div class="flex-row" style="gap:8px;align-items:center;flex-wrap:wrap;">
                   <div class="muted">Create new user accounts and assign the right role and access level.</div>
-                  <div style="margin-left:auto"><button id="btn-open-add-user" class="btn btn-primary">Add User</button></div>
+                  <div style="margin-left:auto">
+                    <button id="btn-open-add-user" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px;">
+                      <span aria-hidden="true" style="font-size:1.2rem;line-height:1;">＋</span>
+                      Add User
+                    </button>
+                  </div>
+                </div>
+
+                <div class="mt-sm" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                  <input id="users-search" type="search" placeholder="Search users by name, username, role, status, or table" class="input" style="flex:1;min-width:240px;" />
                 </div>
 
                 <div class="mt-sm">
@@ -334,6 +343,9 @@
                     <thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Full name</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Username</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Role</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Status</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Tables</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Actions</th></tr></thead>
                     <tbody></tbody>
                   </table>
+                </div>
+                <div id="users-table-pagination" class="mt-sm" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+                  <span id="users-page-info" class="muted"></span>
                 </div>
               </div>
             </div>

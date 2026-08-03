@@ -300,6 +300,13 @@ async function getMySQLBusinessDayCutoff(connection) {
   return parseBusinessDayCutoff(value) || '00:00';
 }
 
+function normalizeWaiterTables(rawTables) {
+  if (!Array.isArray(rawTables)) return [];
+  return rawTables
+    .map((table) => String(table || '').trim())
+    .filter(Boolean);
+}
+
 async function getMySQLUserByUsername(connection, username) {
   const [rows] = await connection.query(
     'SELECT *, password_hash AS hash, password_salt AS salt, tables_assigned AS tables FROM users WHERE username = ? LIMIT 1',
@@ -309,6 +316,7 @@ async function getMySQLUserByUsername(connection, username) {
   const user = rows[0];
   if (user.tables) {
     try { user.tables = JSON.parse(user.tables); } catch (err) { user.tables = []; }
+  } else {
     user.tables = [];
   }
   return user;
@@ -323,6 +331,7 @@ async function getMySQLUserById(connection, id) {
   const user = rows[0];
   if (user.tables) {
     try { user.tables = JSON.parse(user.tables); } catch (err) { user.tables = []; }
+  } else {
     user.tables = [];
   }
   return user;
@@ -615,7 +624,7 @@ async function startAdminServer(port = 3000) {
         const normalizedRole = String(role).trim() || 'cashier';
         const normalizedFullName = (fullName && fullName.trim()) ? fullName.trim() : username.trim();
         const normalizedStatus = (status && status.trim()) || 'active';
-        const normalizedTables = Array.isArray(tables) ? tables : [];
+        const normalizedTables = normalizeWaiterTables(tables);
 
         if (!useMySQL || !dbPool) { return res.status(500).json({ success: false, error: 'database_unavailable' }); }
           const connection = await dbPool.getConnection();
@@ -624,13 +633,34 @@ async function startAdminServer(port = 3000) {
             if (existing) {
               return res.status(409).json({ success: false, error: 'username_exists' });
             }
+            if (normalizedRole === 'waiter' && normalizedTables.length) {
+              const [rows] = await connection.query(
+                'SELECT id, username, role, full_name, tables_assigned AS tables FROM users WHERE role = ?',
+                ['waiter']
+              );
+              const assignedTables = new Map();
+              rows.forEach((row) => {
+                let currentTables = [];
+                if (row.tables) {
+                  try { currentTables = JSON.parse(row.tables); } catch (err) { currentTables = []; }
+                }
+                currentTables = normalizeWaiterTables(currentTables);
+                currentTables.forEach((table) => {
+                  if (table) assignedTables.set(table, row.username || row.full_name || 'unknown');
+                });
+              });
+              const conflicts = normalizedTables.filter((table) => assignedTables.has(table));
+              if (conflicts.length) {
+                return res.status(409).json({ success: false, error: 'tables_conflict', conflictTables: conflicts });
+              }
+            }
             const created = await createMySQLUser(connection, {
               username,
               password,
               role: normalizedRole,
               fullName: normalizedFullName,
               status: normalizedStatus,
-              tables: normalizedTables
+              tables: normalizedRole === 'waiter' ? normalizedTables : []
             });
             return res.json({ success: true, user: created });
           } finally {
@@ -651,7 +681,7 @@ async function startAdminServer(port = 3000) {
 
         const normalizedFullName = (fullName && fullName.trim()) ? fullName.trim() : username.trim();
         const normalizedStatus = (status && status.trim()) || 'active';
-        const normalizedTables = Array.isArray(tables) ? tables : [];
+        const normalizedTables = normalizeWaiterTables(tables);
 
         if (!useMySQL || !dbPool) { return res.status(500).json({ success: false, error: 'database_unavailable' }); }
           const connection = await dbPool.getConnection();
@@ -660,12 +690,33 @@ async function startAdminServer(port = 3000) {
             if (!existing) {
               return res.status(404).json({ success: false, error: 'no_user' });
             }
+            if (role === 'waiter' && normalizedTables.length) {
+              const [rows] = await connection.query(
+                'SELECT id, username, role, full_name, tables_assigned AS tables FROM users WHERE role = ? AND id != ?',
+                ['waiter', id]
+              );
+              const assignedTables = new Map();
+              rows.forEach((row) => {
+                let currentTables = [];
+                if (row.tables) {
+                  try { currentTables = JSON.parse(row.tables); } catch (err) { currentTables = []; }
+                }
+                currentTables = normalizeWaiterTables(currentTables);
+                currentTables.forEach((table) => {
+                  if (table) assignedTables.set(table, row.username || row.full_name || 'unknown');
+                });
+              });
+              const conflicts = normalizedTables.filter((table) => assignedTables.has(table));
+              if (conflicts.length) {
+                return res.status(409).json({ success: false, error: 'tables_conflict', conflictTables: conflicts });
+              }
+            }
             await connection.query(
               'UPDATE users SET username = ?, full_name = ?, role = ?, status = ?, tables_assigned = ?, updated_at = ? WHERE id = ?',
-              [username.trim(), normalizedFullName, role, normalizedStatus, JSON.stringify(normalizedTables), new Date(), id]
+              [username.trim(), normalizedFullName, role, normalizedStatus, JSON.stringify(role === 'waiter' ? normalizedTables : []), new Date(), id]
             );
 
-            return res.json({ success: true, user: { id, username: username.trim(), role, status: normalizedStatus, fullName: normalizedFullName, tables: normalizedTables } });
+            return res.json({ success: true, user: { id, username: username.trim(), role, status: normalizedStatus, fullName: normalizedFullName, tables: role === 'waiter' ? normalizedTables : [] } });
           } finally {
             connection.release();
           }

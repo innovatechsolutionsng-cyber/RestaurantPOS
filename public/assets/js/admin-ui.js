@@ -109,8 +109,10 @@ function showToast(message, type = 'success', duration = 3000) {
     const response = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options));
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      const error = body && body.error ? body.error : response.statusText || 'backend_error';
-      throw new Error(error);
+      const errorText = body && (body.message || body.error) ? (body.message || body.error) : response.statusText || 'backend_error';
+      const error = new Error(errorText);
+      if (body) error.responseBody = body;
+      throw error;
     }
     return response.json();
   }
@@ -167,18 +169,36 @@ function showToast(message, type = 'success', duration = 3000) {
     });
   }
 
-  function renderLowStockSummaryChip(count) {
+  function renderLowStockSummaryChip(count, enabled = false) {
     const summaryChips = document.querySelectorAll('.overview-summary .summary-chip');
     if (summaryChips.length < 3) return;
     const lowStockChip = summaryChips[2];
-    lowStockChip.textContent = `${count} low-stock alerts`;
-    lowStockChip.classList.toggle('low-stock-alert', count > 0);
-    lowStockChip.setAttribute('aria-label', `${count} low-stock alerts. Click to view details.`);
-    lowStockChip.setAttribute('role', 'button');
-    lowStockChip.setAttribute('tabindex', '0');
+    if (!enabled) {
+      lowStockChip.textContent = 'Low-stock alerts disabled';
+      lowStockChip.classList.remove('low-stock-alert');
+      lowStockChip.removeAttribute('role');
+      lowStockChip.removeAttribute('tabindex');
+      lowStockChip.setAttribute('aria-label', 'Low-stock alerts are disabled');
+    } else if (count > 0) {
+      lowStockChip.textContent = `${count} low-stock alerts`;
+      lowStockChip.classList.add('low-stock-alert');
+      lowStockChip.setAttribute('aria-label', `${count} low-stock alerts. Click to view details.`);
+      lowStockChip.setAttribute('role', 'button');
+      lowStockChip.setAttribute('tabindex', '0');
+    } else {
+      lowStockChip.textContent = 'No low-stock alerts';
+      lowStockChip.classList.remove('low-stock-alert');
+      lowStockChip.removeAttribute('role');
+      lowStockChip.removeAttribute('tabindex');
+      lowStockChip.setAttribute('aria-label', 'No low-stock alerts');
+    }
     if (!lowStockChip.dataset.lowstockBound) {
-      lowStockChip.addEventListener('click', () => showLowStockModal(currentLowStockProducts));
+      lowStockChip.addEventListener('click', () => {
+        if (lowStockChip.dataset.lowstockEnabled !== 'true') return;
+        showLowStockModal(currentLowStockProducts);
+      });
       lowStockChip.addEventListener('keydown', (event) => {
+        if (lowStockChip.dataset.lowstockEnabled !== 'true') return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           showLowStockModal(currentLowStockProducts);
@@ -186,6 +206,7 @@ function showToast(message, type = 'success', duration = 3000) {
       });
       lowStockChip.dataset.lowstockBound = 'true';
     }
+    lowStockChip.dataset.lowstockEnabled = String(enabled === true);
   }
 
   let receiptSettings = {
@@ -334,7 +355,8 @@ function showToast(message, type = 'success', duration = 3000) {
         }
 
         currentLowStockProducts = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5);
-        renderLowStockSummaryChip(lowStockCount);
+        const lowStockAlertsEnabled = await RestaurantDB.getSetting('enableLowStockAlerts').then(setting => setting ? setting.value === true || setting.value === 'true' : false).catch(() => false);
+        renderLowStockSummaryChip(lowStockCount, lowStockAlertsEnabled);
       } else {
         const [products, users, events, orders] = await Promise.all([
           RestaurantDB.getAllProducts().catch(() => []),
@@ -373,7 +395,8 @@ function showToast(message, type = 'success', duration = 3000) {
         }
 
         currentLowStockProducts = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5);
-        renderLowStockSummaryChip(lowStockCount);
+        const lowStockAlertsEnabled = await RestaurantDB.getSetting('enableLowStockAlerts').then(setting => setting ? setting.value === true || setting.value === 'true' : false).catch(() => false);
+        renderLowStockSummaryChip(lowStockCount, lowStockAlertsEnabled);
       }
     } catch (err) {
       console.error('Failed to load operational snapshot counts:', err);
@@ -1071,6 +1094,9 @@ function showToast(message, type = 'success', duration = 3000) {
 
   // User management modal + table wiring
   const btnOpenAddUser = document.getElementById('btn-open-add-user');
+  const userSearchInput = document.getElementById('users-search');
+  const userTablePagination = document.getElementById('users-table-pagination');
+  const userPageInfo = document.getElementById('users-page-info');
   const addUserModal = document.getElementById('add-user-modal');
   const addUserForm = document.getElementById('add-user-form');
   const userFullName = document.getElementById('user-full-name');
@@ -1082,6 +1108,9 @@ function showToast(message, type = 'success', duration = 3000) {
   const userTables = document.getElementById('user-tables');
   const waiterTableSection = document.getElementById('waiter-table-section');
   const editUserId = document.getElementById('edit-user-id');
+  const USERS_PAGE_SIZE = 10;
+  let usersCurrentPage = 1;
+  let usersSearchTerm = '';
 
   function toggleWaiterTableSection(){
     if(!waiterTableSection || !userRole) return;
@@ -1122,6 +1151,32 @@ function showToast(message, type = 'success', duration = 3000) {
     }
   }
 
+  function getAssignedWaiterTables(users, excludeUserId = null){
+    const assigned = {};
+    (users || []).forEach((u) => {
+      if(!u || u.role !== 'waiter') return;
+      if(excludeUserId && Number(u.id) === Number(excludeUserId)) return;
+      const tableList = Array.isArray(u.tables) ? u.tables : parseWaiterTables(String(u.tables || ''));
+      tableList.forEach((table) => {
+        if(table){
+          assigned[String(table)] = u.fullName || u.username || 'unknown';
+        }
+      });
+    });
+    return assigned;
+  }
+
+  function findWaiterTableConflict(candidateTables, users, excludeUserId = null){
+    const assigned = getAssignedWaiterTables(users, excludeUserId);
+    const conflicts = [];
+    (candidateTables || []).forEach((table) => {
+      if(table && assigned[String(table)]){
+        conflicts.push({ table: String(table), owner: assigned[String(table)] });
+      }
+    });
+    return conflicts;
+  }
+
   function resetAddUserForm(){
     if(addUserForm) addUserForm.reset();
     if(editUserId) editUserId.value = '';
@@ -1136,6 +1191,34 @@ function showToast(message, type = 'success', duration = 3000) {
     const submitBtn = addUserForm ? addUserForm.querySelector('button[type="submit"]') : null;
     if(submitBtn) submitBtn.textContent = 'Create User';
     toggleWaiterTableSection();
+  }
+
+  function getFilteredUsers(users){
+    const term = (usersSearchTerm || '').toLowerCase().trim();
+    if(!term) return users;
+    return users.filter((u) => {
+      const fullName = (u.fullName || u.username || '').toString().toLowerCase();
+      const username = (u.username || '').toString().toLowerCase();
+      const role = (u.role || '').toString().toLowerCase();
+      const status = (u.status || '').toString().toLowerCase();
+      const tables = (Array.isArray(u.tables) ? u.tables.join(', ') : String(u.tables || '')).toLowerCase();
+      return [fullName, username, role, status, tables].some((value) => value.includes(term));
+    });
+  }
+
+  function renderUserPagination(totalItems){
+    if(!userTablePagination || !userPageInfo) return;
+    const totalPages = Math.max(1, Math.ceil(totalItems / USERS_PAGE_SIZE));
+    if(usersCurrentPage > totalPages) usersCurrentPage = totalPages;
+    userPageInfo.textContent = `Page ${usersCurrentPage} of ${totalPages}`;
+    userTablePagination.innerHTML = `
+      <button id="users-page-prev" class="btn btn-ghost" type="button" ${usersCurrentPage === 1 ? 'disabled' : ''}>Prev</button>
+      <button id="users-page-next" class="btn btn-ghost" type="button" ${usersCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
+    `;
+    const prevBtn = userTablePagination.querySelector('#users-page-prev');
+    const nextBtn = userTablePagination.querySelector('#users-page-next');
+    if(prevBtn){ prevBtn.addEventListener('click', () => { if(usersCurrentPage > 1){ usersCurrentPage -= 1; refreshUsers(); } }); }
+    if(nextBtn){ nextBtn.addEventListener('click', () => { if(usersCurrentPage < totalPages){ usersCurrentPage += 1; refreshUsers(); } }); }
   }
 
   async function refreshUsers(){
@@ -1160,10 +1243,23 @@ function showToast(message, type = 'success', duration = 3000) {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td colspan="6" class="muted" style="padding:8px">No users found.</td>`;
       tbody.appendChild(tr);
+      renderUserPagination(0);
       return;
     }
     users.sort((a,b)=> new Date(b.createdAt||0) - new Date(a.createdAt||0));
-    users.forEach((u)=>{
+    const filteredUsers = getFilteredUsers(users);
+    if(filteredUsers.length === 0){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="6" class="muted" style="padding:8px">No users match your search.</td>`;
+      tbody.appendChild(tr);
+      renderUserPagination(0);
+      return;
+    }
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / USERS_PAGE_SIZE));
+    if(usersCurrentPage > totalPages) usersCurrentPage = totalPages;
+    const startIndex = (usersCurrentPage - 1) * USERS_PAGE_SIZE;
+    const pageUsers = filteredUsers.slice(startIndex, startIndex + USERS_PAGE_SIZE);
+    pageUsers.forEach((u)=>{
       const tr = document.createElement('tr');
       const fullName = u.fullName || u.username || '—';
       const tables = Array.isArray(u.tables) && u.tables.length ? u.tables.join(', ') : '—';
@@ -1263,22 +1359,29 @@ function showToast(message, type = 'success', duration = 3000) {
       btn.addEventListener('click', async (ev)=>{
         const id = ev.currentTarget.getAttribute('data-delete-user');
         if(!id) return;
-        if(!confirm('Delete this user?')) return;
-        try{
-          if (BACKEND_AVAILABLE) {
-            await fetchBackend('/api/users/delete', {
-              method: 'POST',
-              body: JSON.stringify({ id })
-            });
-          } else {
-            await RestaurantDB.deleteUser(Number(id));
+        showConfirmDialog({
+          title: 'Delete user',
+          message: 'Are you sure you want to delete this user? This action cannot be undone.',
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          onConfirm: async () => {
+            try{
+              if (BACKEND_AVAILABLE) {
+                await fetchBackend('/api/users/delete', {
+                  method: 'POST',
+                  body: JSON.stringify({ id })
+                });
+              } else {
+                await RestaurantDB.deleteUser(Number(id));
+              }
+              await refreshUsers();
+              if (typeof updateOperationalSnapshotCounts === 'function') await updateOperationalSnapshotCounts();
+              showToast('User deleted successfully', 'success');
+            }catch(err){
+              showToast(`Failed to delete user: ${err.message}`, 'error');
+            }
           }
-          await refreshUsers();
-          if (typeof updateOperationalSnapshotCounts === 'function') await updateOperationalSnapshotCounts();
-          showToast('User deleted successfully', 'success');
-        }catch(err){
-          showToast(`Failed to delete user: ${err.message}`, 'error');
-        }
+        });
       });
     });
   }
@@ -1289,6 +1392,14 @@ function showToast(message, type = 'success', duration = 3000) {
       addUserModal.style.display = 'flex';
       addUserModal.setAttribute('aria-hidden', 'false');
       if(userFullName) userFullName.focus();
+    });
+  }
+
+  if(userSearchInput){
+    userSearchInput.addEventListener('input', ()=>{
+      usersSearchTerm = userSearchInput.value || '';
+      usersCurrentPage = 1;
+      refreshUsers();
     });
   }
 
@@ -1330,6 +1441,15 @@ function showToast(message, type = 'success', duration = 3000) {
         }
         const existing = allUsers.find(u => u.username && u.username.toLowerCase() === username.toLowerCase() && (mode === 'create' || u.id !== userId));
         if(existing){ showToast('Username already exists', 'error'); return; }
+
+        if(role === 'waiter' && tables.length){
+          const conflicts = findWaiterTableConflict(tables, allUsers, mode === 'edit' ? userId : null);
+          if(conflicts.length){
+            const conflictInfo = conflicts.slice(0, 3).map(c => `${c.table} (${c.owner})`).join(', ');
+            showToast(`Table ${conflictInfo} already assigned to another waiter.`, 'error');
+            return;
+          }
+        }
 
         if(mode === 'edit' && userId){
           let user = null;
@@ -1999,6 +2119,7 @@ function showToast(message, type = 'success', duration = 3000) {
     if (typeof refreshUsers === 'function') {
       await refreshUsers().catch(err => console.error('Failed to load users', err));
     }
+    await loadBillingSettings().catch(err => console.error('Failed to load billing settings:', err));
     await loadBusinessDaySetting().catch(err => console.error('Failed to load business day cutoff setting:', err));
     await loadReceiptSettings().catch(err => console.error('Failed to load receipt settings:', err));
     await loadProfileInfo().catch(err => console.error('Failed to load profile info:', err));

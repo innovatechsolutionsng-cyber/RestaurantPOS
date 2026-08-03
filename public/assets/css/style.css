@@ -307,6 +307,7 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
     .btn-danger:hover{transform:translateY(-2px)}
     .btn-success{background:linear-gradient(90deg,#10b981,#059669);color:#fff;box-shadow:0 8px 22px rgba(16,185,129,0.12)}
     .btn-success:hover{transform:translateY(-2px)}
+    .btn.pagination-btn{min-width:90px;}
     .btn-disabled, .btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
     .btn:focus-visible{outline:3px solid rgba(37,99,235,0.12);outline-offset:2px}
 
