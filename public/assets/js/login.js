@@ -1,5 +1,19 @@
 // login page logic moved from inline script
 (async function(){
+  const existingSession = Auth.getSession();
+  if (existingSession?.role === 'admin') {
+    location.replace('admin.html');
+    return;
+  }
+  if (existingSession?.role === 'waiter') {
+    location.replace('waiter.html');
+    return;
+  }
+  if (existingSession?.role === 'cashier') {
+    location.replace('cashier.html');
+    return;
+  }
+
   // remember-me support: prefills email if stored
   const remembered = localStorage.getItem('rememberedEmail');
   if(remembered){
@@ -20,8 +34,9 @@
       const user = await Auth.login(u,p);
       if(remember && remember.checked){ localStorage.setItem('rememberedEmail', u); } else { localStorage.removeItem('rememberedEmail'); }
       // redirect by role
-      if(user.role === 'admin') location.href = 'admin.html';
-      else location.href = 'cashier.html';
+      if(user.role === 'admin') location.replace('admin.html');
+      else if(user.role === 'waiter') location.replace('waiter.html');
+      else location.replace('cashier.html');
     }catch(err){
       alert('Login failed: '+err.message + '. Backend connection is required.');
     }

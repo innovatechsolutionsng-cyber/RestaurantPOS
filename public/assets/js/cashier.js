@@ -1114,6 +1114,176 @@ function showToast(message, type = 'success', duration = 3000) {
     return '₦' + num.toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   }
 
+  function getItemCategoryName(item) {
+    const rawCategory = item?.categoryName || item?.category || item?.category_name || item?.productCategory || item?.product?.categoryName || item?.product?.category || '';
+    if (rawCategory) return String(rawCategory).trim();
+    const product = item?.product || item?.productDetails || null;
+    const productCategory = product?.categoryName || product?.category || '';
+    if (productCategory) return String(productCategory).trim();
+    return 'Uncategorized';
+  }
+
+  function buildCategoryGroupedItems(items) {
+    const grouped = new Map();
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      const categoryName = getItemCategoryName(item) || 'Uncategorized';
+      if (!grouped.has(categoryName)) {
+        grouped.set(categoryName, []);
+      }
+      grouped.get(categoryName).push(item);
+    });
+    return Array.from(grouped.entries()).map(([categoryName, categoryItems]) => ({
+      categoryName,
+      items: categoryItems
+    }));
+  }
+
+  function buildReceiptHtml({
+    businessName,
+    address,
+    phone,
+    email,
+    footerMessage,
+    tableName,
+    waiterName,
+    clientName,
+    receiptDate,
+    receiptTime,
+    items,
+    breakdown,
+    splitReference = null,
+    categoryName = null
+  }) {
+    const displayTitle = categoryName ? `${categoryName} Receipt` : 'Receipt';
+    const headingLabel = categoryName ? `Category: ${categoryName}` : 'Receipt';
+    const safeItems = Array.isArray(items) ? items : [];
+    let subtotal = 0;
+    safeItems.forEach(item => {
+      subtotal += (item.price || item.unitPrice || 0) * (item.quantity || 0);
+    });
+    const currentBreakdown = breakdown || calculateBillingBreakdown(subtotal);
+
+    return `
+      <html>
+      <head>
+        <title>${displayTitle} - ${tableName}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 6px;
+            max-width: 80mm;
+            width: 100%;
+            background-color: white;
+            color: #000;
+            line-height: 1.3;
+            font-size: 13px;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+          }
+          .receipt-header { text-align: center; margin-bottom: 8px; border-bottom: 1px solid #000; padding-bottom: 6px; }
+          .business-name { font-weight: bold; font-size: 16px; text-transform: uppercase; margin-bottom: 2px; }
+          .receipt-label { font-weight: bold; font-size: 14px; text-transform: uppercase; margin-bottom: 2px; }
+          .datetime { font-size: 11px; color: #333; }
+          .order-info { margin: 8px 0; padding: 8px 0; border-top: 1px solid #000; border-bottom: 1px solid #000; }
+          .info-row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 13px; }
+          .info-label { font-weight: bold; min-width: 50px; }
+          .info-value { flex: 1; text-align: right; padding-left: 10px; }
+          .category-banner { margin: 8px 0; padding: 6px; background: #f8fafc; border: 1px dashed #94a3b8; text-align: center; font-weight: bold; font-size: 12px; text-transform: uppercase; }
+          .split-warning { background-color: #fff3cd; border: 1px solid #ffc107; padding: 6px; margin: 8px 0; text-align: center; font-weight: bold; color: #856404; font-size: 12px; }
+          .item-header-row { display: grid; grid-template-columns: 1fr 30px 75px; gap: 3px; padding: 4px 0; border-bottom: 1px dotted #999; font-weight: bold; font-size: 11px; }
+          .item-header-row span:nth-child(2), .item-header-row span:nth-child(3) { text-align: right; }
+          .items-body { margin-bottom: 8px; }
+          .item-row { display: grid; grid-template-columns: 1fr 30px 75px; gap: 3px; padding: 3px 0; border-bottom: 1px dotted #999; font-size: 11px; align-items: center; word-break: break-word; }
+          .item-name { font-weight: bold; overflow-wrap: anywhere; word-break: break-word; }
+          .item-qty { text-align: center; width: 30px; font-weight: bold; }
+          .item-total { text-align: right; width: 75px; font-weight: bold; }
+          .billing-summary { margin: 8px 0; padding: 8px 0; border-top: 1px solid #000; border-bottom: 1px solid #000; }
+          .summary-title { font-weight: bold; margin-bottom: 4px; font-size: 12px; }
+          .summary-row { display: flex; justify-content: space-between; font-size: 11px; margin: 2px 0; }
+          .summary-label { flex: 1; }
+          .summary-value { text-align: right; min-width: 50px; }
+          .subtotal-row { font-weight: bold; }
+          .grand-total-row { font-weight: bold; font-size: 13px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed #000; }
+          .grand-total-row span:first-child { flex: 1; }
+          .grand-total-row span:last-child { text-align: right; min-width: 60px; }
+          .receipt-footer { text-align: center; margin-top: 8px; font-size: 11px; }
+          .thank-you { font-weight: bold; margin-bottom: 3px; }
+          .footer-text { color: #333; font-size: 10px; }
+          @media print { body { background-color: white; padding: 5px; margin: 0; max-width: 80mm; width: 80mm; } }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-header">
+          <div class="business-name">${businessName}</div>
+          ${address ? `<div class="business-contact">${address}</div>` : ''}
+          ${phone ? `<div class="business-contact">📞 ${phone}</div>` : ''}
+          ${email ? `<div class="business-contact">${email}</div>` : ''}
+          <div class="receipt-label">${headingLabel}</div>
+          <div class="datetime">${receiptDate} ${receiptTime}</div>
+        </div>
+        <div class="order-info">
+          <div class="info-row"><span class="info-label">Table:</span><span class="info-value">${tableName}</span></div>
+          <div class="info-row"><span class="info-label">Waiter:</span><span class="info-value">${waiterName}</span></div>
+          ${clientName ? `<div class="info-row"><span class="info-label">Client:</span><span class="info-value">${clientName}</span></div>` : ''}
+        </div>
+        ${splitReference && typeof splitReference === 'string' ? `<div class="split-warning">⚠ SPLIT BILL #${splitReference}</div>` : ''}
+        ${categoryName ? `<div class="category-banner">${categoryName}</div>` : ''}
+        <div class="item-header-row"><span>Product</span><span>Qty</span><span>Total</span></div>
+        <div class="items-body">
+          ${safeItems.map(item => {
+            const itemTotal = (item.price || item.unitPrice || 0) * (item.quantity || 0);
+            return `<div class="item-row"><span class="item-name">${item.productName || item.name || 'Unnamed item'}</span><span class="item-qty">x${item.quantity || 0}</span><span class="item-total">${formatCurrency(itemTotal)}</span></div>`;
+          }).join('')}
+        </div>
+        <div class="billing-summary">
+          <div class="summary-title">Billing Summary</div>
+          <div class="summary-row subtotal-row"><span class="summary-label">Subtotal</span><span class="summary-value">${formatCurrency(currentBreakdown.subtotal)}</span></div>
+          ${currentBreakdown.discount > 0 ? `<div class="summary-row"><span class="summary-label">Discount</span><span class="summary-value">-${formatCurrency(currentBreakdown.discount)}</span></div>` : ''}
+          ${currentBreakdown.tax > 0 ? `<div class="summary-row"><span class="summary-label">Tax (${currentBreakdown.taxPercentage}%)</span><span class="summary-value">+${formatCurrency(currentBreakdown.tax)}</span></div>` : ''}
+          ${currentBreakdown.serviceCharge > 0 ? `<div class="summary-row"><span class="summary-label">Service (${currentBreakdown.serviceChargePercentage}%)</span><span class="summary-value">+${formatCurrency(currentBreakdown.serviceCharge)}</span></div>` : ''}
+          <div class="grand-total-row"><span>TOTAL DUE</span><span>${formatCurrency(currentBreakdown.total)}</span></div>
+        </div>
+        <div class="receipt-footer"><div class="thank-you">Thank You!</div><div class="footer-text">${footerMessage}</div></div>
+      </body>
+      </html>
+    `;
+  }
+
+  function printCategoryReceipts(order, options = {}) {
+    const items = Array.isArray(order?.items) ? order.items : [];
+    if (!items.length) {
+      alert('No items to print');
+      return;
+    }
+
+    const grouped = buildCategoryGroupedItems(items);
+    const shouldSplitByCategory = options.splitByCategory !== false && grouped.length > 1;
+    const receiptGroups = shouldSplitByCategory ? grouped : [{ categoryName: null, items }];
+
+    receiptGroups.forEach(({ categoryName, items: categoryItems }) => {
+      const subtotal = categoryItems.reduce((sum, item) => sum + ((item.price || item.unitPrice || 0) * (item.quantity || 0)), 0);
+      const breakdown = calculateBillingBreakdown(subtotal);
+      const html = buildReceiptHtml({
+        businessName: receiptSettings.businessName || options.businessName || 'Standard',
+        address: receiptSettings.address || options.address || '',
+        phone: receiptSettings.phone || options.phone || '',
+        email: receiptSettings.email || options.email || '',
+        footerMessage: receiptSettings.footerMessage || options.footerMessage || 'Please come again soon',
+        tableName: order?.tableName || options.tableName || 'N/A',
+        waiterName: order?.waiterName || options.waiterName || 'N/A',
+        clientName: order?.clientName || options.clientName || '',
+        receiptDate: options.receiptDate || new Date().toLocaleDateString('en-NG'),
+        receiptTime: options.receiptTime || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        items: categoryItems,
+        breakdown,
+        splitReference: order?.splitReference || options.splitReference || null,
+        categoryName: shouldSplitByCategory ? categoryName : null
+      });
+      safePrint(html, 'height=600,width=450');
+    });
+  }
+
   // Robust print helper: first try window.open (pop-up), fall back to hidden iframe
   function safePrint(html, opts = ''){
     try {
@@ -2330,31 +2500,46 @@ function showToast(message, type = 'success', duration = 3000) {
   // Sort orders based on selected sort option
   function sortOrders(orders, sortBy) {
     const sorted = [...orders];
-    
-    switch(sortBy) {
-      case 'newest':
-        sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-        break;
-      case 'oldest':
-        sorted.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
-        break;
-      case 'table-asc':
-        sorted.sort((a, b) => extractTableNumber(a.tableName) - extractTableNumber(b.tableName));
-        break;
-      case 'table-desc':
-        sorted.sort((a, b) => extractTableNumber(b.tableName) - extractTableNumber(a.tableName));
-        break;
-      case 'amount-asc':
-        sorted.sort((a, b) => (a.totalAmount || 0) - (b.totalAmount || 0));
-        break;
-      case 'amount-desc':
-        sorted.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
-        break;
-      default:
-        sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    }
-    
-    return sorted;
+    const completedOrders = [];
+    const activeOrders = [];
+
+    sorted.forEach((order) => {
+      const status = String(order?.status || 'pending').toLowerCase();
+      if (status === 'completed') {
+        completedOrders.push(order);
+      } else {
+        activeOrders.push(order);
+      }
+    });
+
+    const applySort = (items) => {
+      const copy = [...items];
+      switch(sortBy) {
+        case 'newest':
+          copy.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+          break;
+        case 'oldest':
+          copy.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+          break;
+        case 'table-asc':
+          copy.sort((a, b) => extractTableNumber(a.tableName) - extractTableNumber(b.tableName));
+          break;
+        case 'table-desc':
+          copy.sort((a, b) => extractTableNumber(b.tableName) - extractTableNumber(a.tableName));
+          break;
+        case 'amount-asc':
+          copy.sort((a, b) => (a.totalAmount || 0) - (b.totalAmount || 0));
+          break;
+        case 'amount-desc':
+          copy.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
+          break;
+        default:
+          copy.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      }
+      return copy;
+    };
+
+    return [...applySort(activeOrders), ...applySort(completedOrders)];
   }
 
   // Update dashboard stats (revenue, waiters, items, orders)
@@ -2880,10 +3065,15 @@ function showToast(message, type = 'success', duration = 3000) {
             ${order.mergedTables.map((merged, idx) => {
               const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316'];
               const color = colors[idx % colors.length];
+              const itemCount = Number(merged.itemCount || 0);
+              const mergedTotal = Number(merged.totalAmount || 0);
               return `
-                <div style="display: flex; align-items: center; gap: 6px; background: ${color}22; padding: 6px 10px; border-radius: 6px; border: 1px solid ${color}">
-                  <div style="width: 24px; height: 24px; border-radius: 50%; background: ${color}; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem;">${merged.tableName.replace(/[^0-9]/g, '').slice(-2) || '1'}</div>
-                  <div style="font-size: 0.8rem; color: #333;">${merged.waiterName}</div>
+                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; background: ${color}22; padding: 8px 10px; border-radius: 8px; border: 1px solid ${color}; min-width: 120px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: ${color}; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem;">${String(merged.tableName || '').replace(/[^0-9]/g, '').slice(-2) || '1'}</div>
+                    <div style="font-size: 0.8rem; color: #333; font-weight: 700;">${merged.waiterName || 'Unassigned'}</div>
+                  </div>
+                  <div style="font-size: 0.72rem; color: #4b5563; line-height: 1.25;">${itemCount} item${itemCount === 1 ? '' : 's'} • ${formatCurrency(mergedTotal)}</div>
                 </div>
               `;
             }).join('')}
@@ -3876,7 +4066,9 @@ function showToast(message, type = 'success', duration = 3000) {
               {
                 tableName: sourceTableName,
                 waiterName: sourceOrder.waiterName,
-                joinedAt: new Date().toISOString()
+                joinedAt: new Date().toISOString(),
+                itemCount: Array.isArray(sourceOrder.items) ? sourceOrder.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0,
+                totalAmount: Number(sourceOrder.totalAmount ?? sourceOrder.billingBreakdown?.total ?? sourceOrder.subtotal ?? 0)
               }
             ]
           };
@@ -4341,7 +4533,21 @@ function showToast(message, type = 'success', duration = 3000) {
     `;
     
     // Use safePrint to handle pop-up blocking and fallback to iframe
-    safePrint(billHTML, 'height=600,width=450');
+    printCategoryReceipts({
+      items: currentOrderItems,
+      tableName,
+      waiterName,
+      clientName,
+      splitReference
+    }, {
+      businessName: receiptBusinessName,
+      address: receiptAddress,
+      phone: receiptPhone,
+      email: receiptEmail,
+      footerMessage: receiptFooterMessage,
+      receiptDate,
+      receiptTime
+    });
     console.log('printBill: Print sent successfully');
     } catch (err) {
       console.error('printBill error:', err);
@@ -4679,7 +4885,15 @@ function showToast(message, type = 'success', duration = 3000) {
     `;
 
     // Use safePrint to handle pop-up blocking and fallback to iframe
-    safePrint(billHTML, 'height=600,width=450');
+    printCategoryReceipts(order, {
+      businessName: receiptBusinessName,
+      address: receiptAddress,
+      phone: receiptPhone,
+      email: receiptEmail,
+      footerMessage: receiptFooterMessage,
+      receiptDate,
+      receiptTime
+    });
   }
 
   // Split bill (enhanced version with read-only fields and proper UI)
