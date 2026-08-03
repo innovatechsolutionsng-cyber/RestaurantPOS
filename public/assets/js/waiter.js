@@ -1099,9 +1099,12 @@
       status: 'pending',
       items: currentOrderItems.map((item) => ({
         productId: item.productId,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity
+        productName: item.name || item.productName || item.product?.name || 'Unknown',
+        name: item.name || item.productName || item.product?.name || 'Unknown',
+        price: Number(item.price ?? item.unitPrice ?? item.product?.price ?? 0),
+        unitPrice: Number(item.price ?? item.unitPrice ?? item.product?.price ?? 0),
+        quantity: Number(item.quantity || 1),
+        qty: Number(item.quantity || 1)
       })),
       totalAmount,
       allowCashierDelete: isUpdate ? false : true,

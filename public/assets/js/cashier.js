@@ -1248,15 +1248,21 @@ function showToast(message, type = 'success', duration = 3000) {
       currentOrderItems = (order.items || []).map(item => ({
         productId: item.productId || item.id || item.productId || item.product?.id || null,
         productName: item.productName || item.name || item.product?.name || 'Unknown',
+        name: item.productName || item.name || item.product?.name || 'Unknown',
         unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
-        quantity: Number(item.quantity ?? item.qty ?? 0)
+        price: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
+        quantity: Number(item.quantity ?? item.qty ?? 0),
+        qty: Number(item.quantity ?? item.qty ?? 0)
       }));
       // Store original items to differentiate new items added during edit
       originalOrderItems = (order.items || []).map(item => ({
         productId: item.productId || item.id || item.productId || item.product?.id || null,
         productName: item.productName || item.name || item.product?.name || 'Unknown',
+        name: item.productName || item.name || item.product?.name || 'Unknown',
         unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
-        quantity: Number(item.quantity ?? item.qty ?? 0)
+        price: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
+        quantity: Number(item.quantity ?? item.qty ?? 0),
+        qty: Number(item.quantity ?? item.qty ?? 0)
       }));
       
       const tableInput = document.getElementById('order-table');
@@ -2195,11 +2201,11 @@ function showToast(message, type = 'success', duration = 3000) {
         clientName: clientInput?.value || '',
         items: currentOrderItems.map(item => ({
           productId: item.productId,
-          productName: item.productName,
+          productName: item.productName || item.name || item.product?.name || 'Unknown',
           name: item.productName || item.name || item.product?.name || 'Unknown',
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          price: item.unitPrice
+          quantity: Number(item.quantity ?? item.qty ?? 0),
+          unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
+          price: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0)
         })),
         status: (typeof statusOverride !== 'undefined') ? statusOverride : (editingOrderId ? editingOrder.status : 'pending'),
         subtotal: subtotal,
@@ -2234,6 +2240,9 @@ function showToast(message, type = 'success', duration = 3000) {
         if (editingOrder.mergedTables && editingOrder.mergedTables.length > 0) {
           orderData.mergedTables = editingOrder.mergedTables;
         }
+        if (editingOrder.mergeReference) {
+          orderData.mergeReference = editingOrder.mergeReference;
+        }
         
         // Preserve splitFromBillId and splitReference if they exist
         if (editingOrder.splitFromBillId) {
@@ -2241,6 +2250,12 @@ function showToast(message, type = 'success', duration = 3000) {
         }
         if (editingOrder.splitReference) {
           orderData.splitReference = editingOrder.splitReference;
+        }
+        if (editingOrder.mergedTables && editingOrder.mergedTables.length > 0) {
+          orderData.mergedTables = editingOrder.mergedTables;
+        }
+        if (editingOrder.mergeReference) {
+          orderData.mergeReference = editingOrder.mergeReference;
         }
 
         if (!BACKEND_AVAILABLE) throw new Error('backend_unavailable');
@@ -3848,7 +3863,7 @@ function showToast(message, type = 'success', duration = 3000) {
             cashierName: getCurrentCashierName(),
             createdBy: getCurrentCashierName(),
             allowCashierDelete: false,
-            createdFrom: 'cashier-update',
+            createdFrom: 'cashier-merge',
             items: mergedItems,
             status: 'pending',
             subtotal: newSubtotal,
@@ -3892,7 +3907,7 @@ function showToast(message, type = 'success', duration = 3000) {
             billingBreakdown: newBreakdown,
             status: 'pending',
             allowCashierDelete: false,
-            createdFrom: 'cashier-update'
+            createdFrom: 'cashier-merge'
           };
 
           if (mergedCardOrder && (mergedCardOrder.id || mergedCardOrder.tableName)) {
