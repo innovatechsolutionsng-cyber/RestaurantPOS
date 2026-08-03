@@ -1009,6 +1009,7 @@
     const finalOrderId = orderId || `waiter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const totalAmount = currentOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const now = new Date().toISOString();
+    const isUpdate = Boolean(orderId);
     const orderPayload = {
       id: finalOrderId,
       waiterName: session?.username || 'Waiter',
@@ -1022,6 +1023,8 @@
         quantity: item.quantity
       })),
       totalAmount,
+      allowCashierDelete: isUpdate ? false : true,
+      createdFrom: isUpdate ? 'waiter-update' : 'waiter-create',
       createdAt: now,
       updatedAt: now
     };

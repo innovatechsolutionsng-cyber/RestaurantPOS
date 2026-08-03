@@ -398,6 +398,14 @@ function showToast(message, type = 'success', duration = 3000) {
     return created.getTime() === updated.getTime();
   }
 
+  function canDeleteOrder(order) {
+    if (!order || typeof order !== 'object') return false;
+    if (order.allowCashierDelete === false || String(order.allowCashierDelete).toLowerCase() === 'false') {
+      return false;
+    }
+    return isOrderUnmodified(order);
+  }
+
   function normalizeLoadedOrder(order) {
     if (!order || typeof order !== 'object') return order;
     const now = new Date().toISOString();
@@ -1479,7 +1487,7 @@ function showToast(message, type = 'success', duration = 3000) {
       if (saveBtn) saveBtn.textContent = 'Save Order';
       if (removeBtn) removeBtn.style.display = 'block';
       if (removeItemBtn) removeItemBtn.style.display = 'none';
-      if (removeOrderBtn) removeOrderBtn.style.display = 'block';
+      if (removeOrderBtn) removeOrderBtn.style.display = canDeleteOrder(editingOrder) ? 'block' : 'none';
       if (voidBtn) voidBtn.style.display = 'block';
       if (sendBtn) sendBtn.style.display = 'block';
       if (printBtn) printBtn.style.display = 'block';
@@ -2166,6 +2174,7 @@ function showToast(message, type = 'success', duration = 3000) {
         cashierName: getCurrentCashierName(),
         cashier: getCurrentCashierName(),
         createdBy: getCurrentCashierName(),
+        allowCashierDelete: editingOrderId ? (editingOrder?.allowCashierDelete === false ? false : true) : true,
         clientName: clientInput?.value || '',
         items: currentOrderItems.map(item => ({
           productId: item.productId,
@@ -2842,7 +2851,7 @@ function showToast(message, type = 'success', duration = 3000) {
             <button class="btn btn-primary btn-view-order" data-order-id="${order.id}">View Details</button>
           ` : `
             <button class="btn btn-accent btn-edit-order" data-order-id="${order.id}" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none;">Update Order</button>
-            ${isOrderUnmodified(order) ? `<button class="btn btn-danger btn-delete-order" data-order-id="${order.id}" style="border:none;">Delete</button>` : ''}
+            ${canDeleteOrder(order) ? `<button class="btn btn-danger btn-delete-order" data-order-id="${order.id}" style="border:none;">Delete</button>` : ''}
           `}
         </div>
       `;
@@ -6088,7 +6097,7 @@ function showToast(message, type = 'success', duration = 3000) {
             console.warn('Order not found in cache for deletion:', orderId);
             return;
           }
-          if (!isOrderUnmodified(order)) {
+          if (!canDeleteOrder(order)) {
             showToast('This order cannot be deleted because it has already been updated.', 'warning', 2600);
             return;
           }
