@@ -1519,6 +1519,36 @@ async function startAdminServer(port = 3000) {
     }
   });
 
+  function orderMatchesWaiterQuery(order, waiterNameQuery) {
+    const normalizedQuery = String(waiterNameQuery || '').trim().toLowerCase();
+    if (!normalizedQuery) return true;
+
+    const candidateValues = [];
+    const addCandidate = (value) => {
+      if (typeof value === 'string' && value.trim()) {
+        candidateValues.push(value.trim().toLowerCase());
+      }
+    };
+
+    addCandidate(order?.waiterName);
+    addCandidate(order?.waiter);
+    addCandidate(order?.orderData?.waiterName);
+    addCandidate(order?.orderData?.order?.waiterName);
+    addCandidate(order?.order_data?.waiterName);
+    addCandidate(order?.order_data?.order?.waiterName);
+    addCandidate(order?.orderData?.order_data?.waiterName);
+    addCandidate(order?.order_data?.order_data?.waiterName);
+
+    if (Array.isArray(order?.mergedTables)) {
+      order.mergedTables.forEach((entry) => addCandidate(entry?.waiterName));
+    }
+
+    return candidateValues.some((value) => {
+      const parts = value.split(/(?:\s*&\s*|\s*,\s*|\/)/g).filter(Boolean);
+      return parts.some((part) => part === normalizedQuery || part.includes(normalizedQuery) || normalizedQuery.includes(part));
+    });
+  }
+
   /**
    * GET /api/orders/all
    * Get all orders from admin database
@@ -1550,21 +1580,8 @@ async function startAdminServer(port = 3000) {
                 order.updatedAt = updatedAt;
               }
             }
-            if (waiterNameQuery) {
-              const orderWaiter = String(
-                order.waiterName ||
-                order.waiter ||
-                order.orderData?.waiterName ||
-                order.orderData?.order?.waiterName ||
-                order.order_data?.waiterName ||
-                order.order_data?.order?.waiterName ||
-                order.orderData?.order_data?.waiterName ||
-                order.order_data?.order_data?.waiterName ||
-                ''
-              ).trim().toLowerCase();
-              if (orderWaiter !== waiterNameQuery) {
-                continue;
-              }
+            if (waiterNameQuery && !orderMatchesWaiterQuery(order, waiterNameQuery)) {
+              continue;
             }
             orders.push(order);
           }

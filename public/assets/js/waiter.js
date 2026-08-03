@@ -408,6 +408,40 @@
     });
   }
 
+  function normalizeWaiterName(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function orderMatchesWaiter(order, waiterName) {
+    const normalizedWaiter = normalizeWaiterName(waiterName);
+    if (!normalizedWaiter) return true;
+
+    const candidateValues = [];
+    const addCandidate = (value) => {
+      if (typeof value === 'string' && value.trim()) {
+        candidateValues.push(value.trim().toLowerCase());
+      }
+    };
+
+    addCandidate(order?.waiterName);
+    addCandidate(order?.waiter);
+    addCandidate(order?.orderData?.waiterName);
+    addCandidate(order?.orderData?.order?.waiterName);
+    addCandidate(order?.order_data?.waiterName);
+    addCandidate(order?.order_data?.order?.waiterName);
+    addCandidate(order?.orderData?.order_data?.waiterName);
+    addCandidate(order?.order_data?.order_data?.waiterName);
+
+    if (Array.isArray(order?.mergedTables)) {
+      order.mergedTables.forEach((entry) => addCandidate(entry?.waiterName));
+    }
+
+    return candidateValues.some((value) => {
+      const parts = value.split(/(?:\s*&\s*|\s*,\s*|\/)/g).filter(Boolean);
+      return parts.some((part) => part === normalizedWaiter || part.includes(normalizedWaiter) || normalizedWaiter.includes(part));
+    });
+  }
+
   async function getOrders() {
     const waiterName = String(session?.username || '').trim().toLowerCase();
     if (!waiterName) {
@@ -415,7 +449,7 @@
     }
     const response = await fetchBackend(`/api/orders/all?waiterName=${encodeURIComponent(waiterName)}`);
     const orders = Array.isArray(response.orders) ? response.orders : [];
-    return orders.filter((order) => getOrderWaiterName(order).toLowerCase() === waiterName);
+    return orders.filter((order) => orderMatchesWaiter(order, waiterName));
   }
 
   async function refreshDashboard() {
@@ -425,7 +459,7 @@
     const range = getBusinessDayRange(businessDayCutoff);
 
     const waiterOrders = (orders || [])
-      .filter(order => getOrderWaiterName(order).toLowerCase() === waiterName)
+      .filter(order => orderMatchesWaiter(order, waiterName))
       .filter(order => {
         const createdAt = order.createdAt || order.orderData?.createdAt || order.created_at || order.date || order.orderData?.order?.createdAt || order.orderData?.order?.created_at;
         const created = new Date(createdAt || '');

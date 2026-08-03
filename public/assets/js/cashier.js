@@ -3144,24 +3144,27 @@ function showToast(message, type = 'success', duration = 3000) {
         </div>
         ` : ''}
         ${order.mergedTables && order.mergedTables.length > 0 ? `
-        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
-          <div style="font-size: 0.85rem; font-weight: 600; color: #666; margin-bottom: 8px;">Merged Tables:</div>
-          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-            ${order.mergedTables.map((merged, idx) => {
-              const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316'];
-              const color = colors[idx % colors.length];
-              const itemCount = Number(merged.itemCount || 0);
-              const mergedTotal = Number(merged.totalAmount || 0);
-              return `
-                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; background: ${color}22; padding: 8px 10px; border-radius: 8px; border: 1px solid ${color}; min-width: 120px;">
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <div style="width: 24px; height: 24px; border-radius: 50%; background: ${color}; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem;">${String(merged.tableName || '').replace(/[^0-9]/g, '').slice(-2) || '1'}</div>
-                    <div style="font-size: 0.8rem; color: #333; font-weight: 700;">${merged.waiterName || 'Unassigned'}</div>
+        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+          <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <div style="font-size: 0.8rem; font-weight: 700; color: #666;">Merged Tables:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              ${order.mergedTables.map((merged, idx) => {
+                const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316'];
+                const color = colors[idx % colors.length];
+                const itemCount = Number(merged.itemCount || 0);
+                const mergedTotal = Number(merged.totalAmount || 0);
+                return `
+                  <div style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; background: ${color}16; border: 1px solid ${color}; color: #374151; font-size: 0.72rem; font-weight: 600; line-height: 1;">
+                    <span style="width: 18px; height: 18px; border-radius: 50%; background: ${color}; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.68rem; flex-shrink: 0;">${String(merged.tableName || '').replace(/[^0-9]/g, '').slice(-2) || '1'}</span>
+                    <span style="white-space: nowrap;">${merged.waiterName || 'Unassigned'}</span>
+                    <span style="color: #6b7280;">•</span>
+                    <span style="white-space: nowrap;">${itemCount} ${itemCount === 1 ? 'item' : 'items'}</span>
+                    <span style="color: #6b7280;">•</span>
+                    <span style="white-space: nowrap;">${formatCurrency(mergedTotal)}</span>
                   </div>
-                  <div style="font-size: 0.72rem; color: #4b5563; line-height: 1.25;">${itemCount} item${itemCount === 1 ? '' : 's'} • ${formatCurrency(mergedTotal)}</div>
-                </div>
-              `;
-            }).join('')}
+                `;
+              }).join('')}
+            </div>
           </div>
         </div>
         ` : ''}
@@ -5202,7 +5205,7 @@ function showToast(message, type = 'success', duration = 3000) {
         itemDistribution[index][1] = item.quantity;
       });
 
-      let itemsHTML = `<div style="max-height:450px;overflow-y:auto;border:1px solid #e5e7eb;padding:10px;border-radius:10px;">`;
+      let itemsHTML = `<div style="display:grid;gap:10px;">`;
 
       currentOrderItems.forEach((item, index) => {
         const itemTotal = Number(item.unitPrice || 0) * Number(item.quantity || 0);
@@ -5226,17 +5229,17 @@ function showToast(message, type = 'success', duration = 3000) {
         }
 
         itemsHTML += `
-          <div style="padding:12px;border-bottom:1px solid #e5e7eb;background:#f9fafb;border-radius:8px;margin-bottom:8px;">
-            <div style="font-weight:700;margin-bottom:6px;">${item.productName || 'Unknown item'}</div>
-            <div style="font-size:0.85rem;color:#6b7280;margin-bottom:10px;">Available: ${item.quantity} units · ${formatCurrency(item.unitPrice)} each · ${formatCurrency(itemTotal)}</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;">${placeInputsHTML}</div>
+          <div style="padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;">
+            <div style="font-weight:700;margin-bottom:4px;">${item.productName || 'Unknown item'}</div>
+            <div style="font-size:0.82rem;color:#6b7280;margin-bottom:8px;">Available: ${item.quantity} units · ${formatCurrency(item.unitPrice)} each · ${formatCurrency(itemTotal)}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;">${placeInputsHTML}</div>
           </div>
         `;
       });
 
       itemsHTML += '</div>';
 
-      let placeAmountsHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px;">';
+      let placeAmountsHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;">';
       for (let i = 1; i <= numPlaces; i++) {
         placeAmountsHTML += `
           <div style="padding:12px;background:#f3f4f6;border-radius:8px;border:2px solid #e5e7eb;">
@@ -5251,21 +5254,21 @@ function showToast(message, type = 'success', duration = 3000) {
         <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <div>
             <h3 style="margin:0;">Split Bill - Distribute</h3>
-            <div style="margin-top:6px;font-size:0.9rem;color:#6b7280;">Assign quantities to each place. Place 1 is the original bill.</div>
+            <div style="margin-top:6px;font-size:0.9rem;color:#6b7280;">Assign quantities to each place. Place 1 remains the original bill.</div>
           </div>
           <button id="btn-close-split" class="btn btn-ghost" aria-label="Close">✕</button>
         </div>
-        <div class="modal-body" style="display:flex;flex-direction:column;height:100%;">
-          <div style="padding:12px 14px;background:#e8f4f8;border-left:4px solid #0891b2;border-radius:8px;margin-bottom:16px;">
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="padding:12px 14px;background:#e8f4f8;border-left:4px solid #0891b2;border-radius:8px;">
             <div style="font-weight:700;color:#0f172a;margin-bottom:4px;">Distribution preview</div>
-            <div style="font-size:0.92rem;color:#475569;">Review the amounts below and move quantities to each place before creating the split orders.</div>
+            <div style="font-size:0.92rem;color:#475569;">Review the place totals and distribute the quantities before creating split bills.</div>
           </div>
-          <div style="margin-bottom:16px;">${placeAmountsHTML}</div>
-          <div style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
-            <div style="background:#f3f4f6;padding:10px;font-weight:700;color:#111827;">Distribution summary</div>
-            <div style="overflow-x:auto;max-height:250px;overflow-y:auto;">
+          <div>${placeAmountsHTML}</div>
+          <div style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+            <div style="background:#f3f4f6;padding:9px 10px;font-weight:700;color:#111827;">Distribution summary</div>
+            <div style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
-                <thead style="background:#e5e7eb;position:sticky;top:0;">
+                <thead style="background:#e5e7eb;">
                   <tr>
                     <th style="padding:8px;text-align:left;font-weight:700;">Item</th>
                     <th style="padding:8px;text-align:center;font-weight:700;">Original</th>
@@ -5284,8 +5287,8 @@ function showToast(message, type = 'success', duration = 3000) {
               </table>
             </div>
           </div>
-          <div style="margin-bottom:10px;font-weight:700;color:#111827;">Edit quantities below</div>
-          <div style="flex:1;overflow-y:auto;">${itemsHTML}</div>
+          <div style="font-weight:700;color:#111827;">Edit quantities below</div>
+          <div>${itemsHTML}</div>
         </div>
         <div class="modal-footer" style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
           <button id="btn-back-split" class="btn btn-secondary">Back</button>
@@ -5572,76 +5575,78 @@ function showToast(message, type = 'success', duration = 3000) {
     
     // Create payment modal HTML
     const paymentModalHTML = `
-      <div style="display: flex; flex-direction: column; gap: 16px; padding: 0;">
-        <div style="padding: 20px; border-bottom: 1px solid #e5e7eb;">
-          <h3 style="margin: 0; font-size: 1.3rem; font-weight: 700;">Close Bill - Payment</h3>
+      <div class="payment-modal-shell">
+        <div class="payment-modal-header">
+          <div>
+            <h3>Close Bill - Payment</h3>
+            <div class="modal-badge" style="margin-top: 8px;">Secure checkout</div>
+          </div>
         </div>
         
-        <div style="padding: 0 20px; overflow-y: auto; flex: 1;">
+        <div class="payment-modal-body">
           ${breakdownHTML}
           
-          <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
-            <div style="font-size: 0.9rem; color: #666; margin-bottom: 4px;">Final Bill Total</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #0284c7;">${totalFormatted}</div>
+          <div class="payment-modal-card" style="background: linear-gradient(135deg, #f0f9ff 0%, #eef7ff 100%); border-left: 4px solid #0284c7;">
+            <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 4px;">Final Bill Total</div>
+            <div style="font-size: 1.75rem; font-weight: 800; color: #0284c7;">${totalFormatted}</div>
             ${splitContext ? `<div style="margin-top: 8px; font-size: 0.95rem; color: #334155; font-weight: 600;">Split ${splitContext.splitPlace ? `Place ${splitContext.splitPlace}` : 'Bill'}${splitContext.splitTotal ? ` / ${splitContext.splitTotal}` : ''}</div>` : ''}
           </div>
           
-          <div style="margin-bottom: 20px;">
-            <div style="font-weight: 600; margin-bottom: 12px;">Select Payment Methods</div>
+          <div class="payment-modal-card">
+            <div style="font-weight: 700; margin-bottom: 12px; color: #111827;">Select Payment Methods</div>
             
-            <div id="payment-methods" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-              <div style="padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; transition: all 0.2s;" class="payment-method-card" data-method="cash">
+            <div id="payment-methods" class="payment-method-grid">
+              <div class="payment-method-card" data-method="cash">
                 <input type="checkbox" class="payment-method-checkbox" value="cash" style="margin-right: 8px;">
-                <label style="cursor: pointer; font-weight: 600;">💵 Cash</label>
+                <label>💵 Cash</label>
               </div>
-              <div style="padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; transition: all 0.2s;" class="payment-method-card" data-method="pos">
+              <div class="payment-method-card" data-method="pos">
                 <input type="checkbox" class="payment-method-checkbox" value="pos" style="margin-right: 8px;">
-                <label style="cursor: pointer; font-weight: 600;">💳 POS Card</label>
+                <label>💳 POS Card</label>
               </div>
-              <div style="padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; transition: all 0.2s;" class="payment-method-card" data-method="transfer">
+              <div class="payment-method-card" data-method="transfer">
                 <input type="checkbox" class="payment-method-checkbox" value="transfer" style="margin-right: 8px;">
-                <label style="cursor: pointer; font-weight: 600;">📱 Bank Transfer</label>
+                <label>📱 Bank Transfer</label>
               </div>
-              <div style="padding: 12px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; transition: all 0.2s;" class="payment-method-card" data-method="credit">
+              <div class="payment-method-card" data-method="credit">
                 <input type="checkbox" class="payment-method-checkbox" value="credit" style="margin-right: 8px;">
-                <label style="cursor: pointer; font-weight: 600;">📝 Credit</label>
+                <label>📝 Credit</label>
               </div>
             </div>
             
-            <div id="payment-amounts-section" style="display: none; margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 6px;">
-              <div style="font-weight: 600; margin-bottom: 12px;">Enter Amount for Each Method</div>
-              <div id="payment-amounts-container" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
-              </div>
+            <div id="payment-amounts-section" class="payment-amounts-section">
+              <div style="font-weight: 700; margin-bottom: 12px; color: #111827;">Enter Amount for Each Method</div>
+              <div id="payment-amounts-container" class="payment-amounts-container"></div>
             </div>
           </div>
           
-          <div style="background: #f0fdf4; padding: 12px; border-radius: 6px; margin-bottom: 16px; border-left: 4px solid #10b981;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span style="font-weight: 600;">Bill Total:</span>
-              <span style="font-weight: 700; color: #0284c7;">${totalFormatted}</span>
+          <div class="payment-modal-card" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf3 100%); border-left: 4px solid #10b981;">
+            <div class="payment-summary-row">
+              <span style="font-weight: 700; color: #374151;">Bill Total:</span>
+              <span style="font-weight: 800; color: #0284c7;">${totalFormatted}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span style="font-weight: 600;">Total Paid:</span>
-              <span style="font-weight: 700; color: #10b981; font-size: 1.1rem;" id="total-paid">₦0.00</span>
+            <div class="payment-summary-row">
+              <span style="font-weight: 700; color: #374151;">Total Paid:</span>
+              <span style="font-weight: 800; color: #10b981; font-size: 1.05rem;" id="total-paid">₦0.00</span>
             </div>
-            <div style="display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid #ccc;">
-              <span style="font-weight: 600;">Remaining Balance:</span>
-              <span style="font-weight: 700; color: #dc2626; font-size: 1.1rem;" id="remaining-balance">${totalFormatted}</span>
+            <div class="payment-summary-row" style="padding-top: 8px; border-top: 1px solid rgba(148,163,184,0.3); margin-top: 8px;">
+              <span style="font-weight: 700; color: #374151;">Remaining Balance:</span>
+              <span style="font-weight: 800; color: #dc2626; font-size: 1.05rem;" id="remaining-balance">${totalFormatted}</span>
             </div>
           </div>
           
-          <div style="display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 16px;">
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
             <button class="btn btn-secondary" id="btn-validate-payment" style="margin: 0;">Validate Payment</button>
           </div>
           
-          <div id="payment-validation-breakdown" style="display: none; margin-bottom: 16px; padding: 12px; background: #f3e8ff; border-radius: 6px; border-left: 4px solid #9333ea;">
-            <div style="font-weight: 600; margin-bottom: 10px; color: #7e22ce;">Payment Breakdown</div>
-            <div id="validation-breakdown-content" style="font-size: 0.9rem;">
+          <div id="payment-validation-breakdown" style="display: none; padding: 12px 14px; background: #f3e8ff; border-radius: 12px; border-left: 4px solid #9333ea;">
+            <div style="font-weight: 700; margin-bottom: 10px; color: #7e22ce;">Payment Breakdown</div>
+            <div id="validation-breakdown-content" style="font-size: 0.92rem;">
             </div>
           </div>
         </div>
         
-        <div style="padding: 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; justify-content: flex-end;">
+        <div class="payment-modal-footer">
           <button class="btn btn-ghost" id="btn-cancel-payment" style="margin: 0;">Cancel</button>
           <button class="btn btn-success" id="btn-confirm-payment" style="margin: 0;">Confirm Payment & Close Bill</button>
         </div>
@@ -5662,18 +5667,27 @@ function showToast(message, type = 'success', duration = 3000) {
     methodCards.forEach(card => {
       const checkbox = card.querySelector('.payment-method-checkbox');
       
-      card.addEventListener('click', () => {
+      card.addEventListener('click', (event) => {
+        if (event.target instanceof HTMLInputElement) return;
         checkbox.checked = !checkbox.checked;
         updatePaymentMethods();
       });
       
-      checkbox.addEventListener('change', updatePaymentMethods);
+      checkbox.addEventListener('change', () => {
+        card.classList.toggle('selected', checkbox.checked);
+        updatePaymentMethods();
+      });
     });
     
     // Store payment amounts across method changes
     const paymentAmounts = {};
     
     function updatePaymentMethods(){
+      document.querySelectorAll('.payment-method-card').forEach(card => {
+        const checkbox = card.querySelector('.payment-method-checkbox');
+        card.classList.toggle('selected', checkbox?.checked);
+      });
+
       const selected = Array.from(document.querySelectorAll('.payment-method-checkbox:checked')).map(cb => {
         const label = cb.parentElement.querySelector('label').textContent.trim();
         return { method: cb.value, label: label };
@@ -5687,7 +5701,7 @@ function showToast(message, type = 'success', duration = 3000) {
         
         selected.forEach((sel, index) => {
           const inputDiv = document.createElement('div');
-          inputDiv.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+          inputDiv.className = 'payment-amount-row';
           
           // Determine auto-populated amount
           let autoAmount = 0;
@@ -5945,13 +5959,12 @@ function showToast(message, type = 'success', duration = 3000) {
             productId: currentItem.productId,
             productName: currentItem.productName,
             unitPrice: currentItem.unitPrice,
-            quantity: currentItem.quantity - origItem.quantity, // Only the added quantity
-            isQuantityAddition: true, // Flag to indicate this is an addition to existing item
+            quantity: currentItem.quantity - origItem.quantity,
+            isQuantityAddition: true,
             originalQuantity: origItem.quantity,
             newTotal: currentItem.quantity
           });
         }
-        // If quantity decreased or stayed the same, don't print anything for this item
       });
     }
     
@@ -5959,19 +5972,12 @@ function showToast(message, type = 'success', duration = 3000) {
       alert('No new items to print');
       return;
     }
-    
+
     const tableName = document.getElementById('order-table')?.value || 'N/A';
     const waiterName = document.getElementById('order-waiter')?.value || 'N/A';
-    
-    // Format time with AM/PM
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
-    
-    // Get selected event with details
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
     let eventName = '';
     let eventLocation = '';
     if (selectedEventId) {
@@ -5979,175 +5985,190 @@ function showToast(message, type = 'success', duration = 3000) {
       eventName = evt?.name || '';
       eventLocation = evt?.location || '';
     }
-    
-    // Thermal printer format - optimized for 80mm thermal receipt printer
-    let thermalHTML = `
-      <html>
-      <head>
-        <title>Order Slip</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { 
-            font-family: Arial, Helvetica, sans-serif; 
-            padding: 6px;
-            max-width: 80mm;
-            width: 100%;
-            background: white;
-            color: black;
-            font-size: 13px;
-            line-height: 1.3;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-          }
-          .event-header {
-            text-align: center;
-            margin-bottom: 8px;
-            border-bottom: 1px solid #000;
-            padding-bottom: 6px;
-          }
-          .event-name {
-            font-weight: bold;
-            font-size: 14px;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-          }
-          .event-location {
-            font-size: 11px;
-            color: #333;
-          }
-          .title {
-            text-align: center;
-            font-weight: bold;
-            font-size: 16px;
-            text-transform: uppercase;
-            margin: 8px 0;
-            letter-spacing: 1px;
-          }
-          .order-info {
-            margin: 8px 0;
-            padding: 8px 0;
-            border-top: 1px solid #000;
-            border-bottom: 1px solid #000;
-          }
-          .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 3px 0;
-            font-size: 13px;
-          }
-          .info-label {
-            font-weight: bold;
-            min-width: 50px;
-          }
-          .info-value {
-            flex: 1;
-            text-align: right;
-            padding-left: 10px;
-          }
-          .items-section {
-            margin: 8px 0;
-          }
-          .items-header {
-            font-weight: bold;
-            font-size: 13px;
-            border-bottom: 1px solid #000;
-            padding-bottom: 4px;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-          }
-          .item-row {
-            display: grid;
-            grid-template-columns: 1fr 48px;
-            gap: 8px;
-            margin: 4px 0;
-            font-size: 12px;
-            padding: 3px 0;
-            border-bottom: 1px dotted #999;
-            align-items: center;
-          }
-          .item-name {
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            font-weight: bold;
-          }
-          .item-qty {
-            text-align: right;
-            width: 48px;
-            font-weight: bold;
-          }
-          @media print {
-            body { margin: 0; padding: 5px; }
-          }
-        </style>
-      </head>
-      <body>
-    `;
-    
-    // Add event header if event is selected
-    if (eventName) {
-      thermalHTML += `
-        <div class="event-header">
-          <div class="event-name">${eventName}</div>
-          ${eventLocation ? `<div class="event-location">${eventLocation}</div>` : ''}
-        </div>
+
+    const groupedItems = buildCategoryGroupedItems(itemsToPrint);
+    const shouldSplitByCategory = groupedItems.length > 1;
+
+    const printGroups = shouldSplitByCategory
+      ? groupedItems.map(({ categoryName, items }) => ({ categoryName, items }))
+      : [{ categoryName: null, items: itemsToPrint }];
+
+    const parts = [];
+
+    printGroups.forEach(({ categoryName, items }) => {
+      const categoryLabel = categoryName || 'Items';
+      let thermalHTML = `
+        <html>
+        <head>
+          <title>Order Slip</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: Arial, Helvetica, sans-serif; 
+              padding: 6px;
+              max-width: 80mm;
+              width: 100%;
+              background: white;
+              color: black;
+              font-size: 13px;
+              line-height: 1.3;
+              word-break: break-word;
+              overflow-wrap: anywhere;
+            }
+            .event-header {
+              text-align: center;
+              margin-bottom: 8px;
+              border-bottom: 1px solid #000;
+              padding-bottom: 6px;
+            }
+            .event-name {
+              font-weight: bold;
+              font-size: 14px;
+              text-transform: uppercase;
+              margin-bottom: 2px;
+            }
+            .event-location {
+              font-size: 11px;
+              color: #333;
+            }
+            .title {
+              text-align: center;
+              font-weight: bold;
+              font-size: 16px;
+              text-transform: uppercase;
+              margin: 8px 0;
+              letter-spacing: 1px;
+            }
+            .order-info {
+              margin: 8px 0;
+              padding: 8px 0;
+              border-top: 1px solid #000;
+              border-bottom: 1px solid #000;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              margin: 3px 0;
+              font-size: 13px;
+            }
+            .info-label {
+              font-weight: bold;
+              min-width: 50px;
+            }
+            .info-value {
+              flex: 1;
+              text-align: right;
+              padding-left: 10px;
+            }
+            .items-section {
+              margin: 8px 0;
+            }
+            .items-header {
+              font-weight: bold;
+              font-size: 13px;
+              border-bottom: 1px solid #000;
+              padding-bottom: 4px;
+              margin-bottom: 6px;
+              text-transform: uppercase;
+            }
+            .category-banner {
+              margin: 6px 0 4px;
+              padding: 4px 0;
+              border-top: 1px dashed #999;
+              border-bottom: 1px dashed #999;
+              text-align: center;
+              font-weight: bold;
+              font-size: 12px;
+              text-transform: uppercase;
+            }
+            .item-row {
+              display: grid;
+              grid-template-columns: 1fr 48px;
+              gap: 8px;
+              margin: 4px 0;
+              font-size: 12px;
+              padding: 3px 0;
+              border-bottom: 1px dotted #999;
+              align-items: center;
+            }
+            .item-name {
+              overflow-wrap: anywhere;
+              word-break: break-word;
+              font-weight: bold;
+            }
+            .item-qty {
+              text-align: right;
+              width: 48px;
+              font-weight: bold;
+            }
+            @media print {
+              body { margin: 0; padding: 5px; }
+            }
+          </style>
+        </head>
+        <body>
       `;
-    }
-    
-    // Add order slip title
-    thermalHTML += `<div class="title">ORDER SLIP</div>`;
-    
-    // Add order information
-    thermalHTML += `
-      <div class="order-info">
-        <div class="info-row">
-          <span class="info-label">Table:</span>
-          <span class="info-value">${tableName}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Waiter:</span>
-          <span class="info-value">${waiterName}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Time:</span>
-          <span class="info-value">${timeStr}</span>
-        </div>
-      </div>
-    `;
-    
-    // Add items section
-    thermalHTML += `<div class="items-section"><div class="items-header">Items</div>`;
-    
-    itemsToPrint.forEach(item => {
-      const itemName = item.productName.substring(0, 40);
-      
-      // Check if this is a quantity addition to an existing item
-      if (item.isQuantityAddition) {
-        // Show it as "+ X more" format to indicate it's additional quantity
+
+      if (eventName) {
         thermalHTML += `
-          <div class="item-row">
-            <span class="item-name">${itemName}</span>
-            <span class="item-qty">+${item.quantity}</span>
-          </div>
-        `;
-      } else {
-        // Regular new item
-        thermalHTML += `
-          <div class="item-row">
-            <span class="item-name">${itemName}</span>
-            <span class="item-qty">x${item.quantity}</span>
+          <div class="event-header">
+            <div class="event-name">${eventName}</div>
+            ${eventLocation ? `<div class="event-location">${eventLocation}</div>` : ''}
           </div>
         `;
       }
+
+      thermalHTML += `<div class="title">ORDER SLIP</div>`;
+      thermalHTML += `
+        <div class="order-info">
+          <div class="info-row">
+            <span class="info-label">Table:</span>
+            <span class="info-value">${tableName}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Waiter:</span>
+            <span class="info-value">${waiterName}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Time:</span>
+            <span class="info-value">${timeStr}</span>
+          </div>
+        </div>
+      `;
+
+      thermalHTML += `<div class="items-section"><div class="items-header">Items</div>`;
+      if (shouldSplitByCategory) {
+        thermalHTML += `<div class="category-banner">${categoryLabel}</div>`;
+      }
+
+      items.forEach(item => {
+        const itemName = String(item.productName || item.name || 'Unnamed item').substring(0, 40);
+        if (item.isQuantityAddition) {
+          thermalHTML += `
+            <div class="item-row">
+              <span class="item-name">${itemName}</span>
+              <span class="item-qty">+${item.quantity}</span>
+            </div>
+          `;
+        } else {
+          thermalHTML += `
+            <div class="item-row">
+              <span class="item-name">${itemName}</span>
+              <span class="item-qty">x${item.quantity}</span>
+            </div>
+          `;
+        }
+      });
+
+      thermalHTML += `
+        </div>
+        </body>
+        </html>
+      `;
+      parts.push(thermalHTML);
     });
-    
-    thermalHTML += `
-      </div>
-      </body>
-      </html>
-    `;
-    
-    // Use safePrint to handle pop-up blocking and fallback to iframe
-    safePrint(thermalHTML, 'height=600,width=350');
+
+    parts.forEach((html) => safePrint(html, 'height=600,width=350'));
   }
 
   // Delete order
