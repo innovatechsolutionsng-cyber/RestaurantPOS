@@ -122,7 +122,69 @@ function showToast(message, type = 'success', duration = 3000) {
   let businessDaySettingsMessage = null;
   let businessDayRefreshTimer = null;
   let realtimeRefreshTimer = null;
+  let currentLowStockProducts = [];
   const REALTIME_REFRESH_INTERVAL = 15000;
+
+  function showLowStockModal(products) {
+    if (!Array.isArray(products)) products = [];
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.setAttribute('aria-hidden', 'false');
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="low-stock-modal-title">
+        <header class="modal-header">
+          <h3 id="low-stock-modal-title">Low-stock items</h3>
+          <button type="button" class="modal-close" aria-label="Close">✕</button>
+        </header>
+        <div class="modal-body">
+          <p class="muted">These products are running low in stock. Review and replenish them to avoid shortages.</p>
+          <div style="display:grid;gap:12px;margin-top:16px;">
+            ${products.length > 0 ? products.map(product => {
+              const quantity = Number(product.quantity || 0);
+              return `
+                <div style="padding:14px 16px;border:1px solid rgba(148,163,184,0.25);border-radius:12px;background:rgba(254,243,199,0.4);">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <div style="font-weight:700;color:#0f172a;">${product.name || product.productName || 'Unnamed product'}</div>
+                    <div style="color:#b45309;font-weight:700;">${quantity} left</div>
+                  </div>
+                  <div style="margin-top:8px;color:#475569;font-size:.95rem;">ID: ${product.id || product.productId || 'N/A'}</div>
+                </div>
+              `;
+            }).join('') : '<div style="padding:18px 16px;border:1px solid rgba(148,163,184,0.25);border-radius:12px;background:rgba(226,232,240,0.35);color:#475569;">No low-stock items found.</div>'}
+          </div>
+        </div>
+        <footer class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+          <button type="button" class="btn btn-ghost modal-close">Close</button>
+        </footer>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelectorAll('.modal-backdrop, .modal-close').forEach((el) => {
+      if (el) el.addEventListener('click', () => modal.remove());
+    });
+  }
+
+  function renderLowStockSummaryChip(count) {
+    const summaryChips = document.querySelectorAll('.overview-summary .summary-chip');
+    if (summaryChips.length < 3) return;
+    const lowStockChip = summaryChips[2];
+    lowStockChip.textContent = `${count} low-stock alerts`;
+    lowStockChip.classList.toggle('low-stock-alert', count > 0);
+    lowStockChip.setAttribute('aria-label', `${count} low-stock alerts. Click to view details.`);
+    lowStockChip.setAttribute('role', 'button');
+    lowStockChip.setAttribute('tabindex', '0');
+    if (!lowStockChip.dataset.lowstockBound) {
+      lowStockChip.addEventListener('click', () => showLowStockModal(currentLowStockProducts));
+      lowStockChip.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          showLowStockModal(currentLowStockProducts);
+        }
+      });
+      lowStockChip.dataset.lowstockBound = 'true';
+    }
+  }
 
   let receiptSettings = {
     businessName: '',
@@ -269,12 +331,8 @@ function showToast(message, type = 'success', duration = 3000) {
           revenueEl.textContent = `₦${new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(revenue)}`;
         }
 
-        const summaryChips = document.querySelectorAll('.overview-summary .summary-chip');
-        if (summaryChips.length >= 3) {
-          summaryChips[0].textContent = `${dailyOrderCount} orders today`;
-          summaryChips[1].textContent = `${activeStaffCount} staff online`;
-          summaryChips[2].textContent = `${lowStockCount} low-stock alerts`;
-        }
+        currentLowStockProducts = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5);
+        renderLowStockSummaryChip(lowStockCount);
       } else {
         const [products, users, events, orders] = await Promise.all([
           RestaurantDB.getAllProducts().catch(() => []),
@@ -312,12 +370,8 @@ function showToast(message, type = 'success', duration = 3000) {
           revenueEl.textContent = `₦${new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(revenue)}`;
         }
 
-        const summaryChips = document.querySelectorAll('.overview-summary .summary-chip');
-        if (summaryChips.length >= 3) {
-          summaryChips[0].textContent = `${dailyOrderCount} orders today`;
-          summaryChips[1].textContent = `${activeStaffCount} staff online`;
-          summaryChips[2].textContent = `${lowStockCount} low-stock alerts`;
-        }
+        currentLowStockProducts = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5);
+        renderLowStockSummaryChip(lowStockCount);
       }
     } catch (err) {
       console.error('Failed to load operational snapshot counts:', err);
@@ -1960,6 +2014,8 @@ function showToast(message, type = 'success', duration = 3000) {
     
     // Stock count and session timeout settings
     const enableStockCountCheckbox = document.getElementById('enable-stock-count');
+    const enableLowStockAlertsCheckbox = document.getElementById('enable-low-stock-alerts');
+    const lowStockThresholdInput = document.getElementById('low-stock-threshold');
     const systemTimeoutInput = document.getElementById('system-timeout-minutes');
     const btnSaveStockSettings = document.getElementById('btn-save-stock-settings');
 
@@ -1970,12 +2026,16 @@ function showToast(message, type = 'success', duration = 3000) {
         const serviceSetting = await RestaurantDB.getSetting('serviceChargePercentage');
         const discountSetting = await RestaurantDB.getSetting('discountPercentage');
         const stockCountSetting = await RestaurantDB.getSetting('enableStockCount');
+        const lowStockAlertSetting = await RestaurantDB.getSetting('enableLowStockAlerts');
+        const lowStockThresholdSetting = await RestaurantDB.getSetting('lowStockThreshold');
         const timeoutSetting = await RestaurantDB.getSetting('sessionTimeoutMinutes');
         
         if (taxPercentageInput && taxSetting) taxPercentageInput.value = taxSetting.value || '';
         if (serviceChargePercentageInput && serviceSetting) serviceChargePercentageInput.value = serviceSetting.value || '';
         if (discountPercentageInput && discountSetting) discountPercentageInput.value = discountSetting.value || '';
         if (enableStockCountCheckbox && stockCountSetting) enableStockCountCheckbox.checked = stockCountSetting.value === true || stockCountSetting.value === 'true';
+        if (enableLowStockAlertsCheckbox && lowStockAlertSetting) enableLowStockAlertsCheckbox.checked = lowStockAlertSetting.value === true || lowStockAlertSetting.value === 'true';
+        if (lowStockThresholdInput && lowStockThresholdSetting) lowStockThresholdInput.value = String(lowStockThresholdSetting.value || '');
         if (systemTimeoutInput && timeoutSetting) systemTimeoutInput.value = String(timeoutSetting.value || '');
       } catch (err) {
         console.error('Failed to load billing settings:', err);
@@ -2056,14 +2116,21 @@ function showToast(message, type = 'success', duration = 3000) {
       btnSaveStockSettings.addEventListener('click', async () => {
         try {
           const stockCountEnabled = enableStockCountCheckbox ? enableStockCountCheckbox.checked : false;
+          const lowStockAlertsEnabled = enableLowStockAlertsCheckbox ? enableLowStockAlertsCheckbox.checked : false;
+          const lowStockThreshold = lowStockThresholdInput ? parseInt(lowStockThresholdInput.value || '0', 10) : 0;
           const timeoutMinutes = systemTimeoutInput ? parseInt(systemTimeoutInput.value || '0', 10) : 0;
           const stockSettingsMessage = document.getElementById('stock-settings-message');
 
           if (timeoutMinutes <= 0 || timeoutMinutes > 1440) {
             throw new Error('Please enter a valid timeout between 1 and 1440 minutes.');
           }
+          if (lowStockAlertsEnabled && lowStockThreshold <= 0) {
+            throw new Error('Please enter a valid low-stock threshold greater than 0.');
+          }
           
           await RestaurantDB.setSetting('enableStockCount', stockCountEnabled);
+          await RestaurantDB.setSetting('enableLowStockAlerts', lowStockAlertsEnabled);
+          await RestaurantDB.setSetting('lowStockThreshold', lowStockThreshold);
           await RestaurantDB.setSetting('sessionTimeoutMinutes', timeoutMinutes);
           
           if (stockSettingsMessage) {

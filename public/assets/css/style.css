@@ -434,7 +434,10 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
   .overview-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
   .overview-actions .btn{border-radius:999px}
   .overview-summary{display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%}
-  .summary-chip{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,0.15);font-weight:600}
+  .summary-chip{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,0.15);font-weight:600;transition:transform .2s ease, box-shadow .2s ease, background .2s ease}
+  .overview-summary .summary-chip.low-stock-alert{cursor:pointer;background:linear-gradient(135deg, rgba(245,158,11,0.22), rgba(249,115,22,0.28));color:#111;box-shadow:0 0 0 rgba(249,115,22,0.45);animation:lowStockPulse 3s ease-in-out infinite}
+  .overview-summary .summary-chip.low-stock-alert:hover{transform:translateY(-1px);box-shadow:0 18px 45px rgba(249,115,22,0.18)}
+  @keyframes lowStockPulse{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,0.18)}50%{box-shadow:0 0 0 18px rgba(249,115,22,0)}}
   .overview-grid{grid-template-columns:repeat(3, minmax(0, 1fr));margin-top:16px;min-width:0}
   .dashboard-grid{display:grid;grid-template-columns:1.55fr 0.45fr;gap:16px;margin-top:16px;min-width:0}
   .dashboard-grid > .card:nth-child(2){min-width:260px;max-width:340px}

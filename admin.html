@@ -845,6 +845,22 @@
                     </div>
                   </div>
 
+                  <div class="settings-switch">
+                    <div class="settings-switch-row">
+                      <input id="enable-low-stock-alerts" type="checkbox" class="input checkbox-input" />
+                      <div>
+                        <label for="enable-low-stock-alerts" class="label" style="margin: 0; cursor: pointer;">Enable Low-Stock Alerts</label>
+                        <div class="muted" style="margin-top: 4px;">Notify administrators when product stock drops below the configured threshold.</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="system-setting-field">
+                    <label for="low-stock-threshold" class="label">Low-stock threshold</label>
+                    <input id="low-stock-threshold" class="input" type="number" min="1" step="1" placeholder="10" />
+                    <div class="muted">Trigger alerts when inventory reaches this quantity or lower.</div>
+                  </div>
+
                   <div class="system-setting-field">
                     <label for="system-timeout-minutes" class="label">Session timeout (minutes)</label>
                     <input id="system-timeout-minutes" class="input" type="number" min="5" max="1440" step="5" placeholder="120" />
