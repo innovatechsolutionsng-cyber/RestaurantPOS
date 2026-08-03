@@ -368,6 +368,13 @@
       });
 
     currentWaiterOrders = waiterOrders;
+    existingTableOrderMap = new Map();
+    waiterOrders.forEach((order) => {
+      const tableName = String(order?.tableName || order?.orderData?.tableName || order?.orderData?.order?.tableName || '').trim();
+      if (tableName) {
+        existingTableOrderMap.set(tableName.toLowerCase(), order);
+      }
+    });
     const pendingOrders = waiterOrders.filter(order => getOrderStatus(order) === 'pending');
     const todayRevenue = waiterOrders.reduce((sum, order) => {
       const amount = Number(order.totalAmount || order.subtotal || order.amount || 0);
@@ -693,7 +700,7 @@
     modal.setAttribute('aria-hidden', 'false');
     modal.innerHTML = `
       <div class="modal-backdrop"></div>
-      <div class="modal-panel waiter-order-modal" role="dialog" aria-modal="true">
+      <div class="modal-panel waiter-order-modal" role="dialog" aria-modal="true" style="max-height:92vh;overflow:hidden;">
         ${html}
       </div>
     `;
@@ -728,14 +735,24 @@
       `;
       return;
     }
-    container.innerHTML = waiterTables.map((table) => `
-      <button type="button" class="pos-chip table${String(selectedTableId) === String(table) ? ' selected' : ''}" data-table="${table}">
-        <span class="pos-chip-label">${table}</span>
-        ${String(selectedTableId) === String(table) ? '<span class="pos-chip-check">✓</span>' : ''}
-      </button>
-    `).join('');
+    container.innerHTML = waiterTables.map((table) => {
+      const normalizedTable = String(table).trim();
+      const isOccupied = !currentOrderId && existingTableOrderMap.has(normalizedTable.toLowerCase());
+      const isSelected = String(selectedTableId) === normalizedTable;
+      const disabledAttr = isOccupied ? ' disabled aria-disabled="true"' : '';
+      const selectedClass = isSelected ? ' selected' : '';
+      const occupiedLabel = isOccupied ? '<span class="muted" style="font-size:0.8rem;margin-left:8px;">In use</span>' : '';
+      return `
+        <button type="button" class="pos-chip table${selectedClass}" data-table="${normalizedTable}"${disabledAttr} style="${isOccupied ? 'opacity:0.65;cursor:not-allowed;' : ''}">
+          <span class="pos-chip-label">${normalizedTable}</span>
+          ${occupiedLabel}
+          ${isSelected ? '<span class="pos-chip-check">✓</span>' : ''}
+        </button>
+      `;
+    }).join('');
     container.querySelectorAll('.pos-chip.table').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (btn.hasAttribute('disabled')) return;
         selectedTableId = btn.dataset.table;
         renderModalTableCards(modal);
       });
@@ -1024,6 +1041,7 @@
   function openOrderModal(order = null) {
     currentOrderId = order?.id || null;
     selectedTableId = order?.tableName || null;
+    const isEditing = Boolean(order?.id || currentOrderId);
     selectedCategoryId = null;
     selectedSubcategoryId = null;
     currentOrderItems = Array.isArray(order?.items) ? order.items.map((item) => ({
@@ -1036,6 +1054,7 @@
 
     const headerText = order ? 'Update Order' : 'Create Order';
     const buttonText = order ? 'Update Order' : 'Place Order';
+    const modalHint = order ? 'You are updating an existing order.' : 'Select a table to start a new order.';
 
     const { modal, close } = createModal(`
       <header class="modal-header">
@@ -1043,6 +1062,7 @@
         <button type="button" class="modal-close" aria-label="Close">✕</button>
       </header>
       <div class="modal-body" style="display:grid;gap:16px;max-height:70vh;overflow:auto;">
+        <div class="muted" style="font-size:0.95rem;">${modalHint}</div>
         <div class="field">
           <label class="label" for="order-customer-name">Customer Name (optional)</label>
           <input id="order-customer-name" type="text" class="input" placeholder="Customer name" />
@@ -1087,6 +1107,10 @@
       const tableName = selectedTableId;
       if (!tableName) {
         showToast('Please select a table.', 'error', 2600);
+        return;
+      }
+      if (!currentOrderId && existingTableOrderMap.has(String(tableName).trim().toLowerCase())) {
+        showToast(`An order already exists for table ${tableName}. Use Update Order to add items.`, 'error', 3200);
         return;
       }
       if (!currentOrderItems.length) {

@@ -1165,6 +1165,7 @@ function showToast(message, type = 'success', duration = 3000) {
       
       // Reset form
       resetOrderForm();
+      updateOrderTableHint('');
       resetOrderModalSelectors();
       renderOrderItemsTable();
       updateModalButtons();
@@ -1257,6 +1258,7 @@ function showToast(message, type = 'success', duration = 3000) {
       
       // Repopulate category and product dropdowns for edit mode
       resetOrderModalSelectors();
+      updateOrderTableHint(order.tableName || '');
       
       renderOrderItemsTable();
       updateModalButtons();
@@ -1543,6 +1545,24 @@ function showToast(message, type = 'success', duration = 3000) {
     return { original: raw, normalized, number };
   }
 
+  function updateOrderTableHint(tableName = ''){
+    const hint = document.getElementById('order-table-hint');
+    if (!hint) return;
+
+    const trimmed = String(tableName || '').trim();
+    if (!trimmed) {
+      hint.textContent = 'Tip: If this table already has an active order, use Update Order from the orders list instead of creating a duplicate.';
+      hint.style.color = '#6b7280';
+      return;
+    }
+
+    const isConflict = !editingOrderId && tableAlreadyHasOrder(trimmed, editingOrderId);
+    hint.textContent = isConflict
+      ? `Table "${trimmed}" already has an active order. Use Update Order to add items.`
+      : 'Tip: If this table already has an active order, use Update Order from the orders list instead of creating a duplicate.';
+    hint.style.color = isConflict ? '#b91c1c' : '#6b7280';
+  }
+
   function tablesMatch(tableA, tableB){
     const idA = normalizeTableIdentifier(tableA);
     const idB = normalizeTableIdentifier(tableB);
@@ -1557,9 +1577,14 @@ function showToast(message, type = 'success', duration = 3000) {
     const waiterInput = document.getElementById('order-waiter');
     if (!tableInput || !waiterInput) return;
     // When editing an existing order, keep table and waiter fixed and do nothing
-    if (editingOrderId) return;
+    if (editingOrderId) {
+      updateOrderTableHint(tableInput.value);
+      return;
+    }
     
     const tableName = tableInput.value.trim();
+    updateOrderTableHint(tableName);
+
     if (!tableName) {
       waiterInput.value = '';
       return;
@@ -1567,7 +1592,7 @@ function showToast(message, type = 'success', duration = 3000) {
     
     // Check if table already has an active order (exclude current editing order if in edit mode)
     if (tableAlreadyHasOrder(tableName, editingOrderId)) {
-      showToast(`Table "${tableName}" already has an active order in the system. Close that order before creating a new one.`, 'error', 4000);
+      showToast(`An order already exists for table ${tableName}. Use Update Order to add items.`, 'error', 3200);
       tableInput.value = '';
       waiterInput.value = '';
       tableInput.focus();
@@ -2117,7 +2142,7 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     if (tableAlreadyHasOrder(tableName, editingOrderId)) {
-      showToast(`Table "${tableName}" already has an active order. Close the existing order before creating a new one.`, 'error', 4000);
+      showToast(`An order already exists for table ${tableName}. Use Update Order to add items.`, 'error', 3200);
       tableInput.focus();
       return false;
     }

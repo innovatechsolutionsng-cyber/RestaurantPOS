@@ -437,7 +437,9 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
   .modal-badge{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:rgba(248,113,33,0.14);color:#b45309;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;box-shadow:inset 0 0 0 1px rgba(249,115,22,0.12)}
   .modal-close{background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted);transition:color var(--m-fast) ease, transform var(--m-fast) ease;padding:0;width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:14px}
   .modal-close:hover{color:var(--text);background:rgba(15,23,42,0.06);transform:scale(1.05)}
-  .modal-body{display:flex;flex-direction:column;gap:14px;position:relative;z-index:1}
+  .modal-body{display:flex;flex-direction:column;gap:14px;position:relative;z-index:1;max-height:calc(92vh - 140px);overflow-y:auto;padding-right:10px;min-height:0}
+  .modal-body::-webkit-scrollbar{width:10px}
+  .modal-body::-webkit-scrollbar-thumb{background:rgba(15,23,42,0.18);border-radius:999px}
   .modal-body p{max-width:100%;color:#475569;line-height:1.75;font-size:.97rem}
   .modal-note{margin:0;color:#7c7c7c;font-size:.88rem;letter-spacing:.01em}
   .low-stock-list{display:grid;gap:16px;margin-top:6px}

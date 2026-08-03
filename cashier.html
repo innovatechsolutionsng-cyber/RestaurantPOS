@@ -415,18 +415,19 @@
           <!-- Create Order Modal -->
           <div id="order-modal" class="modal" aria-hidden="true" inert>
             <div class="modal-backdrop"></div>
-            <div class="modal-panel">
+            <div class="modal-panel" style="max-height:92vh;overflow:hidden;">
               <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
                 <h3 style="margin:0;">Create New Order</h3>
                 <button id="btn-close-modal" class="btn btn-ghost" aria-label="Close">✕</button>
               </div>
 
-              <div class="modal-body">
+              <div class="modal-body" style="max-height:calc(92vh - 140px);overflow-y:auto;">
                 <!-- Table Name & Waiter -->
                 <div class="form-row">
                   <div class="field">
                     <label for="order-table" class="label">Table Name *</label>
                     <input id="order-table" type="text" placeholder="e.g., Table 1, VIP Booth" required class="input">
+                    <div id="order-table-hint" class="muted" style="margin-top:6px;font-size:0.9rem;">Tip: If this table already has an active order, use Update Order from the orders list instead of creating a duplicate.</div>
                   </div>
                   <div class="field">
                     <label for="order-waiter" class="label">Waiter in Charge</label>
