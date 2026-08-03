@@ -1387,34 +1387,45 @@ async function startAdminServer(port = 3000) {
             }
 
             if (!existing || existing.length === 0) {
-              // Try to detect an existing order by tableName + terminalId to avoid duplicates
+              const isMergedOrder = Boolean(
+                order && (
+                  String(order.id || '').startsWith('merge-') ||
+                  order.mergedTables?.length ||
+                  order.mergeReference ||
+                  order.createdFrom === 'cashier-merge'
+                )
+              );
+
               let foundMatch = null;
-              try {
-                const tableName = order && order.tableName ? String(order.tableName) : null;
-                if (tableName) {
-                  const tableNameNormalized = String(tableName).trim().toLowerCase();
-                  const [rowsForTerminal] = await connection.query('SELECT id, order_data FROM orders WHERE terminal_id = ?', [terminalId]);
-                  if (rowsForTerminal && rowsForTerminal.length > 0) {
-                    for (const r of rowsForTerminal) {
-                      try {
-                        const od = JSON.parse(r.order_data);
-                        const otherName = od && od.tableName ? String(od.tableName).trim().toLowerCase() : '';
-                        console.log('Order sync: comparing', { terminalId, tableNameNormalized, dbId: r.id, dbTableName: otherName });
-                        if (otherName && otherName === tableNameNormalized) {
-                          foundMatch = { id: r.id, order_data: r.order_data };
-                          break;
+              if (!isMergedOrder) {
+                // Try to detect an existing order by tableName + terminalId to avoid duplicates
+                try {
+                  const tableName = order && order.tableName ? String(order.tableName) : null;
+                  if (tableName) {
+                    const tableNameNormalized = String(tableName).trim().toLowerCase();
+                    const [rowsForTerminal] = await connection.query('SELECT id, order_data FROM orders WHERE terminal_id = ?', [terminalId]);
+                    if (rowsForTerminal && rowsForTerminal.length > 0) {
+                      for (const r of rowsForTerminal) {
+                        try {
+                          const od = JSON.parse(r.order_data);
+                          const otherName = od && od.tableName ? String(od.tableName).trim().toLowerCase() : '';
+                          console.log('Order sync: comparing', { terminalId, tableNameNormalized, dbId: r.id, dbTableName: otherName });
+                          if (otherName && otherName === tableNameNormalized) {
+                            foundMatch = { id: r.id, order_data: r.order_data };
+                            break;
+                          }
+                        } catch (e) {
+                          // ignore parse errors
                         }
-                      } catch (e) {
-                        // ignore parse errors
                       }
                     }
                   }
+                } catch (matchErr) {
+                  // ignore matching errors and proceed to insert
                 }
-              } catch (matchErr) {
-                // ignore matching errors and proceed to insert
               }
 
-              if (foundMatch) {
+              if (foundMatch && !isMergedOrder) {
                 // Update the matched order instead of inserting a duplicate
                 const existingId = foundMatch.id;
                 await connection.query(
