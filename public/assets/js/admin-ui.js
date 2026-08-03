@@ -310,7 +310,9 @@ function showToast(message, type = 'success', duration = 3000) {
     const pendingOrdersEl = document.getElementById('stat-pending-orders');
     const completedOrdersEl = document.getElementById('stat-completed-orders');
     const activeStaffEl = document.getElementById('stat-active-staff');
-    if (!productCountEl && !userCountEl && !eventCountEl && !revenueEl && !pendingOrdersEl && !completedOrdersEl && !activeStaffEl) return;
+    const ordersTodayChipEl = document.getElementById('summary-orders-today');
+    const staffOnlineChipEl = document.getElementById('summary-staff-online');
+    if (!productCountEl && !userCountEl && !eventCountEl && !revenueEl && !pendingOrdersEl && !completedOrdersEl && !activeStaffEl && !ordersTodayChipEl && !staffOnlineChipEl) return;
 
     try {
       if (BACKEND_AVAILABLE) {
@@ -338,6 +340,8 @@ function showToast(message, type = 'success', duration = 3000) {
         const lowStockCount = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5).length;
 
         if (productCountEl) productCountEl.textContent = String(products.length);
+        if (ordersTodayChipEl) ordersTodayChipEl.textContent = `${dailyOrderCount} order${dailyOrderCount === 1 ? '' : 's'} today`;
+        if (staffOnlineChipEl) staffOnlineChipEl.textContent = `${activeStaffCount} staff online`;
         if (userCountEl) userCountEl.textContent = String(users.length);
         if (eventCountEl) eventCountEl.textContent = String(events.length);
         if (activeStaffEl) activeStaffEl.textContent = String(activeStaffCount);
@@ -378,6 +382,8 @@ function showToast(message, type = 'success', duration = 3000) {
         const lowStockCount = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5).length;
 
         if (productCountEl) productCountEl.textContent = String((products || []).length);
+        if (ordersTodayChipEl) ordersTodayChipEl.textContent = `${dailyOrderCount} order${dailyOrderCount === 1 ? '' : 's'} today`;
+        if (staffOnlineChipEl) staffOnlineChipEl.textContent = `${activeStaffCount} staff online`;
         if (userCountEl) userCountEl.textContent = String((users || []).length);
         if (eventCountEl) eventCountEl.textContent = String((events || []).length);
         if (activeStaffEl) activeStaffEl.textContent = String(activeStaffCount);

@@ -434,6 +434,15 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
   #order-modal .modal-body{overflow-x:hidden}
   .modal-panel::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg, rgba(255,196,0,0.08), rgba(249,115,22,0.08));pointer-events:none;}
   .modal-content{position:relative;background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,243,228,0.96));border-radius:24px;padding:24px;min-width:min(92vw, 560px);max-width:100%;max-height:100%;overflow:visible;display:flex;flex-direction:column;box-shadow:0 32px 90px rgba(15,23,42,0.18);border:1px solid rgba(249,115,22,0.16);}
+  .inventory-modal-card{background:linear-gradient(145deg, #ffffff 0%, #fcfaf7 100%);border:1px solid rgba(15,23,42,0.08);box-shadow:0 24px 60px rgba(15,23,42,0.12);padding:24px 24px 22px;overflow:hidden;}
+  .inventory-modal-card::before{content:'';position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg, #2563eb 0%, #14b8a6 50%, #f59e0b 100%);}
+  .inventory-modal-header{align-items:center;margin-bottom:18px;}
+  .inventory-modal-form{display:grid;gap:14px;}
+  .inventory-modal-form .form-group{padding:14px 15px;border:1px solid rgba(148,163,184,0.2);border-radius:16px;background:rgba(255,255,255,0.9);box-shadow:inset 0 1px 0 rgba(255,255,255,0.6);}
+  .inventory-modal-form .input{width:100%;border:1px solid rgba(148,163,184,0.28);border-radius:12px;padding:11px 12px;background:#fff;box-shadow:none;transition:border-color .2s ease, box-shadow .2s ease;}
+  .inventory-modal-form .input:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,0.12);outline:none;}
+  .inventory-modal-form .form-actions{margin-top:6px;justify-content:flex-end;}
+  .inventory-modal-form .btn-primary{box-shadow:0 12px 24px rgba(37,99,235,0.16);}
   .modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:22px;position:relative;z-index:1}
   .modal-header h3{margin:0;font-size:1.4rem;font-weight:800;color:#111827;line-height:1.2}
   .modal-badge{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:rgba(248,113,33,0.14);color:#b45309;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;box-shadow:inset 0 0 0 1px rgba(249,115,22,0.12)}

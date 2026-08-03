@@ -5203,15 +5203,36 @@ function showToast(message, type = 'success', duration = 3000) {
   // Close bill - mark order as completed
   async function closeBill(){
     if (!editingOrderId) return;
-    
-    // Show payment modal instead of confirm dialog
     showPaymentModal();
+  }
+
+  function getActiveSplitContext(order = editingOrder) {
+    if (!order) return null;
+    if (order.splitFromBillId) {
+      return {
+        splitReference: order.splitReference || null,
+        splitPlace: Number(order.splitPlace || 0),
+        splitTotal: Number(order.splitTotal || 0),
+        parentOrderId: order.splitFromBillId || null,
+        isSplitPlace: true
+      };
+    }
+    if (order.splitReference && (order.splitPlace || order.splitTotal)) {
+      return {
+        splitReference: order.splitReference || null,
+        splitPlace: Number(order.splitPlace || 0),
+        splitTotal: Number(order.splitTotal || 0),
+        parentOrderId: order.id || null,
+        isSplitPlace: Boolean(order.splitPlace)
+      };
+    }
+    return null;
   }
 
   // Payment modal
   function showPaymentModal(){
     if (!editingOrder) return;
-    
+    const splitContext = getActiveSplitContext(editingOrder);
     const billTotal = editingOrder.totalAmount || 0;
     const totalFormatted = formatCurrency(billTotal);
     
@@ -5263,6 +5284,7 @@ function showToast(message, type = 'success', duration = 3000) {
           <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
             <div style="font-size: 0.9rem; color: #666; margin-bottom: 4px;">Final Bill Total</div>
             <div style="font-size: 1.8rem; font-weight: 700; color: #0284c7;">${totalFormatted}</div>
+            ${splitContext ? `<div style="margin-top: 8px; font-size: 0.95rem; color: #334155; font-weight: 600;">Split ${splitContext.splitPlace ? `Place ${splitContext.splitPlace}` : 'Bill'}${splitContext.splitTotal ? ` / ${splitContext.splitTotal}` : ''}</div>` : ''}
           </div>
           
           <div style="margin-bottom: 20px;">
@@ -5560,16 +5582,29 @@ function showToast(message, type = 'success', duration = 3000) {
           }));
         }
         
-        // Save payment details to order
-        editingOrder.status = 'completed';
-        editingOrder.payments = payments;
-        editingOrder.cashierName = getCurrentCashierName();
-        editingOrder.cashier = editingOrder.cashierName;
-        editingOrder.createdBy = editingOrder.createdBy || editingOrder.cashierName;
-        editingOrder.updatedAt = new Date().toISOString();
-        await saveOrderToBackend(editingOrder);
+        const splitContext = getActiveSplitContext(editingOrder);
+        const paymentOrder = {
+          ...editingOrder,
+          status: 'completed',
+          payments,
+          cashierName: getCurrentCashierName(),
+          cashier: getCurrentCashierName(),
+          createdBy: editingOrder.createdBy || getCurrentCashierName(),
+          updatedAt: new Date().toISOString()
+        };
+
+        if (splitContext && splitContext.splitReference) {
+          paymentOrder.splitReference = splitContext.splitReference;
+          paymentOrder.splitPlace = splitContext.splitPlace || paymentOrder.splitPlace;
+          paymentOrder.splitTotal = splitContext.splitTotal || paymentOrder.splitTotal;
+          if (splitContext.parentOrderId) {
+            paymentOrder.splitFromBillId = splitContext.parentOrderId;
+          }
+        }
+
+        await saveOrderToBackend(paymentOrder);
         
-        alert('Order completed! Payment recorded.');
+        alert(splitContext ? `Split place ${paymentOrder.splitPlace || 1} completed! Payment recorded.` : 'Order completed! Payment recorded.');
         
         // Auto-print receipt after closing bill
         setTimeout(() => {
