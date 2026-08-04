@@ -1489,7 +1489,13 @@ async function startAdminServer(port = 3000) {
               `DELETE o1 FROM orders o1
                JOIN orders o2 ON o1.terminal_id = o2.terminal_id
                AND JSON_UNQUOTE(JSON_EXTRACT(o1.order_data, '$.tableName')) = JSON_UNQUOTE(JSON_EXTRACT(o2.order_data, '$.tableName'))
-               AND JSON_UNQUOTE(JSON_EXTRACT(o1.order_data, '$.splitReference')) = JSON_UNQUOTE(JSON_EXTRACT(o2.order_data, '$.splitReference'))
+               AND (
+                 (JSON_UNQUOTE(JSON_EXTRACT(o1.order_data, '$.splitReference')) IS NULL AND JSON_UNQUOTE(JSON_EXTRACT(o2.order_data, '$.splitReference')) IS NULL)
+                 OR (
+                   JSON_UNQUOTE(JSON_EXTRACT(o1.order_data, '$.splitReference')) = JSON_UNQUOTE(JSON_EXTRACT(o2.order_data, '$.splitReference'))
+                   AND COALESCE(CAST(JSON_EXTRACT(o1.order_data, '$.splitPlace') AS UNSIGNED), 0) = COALESCE(CAST(JSON_EXTRACT(o2.order_data, '$.splitPlace') AS UNSIGNED), 0)
+                 )
+               )
                AND o1.updated_at < o2.updated_at`
             );
           } catch (dedupeErr) {
@@ -1538,6 +1544,8 @@ async function startAdminServer(port = 3000) {
     addCandidate(order?.order_data?.order?.waiterName);
     addCandidate(order?.orderData?.order_data?.waiterName);
     addCandidate(order?.order_data?.order_data?.waiterName);
+    addCandidate(order?.editableByWaiterName);
+    addCandidate(order?.mergeEditableBy);
 
     if (Array.isArray(order?.mergedTables)) {
       order.mergedTables.forEach((entry) => addCandidate(entry?.waiterName));

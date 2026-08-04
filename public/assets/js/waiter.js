@@ -780,6 +780,36 @@
     return Array.from(grouped.entries()).map(([categoryName, categoryItems]) => ({ categoryName, items: categoryItems }));
   }
 
+  function waiterMatches(value, currentWaiter) {
+    const normalizedValue = normalizeWaiterName(value);
+    if (!normalizedValue || !currentWaiter) return false;
+    const parts = normalizedValue.split(/(?:\s*&\s*|\s*,\s*|\/)/g).filter(Boolean);
+    return parts.some((part) => part === currentWaiter || part.includes(currentWaiter) || currentWaiter.includes(part));
+  }
+
+  function canEditWaiterOrder(order) {
+    const currentWaiter = normalizeWaiterName(session?.username || '');
+    if (!currentWaiter) return true;
+
+    const primaryWaiter = normalizeWaiterName(order?.waiterName || order?.waiter || '');
+    const editableBy = normalizeWaiterName(order?.editableByWaiterName || order?.mergeEditableBy || '');
+    const isSplitOrder = Boolean(order?.splitReference || order?.splitFromBillId || order?.splitPlace || order?.splitTotal);
+
+    if (isSplitOrder) {
+      return waiterMatches(primaryWaiter, currentWaiter) || waiterMatches(editableBy, currentWaiter);
+    }
+
+    if (waiterMatches(primaryWaiter, currentWaiter) || waiterMatches(editableBy, currentWaiter)) {
+      return true;
+    }
+
+    if (Array.isArray(order?.mergedTables) && order.mergedTables.some((entry) => waiterMatches(entry?.waiterName, currentWaiter))) {
+      return false;
+    }
+
+    return true;
+  }
+
   function renderPosOrderCards(orders) {
     const container = $('pos-order-cards');
     if (!container) return;
@@ -791,11 +821,18 @@
     container.innerHTML = filteredOrders.map((order) => {
       const status = getOrderStatus(order);
       const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+      const canEdit = canEditWaiterOrder(order);
+      const badgeStyle = status === 'completed'
+        ? 'background: linear-gradient(90deg, #10b981, #059669); color: white;'
+        : 'background: linear-gradient(90deg, #3b82f6, #2563eb); color: white;';
+      const actionButton = canEdit
+        ? `<button type="button" class="btn btn-accent btn-update-order" data-order-id="${order.id}" style="border:none;">Update Order</button>`
+        : `<button type="button" class="btn btn-update-order" data-order-id="${order.id}" style="border:none; background:#e5e7eb; color:#6b7280; cursor:not-allowed; opacity:0.7;" disabled>Update Order</button>`;
       return `
         <div class="order-card">
           <div class="order-card-header">
             <h4 class="order-card-title">Table ${order.tableName || 'N/A'}</h4>
-            <span class="order-card-badge">${statusLabel}</span>
+            <span class="order-card-badge" style="${badgeStyle}">${statusLabel}</span>
           </div>
           <div class="order-card-detail">
             <span class="order-card-label">Waiter:</span>
@@ -816,13 +853,14 @@
             <span class="order-card-value">${formatCurrency(order.totalAmount)}</span>
           </div>
           <div class="order-card-actions" style="justify-content:flex-end;">
-            <button type="button" class="btn btn-accent btn-update-order" data-order-id="${order.id}" style="border:none;">Update Order</button>
+            ${actionButton}
           </div>
         </div>
       `;
     }).join('');
     container.querySelectorAll('.btn-update-order').forEach((btn) => {
       btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
         const orderId = btn.dataset.orderId;
         const orders = await getOrders();
         const order = orders.find((o) => String(o.id) === String(orderId));

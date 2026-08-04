@@ -2480,6 +2480,9 @@ function showToast(message, type = 'success', duration = 3000) {
         if (editingOrder.mergeReference) {
           orderData.mergeReference = editingOrder.mergeReference;
         }
+        if (editingOrder.editableByWaiterName) {
+          orderData.editableByWaiterName = editingOrder.editableByWaiterName;
+        }
 
         if (!BACKEND_AVAILABLE) throw new Error('backend_unavailable');
         await saveOrderToBackend(orderData);
@@ -4200,6 +4203,7 @@ function showToast(message, type = 'success', duration = 3000) {
             createdBy: getCurrentCashierName(),
             allowCashierDelete: false,
             createdFrom: 'cashier-merge',
+            editableByWaiterName: targetOrder.waiterName || targetOrder.waiter || '',
             items: mergedItems,
             status: 'pending',
             subtotal: newSubtotal,
@@ -5512,6 +5516,7 @@ function showToast(message, type = 'success', duration = 3000) {
                 splitReference: `SPLIT-${splitReference}`,
                 splitPlace: 1,
                 splitTotal: numPlaces,
+                editableByWaiterName: editingOrder.waiterName || '',
                 updatedAt: new Date().toISOString()
               };
 
@@ -5543,6 +5548,7 @@ function showToast(message, type = 'success', duration = 3000) {
                 splitReference: `SPLIT-${splitReference}`,
                 splitPlace: place,
                 splitTotal: numPlaces,
+                editableByWaiterName: editingOrder.waiterName || '',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               };
