@@ -3200,18 +3200,21 @@ function showToast(message, type = 'success', duration = 3000) {
         <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
           <div style="display: flex; flex-direction: column; gap: 5px;">
             <div style="font-size: 0.74rem; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.04em;">Merged Tables</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
               ${order.mergedTables.map((merged, idx) => {
                 const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316'];
                 const color = colors[idx % colors.length];
                 const itemCount = Number(merged.itemCount || 0);
                 const mergedTotal = Number(merged.totalAmount || 0);
+                const badgeDigits = String(merged.tableName || '').replace(/\D/g, '');
+                const badgeLabel = badgeDigits ? badgeDigits.slice(-3).padStart(3, '0') : '001';
                 return `
-                  <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 999px; background: ${color}16; border: 1px solid ${color}; color: #374151; font-size: 0.68rem; font-weight: 600; line-height: 1;">
-                    <span style="width: 15px; height: 15px; border-radius: 50%; background: ${color}; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.62rem; flex-shrink: 0;">${String(merged.tableName || '').replace(/[^0-9]/g, '').slice(-2) || '1'}</span>
-                    <span style="white-space: nowrap;">${merged.waiterName || 'Unassigned'}</span>
-                    <span style="color: #6b7280;">•</span>
-                    <span style="white-space: nowrap;">${itemCount}</span>
+                  <div style="display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 3px 5px; border-radius: 999px; background: ${color}16; border: 1px solid ${color}; color: #374151; font-size: 0.56rem; font-weight: 600; line-height: 1.1;">
+                    <div style="display: inline-flex; align-items: center; gap: 3px;">
+                      <span style="min-width: 18px; height: 15px; padding: 0 4px; border-radius: 999px; background: ${color}; color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.56rem; flex-shrink: 0;">${badgeLabel}</span>
+                      <span style="white-space: nowrap;">${merged.waiterName || 'Unassigned'}</span>
+                    </div>
+                    <span style="font-size: 0.48rem; color: #6b7280; white-space: nowrap;">${itemCount} items • ${formatCurrency(mergedTotal)}</span>
                   </div>
                 `;
               }).join('')}
@@ -4173,7 +4176,11 @@ function showToast(message, type = 'success', duration = 3000) {
             newSubtotal += Number(item.unitPrice || 0) * Number(item.quantity || 0);
           });
 
+          const targetOrderTotal = Number(targetOrder.totalAmount ?? targetOrder.billingBreakdown?.total ?? targetOrder.subtotal ?? 0);
+          const sourceOrderTotal = Number(sourceOrder.totalAmount ?? sourceOrder.billingBreakdown?.total ?? sourceOrder.subtotal ?? 0);
+          const mergedOrderTotal = targetOrderTotal + sourceOrderTotal;
           const newBreakdown = calculateBillingBreakdown(newSubtotal);
+          newBreakdown.total = mergedOrderTotal;
           const combinedWaiter = sourceOrder.waiterName === targetOrder.waiterName
             ? targetOrder.waiterName
             : `${targetOrder.waiterName || 'Unassigned'} & ${sourceOrder.waiterName || 'Unassigned'}`;
@@ -4197,7 +4204,7 @@ function showToast(message, type = 'success', duration = 3000) {
             status: 'pending',
             subtotal: newSubtotal,
             billingBreakdown: newBreakdown,
-            totalAmount: newBreakdown.total,
+            totalAmount: mergedOrderTotal,
             createdAt: targetOrder.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             mergedTables: [
@@ -4234,7 +4241,7 @@ function showToast(message, type = 'success', duration = 3000) {
             waiterName: combinedWaiter,
             items: mergedItems,
             subtotal: newSubtotal,
-            totalAmount: newBreakdown.total,
+            totalAmount: mergedOrderTotal,
             billingBreakdown: newBreakdown,
             status: 'pending',
             allowCashierDelete: false,

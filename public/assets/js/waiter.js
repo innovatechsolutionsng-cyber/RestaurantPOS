@@ -738,6 +738,48 @@
     `).join('');
   }
 
+  function getItemCategoryName(item) {
+    const rawCategory = item?.categoryName || item?.category || item?.category_name || item?.productCategory || item?.product?.categoryName || item?.product?.category || '';
+    if (rawCategory) return String(rawCategory).trim();
+
+    const product = item?.product || item?.productDetails || null;
+    const productCategory = product?.categoryName || product?.category || '';
+    if (productCategory) return String(productCategory).trim();
+
+    const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? null;
+    if (categoryId != null && categoryId !== '' && Array.isArray(allCategories)) {
+      const matchedCategory = allCategories.find((cat) => String(cat.id) === String(categoryId));
+      if (matchedCategory?.name) return String(matchedCategory.name).trim();
+    }
+
+    const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? null;
+    if (subcategoryId != null && subcategoryId !== '' && Array.isArray(allSubcategories)) {
+      const matchedSubcategory = allSubcategories.find((sub) => String(sub.id) === String(subcategoryId));
+      if (matchedSubcategory?.name) {
+        const parentId = matchedSubcategory.parent;
+        if (parentId != null && parentId !== '' && Array.isArray(allCategories)) {
+          const matchedCategory = allCategories.find((cat) => String(cat.id) === String(parentId));
+          if (matchedCategory?.name) return String(matchedCategory.name).trim();
+        }
+        return String(matchedSubcategory.name).trim();
+      }
+    }
+
+    return 'Uncategorized';
+  }
+
+  function buildCategoryGroupedItems(items) {
+    const grouped = new Map();
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      const categoryName = getItemCategoryName(item) || 'Uncategorized';
+      if (!grouped.has(categoryName)) {
+        grouped.set(categoryName, []);
+      }
+      grouped.get(categoryName).push(item);
+    });
+    return Array.from(grouped.entries()).map(([categoryName, categoryItems]) => ({ categoryName, items: categoryItems }));
+  }
+
   function renderPosOrderCards(orders) {
     const container = $('pos-order-cards');
     if (!container) return;
@@ -1044,15 +1086,24 @@
     const product = findProductById(productId);
     if (!product) return;
     const existing = getOrderItem(productId);
+    const categoryName = getItemCategoryName({ product });
     if (existing && !existing.isExisting) {
       existing.quantity += 1;
+      existing.categoryName = categoryName;
+      existing.category = categoryName;
+      existing.cat = product.cat ?? null;
+      existing.sub = product.sub ?? null;
     } else if (existing && existing.isExisting) {
       currentOrderItems.push({
         productId: product.id,
         name: product.name,
         price: Number(product.price || 0),
         quantity: 1,
-        isExisting: false
+        isExisting: false,
+        categoryName,
+        category: categoryName,
+        cat: product.cat ?? null,
+        sub: product.sub ?? null
       });
     } else {
       currentOrderItems.push({
@@ -1060,7 +1111,11 @@
         name: product.name,
         price: Number(product.price || 0),
         quantity: 1,
-        isExisting: false
+        isExisting: false,
+        categoryName,
+        category: categoryName,
+        cat: product.cat ?? null,
+        sub: product.sub ?? null
       });
     }
   }
@@ -1074,50 +1129,83 @@
   }
 
   function printReceipt(order) {
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank', 'width=380,height=700');
     if (!printWindow) return;
-    const itemsHtml = (order.items || []).map((item) => `
-      <tr>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${item.name}</td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${item.quantity}</td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatCurrency(item.price)}</td>
-        <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatCurrency(item.price * item.quantity)}</td>
-      </tr>
-    `).join('');
-    const html = `
-      <html>
-        <head>
-          <title>Receipt</title>
-          <style>
-            body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111827;}
-            h1,h2{margin:0 0 16px 0;}
-            table{width:100%;border-collapse:collapse;margin-top:16px;}
-            th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left;}
-            .summary{margin-top:18px;display:flex;justify-content:space-between;font-weight:700;}
-          </style>
-        </head>
-        <body>
-          <h1>Receipt</h1>
-          <div><strong>Table:</strong> ${order.tableName || 'N/A'}</div>
-          <div><strong>Customer:</strong> ${order.customerName || 'Walk-in'}</div>
-          <div><strong>Waiter:</strong> ${order.waiterName || ''}</div>
-          <div style="margin-top:12px;"><strong>Date:</strong> ${new Date(order.createdAt).toLocaleString()}</div>
-          <table>
-            <thead>
-              <tr><th>Item</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Unit</th><th style="text-align:right;">Total</th></tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-          <div class="summary"><span>Total</span><span>${formatCurrency(order.totalAmount)}</span></div>
-        </body>
-      </html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+
+    const normalizedItems = (order.items || []).map((item) => ({
+      ...item,
+      productName: item.productName || item.name || item.product?.name || 'Unknown',
+      productId: item.productId ?? item.id ?? item.product?.id ?? null,
+      unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
+      quantity: Number(item.quantity ?? item.qty ?? 1),
+      categoryName: item.categoryName || item.category || getItemCategoryName(item),
+      category: item.categoryName || item.category || getItemCategoryName(item),
+      cat: item.cat ?? item.product?.cat ?? null,
+      sub: item.sub ?? item.product?.sub ?? null
+    }));
+
+    const groupedItems = buildCategoryGroupedItems(normalizedItems);
+    const shouldSplitByCategory = groupedItems.length > 1;
+    const printGroups = shouldSplitByCategory
+      ? groupedItems.map(({ categoryName, items }) => ({ categoryName, items }))
+      : [{ categoryName: null, items: normalizedItems }];
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const parts = [];
+
+    printGroups.forEach(({ categoryName, items }) => {
+      const categoryLabel = categoryName || 'Items';
+      const itemsHtml = items.map((item) => `
+        <div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px dotted #cbd5e1;font-size:13px;">
+          <span style="font-weight:600;">${String(item.productName || item.name || 'Unnamed item').substring(0, 36)}</span>
+          <span style="font-weight:700;">x${item.quantity}</span>
+        </div>
+      `).join('');
+
+      const html = `
+        <html>
+          <head>
+            <title>Order Slip</title>
+            <style>
+              body{font-family:Arial,Helvetica,sans-serif;margin:10px;padding:6px;color:#111827;background:#fff;font-size:13px;line-height:1.3;}
+              .title{font-size:16px;font-weight:700;text-align:center;text-transform:uppercase;margin-bottom:8px;letter-spacing:1px;}
+              .meta{border-top:1px solid #000;border-bottom:1px solid #000;padding:6px 0;margin:8px 0;}
+              .meta-row{display:flex;justify-content:space-between;margin:3px 0;font-size:12px;}
+              .banner{margin:6px 0 4px;padding:4px 0;border-top:1px dashed #999;border-bottom:1px dashed #999;text-align:center;font-weight:700;font-size:12px;text-transform:uppercase;}
+            </style>
+          </head>
+          <body>
+            <div class="title">Order Slip</div>
+            <div class="meta">
+              <div class="meta-row"><span><strong>Table:</strong></span><span>${order.tableName || 'N/A'}</span></div>
+              <div class="meta-row"><span><strong>Waiter:</strong></span><span>${order.waiterName || 'N/A'}</span></div>
+              <div class="meta-row"><span><strong>Time:</strong></span><span>${timeStr}</span></div>
+            </div>
+            ${shouldSplitByCategory ? `<div class="banner">${categoryLabel}</div>` : ''}
+            <div style="margin-top:8px;">${itemsHtml}</div>
+          </body>
+        </html>
+      `;
+      parts.push(html);
+    });
+
+    parts.forEach((html, index) => {
+      if (index === 0) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+      } else {
+        const extraWindow = window.open('', '_blank', 'width=380,height=700');
+        if (extraWindow) {
+          extraWindow.document.write(html);
+          extraWindow.document.close();
+          extraWindow.focus();
+          extraWindow.print();
+        }
+      }
+    });
   }
 
   async function saveOrderToBackend(orderData, orderId = null) {
@@ -1138,7 +1226,11 @@
         price: Number(item.price ?? item.unitPrice ?? item.product?.price ?? 0),
         unitPrice: Number(item.price ?? item.unitPrice ?? item.product?.price ?? 0),
         quantity: Number(item.quantity || 1),
-        qty: Number(item.quantity || 1)
+        qty: Number(item.quantity || 1),
+        categoryName: item.categoryName || item.category || getItemCategoryName(item),
+        category: item.categoryName || item.category || getItemCategoryName(item),
+        cat: item.cat ?? item.product?.cat ?? null,
+        sub: item.sub ?? item.product?.sub ?? null
       })),
       totalAmount,
       allowCashierDelete: isUpdate ? false : true,
@@ -1170,7 +1262,11 @@
       name: item.name || item.productName || item.product?.name || 'Unknown',
       price: Number(item.price ?? item.unitPrice ?? item.product?.price ?? 0),
       quantity: Number(item.quantity || 1),
-      isExisting: true
+      isExisting: true,
+      categoryName: item.categoryName || item.category || getItemCategoryName(item),
+      category: item.categoryName || item.category || getItemCategoryName(item),
+      cat: item.cat ?? item.product?.cat ?? null,
+      sub: item.sub ?? item.product?.sub ?? null
     })) : [];
 
     const headerText = order ? 'Update Order' : 'Create Order';
