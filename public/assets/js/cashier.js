@@ -1117,10 +1117,46 @@ function showToast(message, type = 'success', duration = 3000) {
   function getItemCategoryName(item) {
     const rawCategory = item?.categoryName || item?.category || item?.category_name || item?.productCategory || item?.product?.categoryName || item?.product?.category || '';
     if (rawCategory) return String(rawCategory).trim();
+
     const product = item?.product || item?.productDetails || null;
     const productCategory = product?.categoryName || product?.category || '';
     if (productCategory) return String(productCategory).trim();
+
+    const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? null;
+    if (categoryId != null && categoryId !== '' && Array.isArray(allCategories)) {
+      const matchedCategory = allCategories.find((cat) => String(cat.id) === String(categoryId));
+      if (matchedCategory?.name) return String(matchedCategory.name).trim();
+    }
+
+    const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? null;
+    if (subcategoryId != null && subcategoryId !== '' && Array.isArray(allSubcategories)) {
+      const matchedSubcategory = allSubcategories.find((sub) => String(sub.id) === String(subcategoryId));
+      if (matchedSubcategory?.name) {
+        const parentId = matchedSubcategory.parent;
+        if (parentId != null && parentId !== '' && Array.isArray(allCategories)) {
+          const matchedCategory = allCategories.find((cat) => String(cat.id) === String(parentId));
+          if (matchedCategory?.name) return String(matchedCategory.name).trim();
+        }
+        return String(matchedSubcategory.name).trim();
+      }
+    }
+
     return 'Uncategorized';
+  }
+
+  function normalizeOrderItem(item, fallbackProduct = null) {
+    const product = fallbackProduct || item?.product || item?.productDetails || null;
+    const categoryName = getItemCategoryName({ ...item, product });
+    return {
+      ...item,
+      productId: Number(item?.productId ?? item?.product_id ?? product?.id ?? item?.id ?? 0),
+      productName: item?.productName || item?.name || product?.name || 'Unknown',
+      unitPrice: Number(item?.unitPrice ?? item?.price ?? product?.price ?? 0),
+      quantity: Number(item?.quantity ?? item?.qty ?? 0),
+      categoryName,
+      category: categoryName,
+      product: product || item?.product || null
+    };
   }
 
   function buildCategoryGroupedItems(items) {
@@ -1415,24 +1451,32 @@ function showToast(message, type = 'success', duration = 3000) {
       // Now set new state
       editingOrderId = orderId;
       editingOrder = JSON.parse(JSON.stringify(order)); // Deep clone to prevent reference issues
-      currentOrderItems = (order.items || []).map(item => ({
+      currentOrderItems = (order.items || []).map((item) => normalizeOrderItem({
+        ...item,
         productId: item.productId || item.id || item.productId || item.product?.id || null,
         productName: item.productName || item.name || item.product?.name || 'Unknown',
         name: item.productName || item.name || item.product?.name || 'Unknown',
         unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
         price: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
         quantity: Number(item.quantity ?? item.qty ?? 0),
-        qty: Number(item.quantity ?? item.qty ?? 0)
+        qty: Number(item.quantity ?? item.qty ?? 0),
+        cat: item.cat ?? item.categoryId ?? item.category_id ?? item.product?.cat ?? null,
+        sub: item.sub ?? item.subcategoryId ?? item.subcategory_id ?? item.product?.sub ?? null,
+        product: item.product || null
       }));
       // Store original items to differentiate new items added during edit
-      originalOrderItems = (order.items || []).map(item => ({
+      originalOrderItems = (order.items || []).map((item) => normalizeOrderItem({
+        ...item,
         productId: item.productId || item.id || item.productId || item.product?.id || null,
         productName: item.productName || item.name || item.product?.name || 'Unknown',
         name: item.productName || item.name || item.product?.name || 'Unknown',
         unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
         price: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
         quantity: Number(item.quantity ?? item.qty ?? 0),
-        qty: Number(item.quantity ?? item.qty ?? 0)
+        qty: Number(item.quantity ?? item.qty ?? 0),
+        cat: item.cat ?? item.categoryId ?? item.category_id ?? item.product?.cat ?? null,
+        sub: item.sub ?? item.subcategoryId ?? item.subcategory_id ?? item.product?.sub ?? null,
+        product: item.product || null
       }));
       
       const tableInput = document.getElementById('order-table');
@@ -1858,13 +1902,18 @@ function showToast(message, type = 'success', duration = 3000) {
     
     if (existingItem) {
       existingItem.quantity += qty;
+      existingItem.categoryName = getItemCategoryName(existingItem);
+      existingItem.category = existingItem.categoryName;
     } else {
-      currentOrderItems.push({
+      currentOrderItems.push(normalizeOrderItem({
         productId: Number(productId),
         productName: product.name,
         unitPrice: parseFloat(product.price || 0),
-        quantity: qty
-      });
+        quantity: qty,
+        product,
+        cat: product.cat,
+        sub: product.sub
+      }, product));
     }
     
     // Clear product selection
@@ -2369,13 +2418,17 @@ function showToast(message, type = 'success', duration = 3000) {
         allowCashierDelete: editingOrderId ? false : true,
         createdFrom: editingOrderId ? (editingOrder?.createdFrom || 'cashier-update') : (editingOrder?.createdFrom || 'cashier-create'),
         clientName: clientInput?.value || '',
-        items: currentOrderItems.map(item => ({
+        items: currentOrderItems.map((item) => ({
           productId: item.productId,
           productName: item.productName || item.name || item.product?.name || 'Unknown',
           name: item.productName || item.name || item.product?.name || 'Unknown',
           quantity: Number(item.quantity ?? item.qty ?? 0),
           unitPrice: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
-          price: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0)
+          price: Number(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
+          categoryName: item.categoryName || item.category || '',
+          category: item.categoryName || item.category || '',
+          cat: item.cat ?? item.product?.cat ?? null,
+          sub: item.sub ?? item.product?.sub ?? null
         })),
         status: (typeof statusOverride !== 'undefined') ? statusOverride : (editingOrderId ? editingOrder.status : 'pending'),
         subtotal: subtotal,
