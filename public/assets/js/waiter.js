@@ -431,10 +431,9 @@
     addCandidate(order?.order_data?.order?.waiterName);
     addCandidate(order?.orderData?.order_data?.waiterName);
     addCandidate(order?.order_data?.order_data?.waiterName);
-
-    if (Array.isArray(order?.mergedTables)) {
-      order.mergedTables.forEach((entry) => addCandidate(entry?.waiterName));
-    }
+    addCandidate(order?.editableByWaiterName);
+    addCandidate(order?.mergeTargetWaiterName);
+    addCandidate(order?.mergeEditableBy);
 
     return candidateValues.some((value) => {
       const parts = value.split(/(?:\s*&\s*|\s*,\s*|\/)/g).filter(Boolean);
@@ -892,19 +891,19 @@
     if (!currentWaiter) return true;
 
     const primaryWaiter = normalizeWaiterName(order?.waiterName || order?.waiter || '');
-    const editableBy = normalizeWaiterName(order?.editableByWaiterName || order?.mergeEditableBy || '');
+    const editableBy = normalizeWaiterName(order?.editableByWaiterName || order?.mergeTargetWaiterName || order?.mergeEditableBy || '');
     const isSplitOrder = Boolean(order?.splitReference || order?.splitFromBillId || order?.splitPlace || order?.splitTotal);
 
     if (isSplitOrder) {
       return waiterMatches(primaryWaiter, currentWaiter) || waiterMatches(editableBy, currentWaiter);
     }
 
-    if (waiterMatches(primaryWaiter, currentWaiter) || waiterMatches(editableBy, currentWaiter)) {
-      return true;
+    if (order?.createdFrom === 'cashier-merge' || order?.mergeTargetTableName) {
+      return waiterMatches(editableBy, currentWaiter) || waiterMatches(primaryWaiter, currentWaiter);
     }
 
-    if (Array.isArray(order?.mergedTables) && order.mergedTables.some((entry) => waiterMatches(entry?.waiterName, currentWaiter))) {
-      return false;
+    if (waiterMatches(primaryWaiter, currentWaiter) || waiterMatches(editableBy, currentWaiter)) {
+      return true;
     }
 
     return true;

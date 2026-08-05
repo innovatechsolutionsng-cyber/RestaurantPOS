@@ -1545,11 +1545,8 @@ async function startAdminServer(port = 3000) {
     addCandidate(order?.orderData?.order_data?.waiterName);
     addCandidate(order?.order_data?.order_data?.waiterName);
     addCandidate(order?.editableByWaiterName);
+    addCandidate(order?.mergeTargetWaiterName);
     addCandidate(order?.mergeEditableBy);
-
-    if (Array.isArray(order?.mergedTables)) {
-      order.mergedTables.forEach((entry) => addCandidate(entry?.waiterName));
-    }
 
     return candidateValues.some((value) => {
       const parts = value.split(/(?:\s*&\s*|\s*,\s*|\/)/g).filter(Boolean);

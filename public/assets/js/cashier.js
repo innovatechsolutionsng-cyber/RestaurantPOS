@@ -3156,7 +3156,7 @@ function showToast(message, type = 'success', duration = 3000) {
         ? order.mergedTables[order.mergedTables.length - 1]
         : null;
       const mergedBadgeText = latestMergedTable
-        ? `Merged Table ${latestMergedTable.tableName || 'Unknown'} • ${latestMergedTable.waiterName || 'Waiter'}`
+        ? `Merged from ${latestMergedTable.tableName || 'Unknown'} • ${latestMergedTable.waiterName || 'Waiter'}`
         : '';
       
       // Determine badge styling based on status and split info
@@ -4224,9 +4224,8 @@ function showToast(message, type = 'success', duration = 3000) {
           const mergedOrderTotal = targetOrderTotal + sourceOrderTotal;
           const newBreakdown = calculateBillingBreakdown(newSubtotal);
           newBreakdown.total = mergedOrderTotal;
-          const combinedWaiter = sourceOrder.waiterName === targetOrder.waiterName
-            ? targetOrder.waiterName
-            : `${targetOrder.waiterName || 'Unassigned'} & ${sourceOrder.waiterName || 'Unassigned'}`;
+          const targetWaiterName = String(targetOrder.waiterName || targetOrder.waiter || sourceOrder.waiterName || sourceOrder.waiter || 'Unassigned').trim();
+          const sourceWaiterName = String(sourceOrder.waiterName || sourceOrder.waiter || 'Unassigned').trim();
 
           const targetTableName = String(targetOrder.tableName || '').trim();
           const sourceTableName = String(sourceOrder.tableName || '').trim();
@@ -4237,13 +4236,18 @@ function showToast(message, type = 'success', duration = 3000) {
           const mergedOrder = {
             id: `merge-${Date.now()}-${targetOrder.id || sourceId}`,
             tableName: targetTableName || referenceTableName,
-            waiterName: combinedWaiter,
+            waiterName: targetWaiterName || sourceWaiterName || 'Unassigned',
             clientName: targetOrder.clientName || '',
             cashierName: getCurrentCashierName(),
             createdBy: getCurrentCashierName(),
             allowCashierDelete: false,
             createdFrom: 'cashier-merge',
-            editableByWaiterName: targetOrder.waiterName || targetOrder.waiter || '',
+            editableByWaiterName: targetWaiterName || sourceWaiterName || '',
+            mergeTargetTableName: targetTableName || referenceTableName,
+            mergeTargetWaiterName: targetWaiterName || sourceWaiterName || '',
+            mergeSourceTableName: sourceTableName,
+            mergeSourceWaiterName: sourceWaiterName,
+            mergeReference: `${sourceTableName || 'source'}->${targetTableName || referenceTableName}`,
             items: mergedItems,
             status: 'pending',
             subtotal: newSubtotal,
@@ -4255,7 +4259,7 @@ function showToast(message, type = 'success', duration = 3000) {
               ...(Array.isArray(targetOrder.mergedTables) ? targetOrder.mergedTables : []),
               {
                 tableName: sourceTableName,
-                waiterName: sourceOrder.waiterName,
+                waiterName: sourceWaiterName,
                 joinedAt: new Date().toISOString(),
                 itemCount: Array.isArray(sourceOrder.items) ? sourceOrder.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0,
                 totalAmount: Number(sourceOrder.totalAmount ?? sourceOrder.billingBreakdown?.total ?? sourceOrder.subtotal ?? 0)
@@ -4282,7 +4286,13 @@ function showToast(message, type = 'success', duration = 3000) {
             ...mergedSavedOrder,
             id: mergedSavedOrder.id || mergedOrder.id,
             tableName: targetTableName || referenceTableName,
-            waiterName: combinedWaiter,
+            waiterName: targetWaiterName || sourceWaiterName || 'Unassigned',
+            editableByWaiterName: targetWaiterName || sourceWaiterName || '',
+            mergeTargetTableName: targetTableName || referenceTableName,
+            mergeTargetWaiterName: targetWaiterName || sourceWaiterName || '',
+            mergeSourceTableName: sourceTableName,
+            mergeSourceWaiterName: sourceWaiterName,
+            mergeReference: `${sourceTableName || 'source'}->${targetTableName || referenceTableName}`,
             items: mergedItems,
             subtotal: newSubtotal,
             totalAmount: mergedOrderTotal,
