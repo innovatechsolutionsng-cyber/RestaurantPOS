@@ -882,6 +882,7 @@ function showToast(message, type = 'success', duration = 3000) {
     const lowStockFastMoversEl = document.getElementById('bi-low-stock-fast-movers');
     const todayBarEl = document.getElementById('bi-today-bar');
     const yesterdayBarEl = document.getElementById('bi-yesterday-bar');
+    const paymentBreakdownEl = document.getElementById('bi-payment-breakdown');
 
     if (!bestSellerNameEl || !todayRevenueEl || !yesterdayRevenueEl || !salesDeltaEl || !topCategoryEl || !topProductsEl || !topStaffEl || !lowStockFastMoversEl || !todayBarEl || !yesterdayBarEl) return;
 
@@ -956,6 +957,29 @@ function showToast(message, type = 'success', duration = 3000) {
       const topCategoryEntry = Object.entries(categorySummary).sort((a, b) => b[1] - a[1])[0] || ['Uncategorized', 0];
       const topWaiterEntry = Object.entries(staffSummary.waiters).sort((a, b) => b[1] - a[1])[0] || ['—', 0];
       const topCashierEntry = Object.entries(staffSummary.cashiers).sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+      const paymentBreakdown = {};
+      selectedDayOrders.forEach((order) => {
+        const methodLabel = getOrderPaymentMethod(order) || 'N/A';
+        const safeLabel = String(methodLabel || 'N/A').trim() || 'N/A';
+        if (!paymentBreakdown[safeLabel]) {
+          paymentBreakdown[safeLabel] = { label: safeLabel, count: 0, revenue: 0 };
+        }
+        paymentBreakdown[safeLabel].count += 1;
+        paymentBreakdown[safeLabel].revenue += getOrderAmount(order);
+      });
+      const paymentEntries = Object.values(paymentBreakdown).sort((a, b) => b.revenue - a.revenue);
+      const paymentTotalRevenue = paymentEntries.reduce((sum, entry) => sum + entry.revenue, 0);
+      const paymentColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#0f766e'];
+      const circumference = 2 * Math.PI * 42;
+      let currentOffset = 0;
+      const pieSegments = paymentEntries.length === 0
+        ? '<circle cx="54" cy="54" r="42" fill="none" stroke="#e5e7eb" stroke-width="18"></circle>'
+        : paymentEntries.map((entry, index) => {
+            const segmentLength = paymentTotalRevenue === 0 ? 0 : (entry.revenue / paymentTotalRevenue) * circumference;
+            const offset = -currentOffset;
+            currentOffset += segmentLength;
+            return `<circle cx="54" cy="54" r="42" fill="none" stroke="${paymentColors[index % paymentColors.length]}" stroke-width="18" stroke-dasharray="${segmentLength} ${circumference}" stroke-dashoffset="${offset}" transform="rotate(-90 54 54)" />`;
+          }).join('');
 
       bestSellerNameEl.textContent = bestSeller ? `${bestSeller.name} (${bestSeller.quantity} sold)` : 'No sales yet';
       todayRevenueEl.textContent = `₦${formatCurrency(todayRevenue)}`;
@@ -981,6 +1005,32 @@ function showToast(message, type = 'success', duration = 3000) {
           <div class="muted" style="margin-top:6px;">₦${formatCurrency(topCashierEntry[1])} revenue</div>
         </div>
       `;
+
+      if (paymentBreakdownEl) {
+        paymentBreakdownEl.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+            <svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Payment method breakdown">
+              <circle cx="54" cy="54" r="42" fill="none" stroke="#f3f4f6" stroke-width="18"></circle>
+              ${pieSegments}
+            </svg>
+            <div class="muted" style="text-align:center;font-size:0.9rem;">${paymentEntries.length === 0 ? 'No completed sales for this day' : 'Completed orders by payment method'}</div>
+          </div>
+          <div style="display:grid;gap:10px;min-width:220px;">
+            ${paymentEntries.length === 0 ? '<div class="muted">No payment breakdown available.</div>' : paymentEntries.map((entry, index) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:#f8fafc;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="width:10px;height:10px;border-radius:999px;background:${paymentColors[index % paymentColors.length]};display:inline-block;"></span>
+                  <div>
+                    <div style="font-weight:700;">${entry.label}</div>
+                    <div class="muted" style="font-size:0.85rem;">${entry.count} order${entry.count === 1 ? '' : 's'}</div>
+                  </div>
+                </div>
+                <div style="text-align:right;font-size:0.9rem;font-weight:700;">₦${formatCurrency(entry.revenue)}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
 
       const lowStockProducts = (products || []).filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) <= 5).sort((a, b) => Number(a.quantity || 0) - Number(b.quantity || 0)).slice(0, 5);
       lowStockFastMoversEl.innerHTML = lowStockProducts.length === 0 ? '<div class="muted">No low-stock fast movers at the moment.</div>' : lowStockProducts.map((product) => `
@@ -1414,14 +1464,23 @@ function showToast(message, type = 'success', duration = 3000) {
   }
 
   function renderUserPagination(totalItems){
-    if(!userTablePagination || !userPageInfo) return;
+    if(!userTablePagination) return;
     const totalPages = Math.max(1, Math.ceil(totalItems / USERS_PAGE_SIZE));
     if(usersCurrentPage > totalPages) usersCurrentPage = totalPages;
-    userPageInfo.textContent = `Page ${usersCurrentPage} of ${totalPages}`;
+
+    userTablePagination.style.display = 'flex';
+    userTablePagination.style.alignItems = 'center';
+    userTablePagination.style.justifyContent = 'flex-end';
+    userTablePagination.style.gap = '8px';
+    userTablePagination.style.flexWrap = 'wrap';
+    userTablePagination.style.minHeight = '38px';
+
     userTablePagination.innerHTML = `
+      <span id="users-page-info" class="muted" style="margin-right:8px;">Page ${usersCurrentPage} of ${totalPages}</span>
       <button id="users-page-prev" class="btn btn-ghost" type="button" ${usersCurrentPage === 1 ? 'disabled' : ''}>Prev</button>
       <button id="users-page-next" class="btn btn-ghost" type="button" ${usersCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
     `;
+
     const prevBtn = userTablePagination.querySelector('#users-page-prev');
     const nextBtn = userTablePagination.querySelector('#users-page-next');
     if(prevBtn){ prevBtn.addEventListener('click', () => { if(usersCurrentPage > 1){ usersCurrentPage -= 1; refreshUsers(); } }); }

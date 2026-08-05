@@ -343,7 +343,7 @@
                     <tbody></tbody>
                   </table>
                 </div>
-                <div id="users-table-pagination" class="mt-sm" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+                <div id="users-table-pagination" class="mt-sm" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-height:38px;">
                   <span id="users-page-info" class="muted"></span>
                 </div>
               </div>
@@ -747,28 +747,30 @@
                     <button id="btn-refresh-bi-report" class="btn btn-primary" style="padding:10px 16px;">Refresh BI</button>
                   </div>
                 </div>
-                <div style="margin-top:18px;display:grid;gap:16px;grid-template-columns:1fr 1fr;align-items:end;">
+                <div style="margin-top:18px;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));align-items:start;">
                   <div style="padding:18px;border-radius:14px;background:#f8fafc;">
                     <div class="eyebrow">Revenue bars</div>
-                    <div class="bi-chart-panel">
-                  <div style="margin-top:18px;display:flex;gap:14px;align-items:flex-end;min-height:140px;">
-                    <div style="flex:1;text-align:center;">
-                      <div id="bi-today-bar" class="bi-chart-bar" style="height:80%;background:linear-gradient(180deg,#3b82f6,#93c5fd);"></div>
-                      <div class="bi-chart-label">Today</div>
+                    <div style="margin-top:18px;display:flex;gap:14px;align-items:flex-end;min-height:140px;">
+                      <div style="flex:1;text-align:center;">
+                        <div id="bi-today-bar" class="bi-chart-bar" style="height:80%;background:linear-gradient(180deg,#3b82f6,#93c5fd);"></div>
+                        <div class="bi-chart-label">Selected day</div>
+                      </div>
+                      <div style="flex:1;text-align:center;">
+                        <div id="bi-yesterday-bar" class="bi-chart-bar" style="height:60%;background:linear-gradient(180deg,#6ee7b7,#047857);"></div>
+                        <div class="bi-chart-label">Previous day</div>
+                      </div>
                     </div>
-                    <div style="flex:1;text-align:center;">
-                      <div id="bi-yesterday-bar" class="bi-chart-bar" style="height:60%;background:linear-gradient(180deg,#6ee7b7,#047857);"></div>
-                      <div class="bi-chart-label">Yesterday</div>
+                    <div class="bi-card" style="padding:18px;margin-top:16px;">
+                      <div class="eyebrow">Top category</div>
+                      <div id="bi-top-category" class="stat-value" style="margin-top:16px;">—</div>
+                      <div class="muted" style="margin-top:8px;">Most revenue-generating category</div>
                     </div>
                   </div>
+                  <div class="bi-card" style="padding:18px;">
+                    <div class="eyebrow">Payment methods</div>
+                    <div id="bi-payment-breakdown" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:center;margin-top:12px;"></div>
+                  </div>
                 </div>
-                <div class="bi-card" style="padding:18px;">
-                  <div class="eyebrow">Top category</div>
-                  <div id="bi-top-category" class="stat-value" style="margin-top:16px;">—</div>
-                  <div class="muted" style="margin-top:8px;">Most revenue-generating category</div>
-                </div>
-              </div>
-            </div>
 
               <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
                 <div class="bi-list-card">
