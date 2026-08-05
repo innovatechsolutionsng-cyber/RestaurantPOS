@@ -537,8 +537,30 @@
   const $ = (id) => document.getElementById(id);
   let currentWaiterOrders = [];
   let currentOrderStatusFilter = 'all';
+  let currentOrderSearchQuery = '';
+  let currentOrderSortMode = 'newest';
   let realtimeRefreshTimer = null;
   const REALTIME_REFRESH_INTERVAL = 15000;
+
+  function getOrderCreatedTimestamp(order) {
+    const createdAt = order?.createdAt || order?.orderData?.createdAt || order?.created_at || order?.date || order?.orderData?.order?.createdAt || order?.orderData?.order?.created_at;
+    const created = new Date(createdAt || '');
+    return Number.isNaN(created.getTime()) ? 0 : created.getTime();
+  }
+
+  function getOrderAmount(order) {
+    const amount = Number(order?.totalAmount ?? order?.subtotal ?? order?.amount ?? 0);
+    return Number.isNaN(amount) ? 0 : amount;
+  }
+
+  function getOrderSearchText(order) {
+    const tableName = String(order?.tableName || order?.orderData?.tableName || order?.orderData?.order?.tableName || '').trim();
+    const waiterName = getOrderWaiterName(order);
+    const cashierName = getOrderCashierName(order);
+    const status = getOrderStatus(order);
+    const itemNames = Array.isArray(order?.items) ? order.items.map((item) => String(item?.name || item?.productName || item?.product?.name || '')).filter(Boolean) : [];
+    return [tableName, waiterName, cashierName, status, String(order?.id || ''), ...itemNames].join(' ').toLowerCase();
+  }
 
   function applyStatusFilter(orders) {
     if (!Array.isArray(orders)) return [];
@@ -551,11 +573,52 @@
     return orders;
   }
 
-  function updateStatusTabActive(tabId) {
+  function applySearchFilter(orders) {
+    if (!Array.isArray(orders)) return [];
+    const query = currentOrderSearchQuery.trim().toLowerCase();
+    if (!query) return orders;
+    return orders.filter((order) => getOrderSearchText(order).includes(query));
+  }
+
+  function applySort(orders) {
+    if (!Array.isArray(orders)) return [];
+    const sorted = [...orders];
+    const statusRank = (order) => (getOrderStatus(order) === 'completed' ? 1 : 0);
+    sorted.sort((a, b) => {
+      const statusDiff = statusRank(a) - statusRank(b);
+      if (statusDiff !== 0) return statusDiff;
+
+      if (currentOrderSortMode === 'oldest') {
+        const timeDiff = getOrderCreatedTimestamp(a) - getOrderCreatedTimestamp(b);
+        if (timeDiff !== 0) return timeDiff;
+      } else if (currentOrderSortMode === 'amount-desc') {
+        const amountDiff = getOrderAmount(b) - getOrderAmount(a);
+        if (amountDiff !== 0) return amountDiff;
+      } else if (currentOrderSortMode === 'amount-asc') {
+        const amountDiff = getOrderAmount(a) - getOrderAmount(b);
+        if (amountDiff !== 0) return amountDiff;
+      } else {
+        const timeDiff = getOrderCreatedTimestamp(b) - getOrderCreatedTimestamp(a);
+        if (timeDiff !== 0) return timeDiff;
+      }
+
+      const idA = String(a?.id ?? '');
+      const idB = String(b?.id ?? '');
+      return idA.localeCompare(idB);
+    });
+    return sorted;
+  }
+
+  function updateStatusTabActive(filterValue = currentOrderStatusFilter) {
+    const mapping = {
+      all: 'pos-status-all',
+      pending: 'pos-status-pending',
+      completed: 'pos-status-completed'
+    };
     ['pos-status-all', 'pos-status-pending', 'pos-status-completed'].forEach((id) => {
       const btn = $(id);
       if (btn) {
-        btn.classList.toggle('active', id === tabId);
+        btn.classList.toggle('active', id === mapping[filterValue]);
       }
     });
   }
@@ -571,11 +634,43 @@
       if (btn) {
         btn.addEventListener('click', () => {
           currentOrderStatusFilter = filter;
-          updateStatusTabActive(id);
+          const statusSelect = $('pos-order-status-filter');
+          if (statusSelect) statusSelect.value = currentOrderStatusFilter;
+          updateStatusTabActive(currentOrderStatusFilter);
           renderPosOrderCards(currentWaiterOrders);
         });
       }
     });
+
+    const searchInput = $('pos-order-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (event) => {
+        currentOrderSearchQuery = event.target.value;
+        renderPosOrderCards(currentWaiterOrders);
+      });
+    }
+
+    const statusSelect = $('pos-order-status-filter');
+    if (statusSelect) {
+      statusSelect.addEventListener('change', (event) => {
+        currentOrderStatusFilter = event.target.value;
+        updateStatusTabActive(currentOrderStatusFilter);
+        renderPosOrderCards(currentWaiterOrders);
+      });
+    }
+
+    const sortSelect = $('pos-order-sort-filter');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (event) => {
+        currentOrderSortMode = event.target.value;
+        renderPosOrderCards(currentWaiterOrders);
+      });
+    }
+
+    updateStatusTabActive(currentOrderStatusFilter);
+    if (statusSelect) statusSelect.value = currentOrderStatusFilter;
+    if (sortSelect) sortSelect.value = currentOrderSortMode;
+    if (searchInput) searchInput.value = currentOrderSearchQuery;
   }
 
   async function refreshWaiterRealtime() {
@@ -813,9 +908,9 @@
   function renderPosOrderCards(orders) {
     const container = $('pos-order-cards');
     if (!container) return;
-    const filteredOrders = applyStatusFilter(orders);
+    const filteredOrders = applySort(applySearchFilter(applyStatusFilter(orders)));
     if (!filteredOrders || !filteredOrders.length) {
-      container.innerHTML = '<div class="order-card" style="grid-column:1/-1;"><span class="order-card-title">No open orders</span><div class="muted">No orders match the selected status.</div></div>';
+      container.innerHTML = '<div class="order-card" style="grid-column:1/-1;"><span class="order-card-title">No open orders</span><div class="muted">No orders match the current filters.</div></div>';
       return;
     }
     container.innerHTML = filteredOrders.map((order) => {
@@ -1166,11 +1261,12 @@
     renderModalOrderItems(modal);
   }
 
-  function printReceipt(order) {
+  function printReceipt(order, itemsToPrint = null) {
     const printWindow = window.open('', '_blank', 'width=380,height=700');
     if (!printWindow) return;
 
-    const normalizedItems = (order.items || []).map((item) => ({
+    const receiptItems = Array.isArray(itemsToPrint) ? itemsToPrint : (order.items || []);
+    const normalizedItems = receiptItems.map((item) => ({
       ...item,
       productName: item.productName || item.name || item.product?.name || 'Unknown',
       productId: item.productId ?? item.id ?? item.product?.id ?? null,
@@ -1377,7 +1473,12 @@
       placeOrderButton.classList.add('btn-disabled');
       try {
         const orderPayload = await saveOrderToBackend({ customerName, tableName }, currentOrderId);
-        printReceipt(orderPayload);
+        const itemsForReceipt = currentOrderId
+          ? currentOrderItems.filter((item) => item && !item.isExisting)
+          : currentOrderItems;
+        if (itemsForReceipt.length || !currentOrderId) {
+          printReceipt(orderPayload, itemsForReceipt);
+        }
         close();
         await refreshDashboard();
         showToast(`${order ? 'Order updated' : 'Order created'} successfully.`, 'success', 2600);
