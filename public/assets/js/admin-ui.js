@@ -2900,43 +2900,122 @@ function showToast(message, type = 'success', duration = 3000) {
     const voidedItemsTbody = document.getElementById('voided-items-tbody');
     const voidedTotalValue = document.getElementById('voided-total-value');
     const voidedTotalItems = document.getElementById('voided-total-items');
-    
+
+    async function getOrdersForReports() {
+      try {
+        const response = await fetchBackend('/api/orders/all');
+        const orders = Array.isArray(response?.orders) ? response.orders : [];
+        if (orders.length) {
+          return orders;
+        }
+      } catch (err) {
+        console.warn('Falling back to local orders for reports:', err);
+      }
+
+      try {
+        const localOrders = await RestaurantDB.getAllOrders();
+        return Array.isArray(localOrders) ? localOrders : [];
+      } catch (err) {
+        console.warn('Could not load orders for reports:', err);
+        return [];
+      }
+    }
+
+    async function getProductsForReports() {
+      try {
+        const products = await RestaurantDB.getAllProducts();
+        return Array.isArray(products) ? products : [];
+      } catch (err) {
+        console.warn('Could not load products for reports:', err);
+        return [];
+      }
+    }
+
+    function getOrderStatusForReports(order) {
+      return String(order?.status || order?.orderData?.status || order?.currentStatus || 'pending').trim().toLowerCase();
+    }
+
+    function shouldIncludeOrderInReports(order) {
+      const status = getOrderStatusForReports(order);
+      return !['pending', 'cancelled', 'canceled', 'voided', 'draft'].includes(status);
+    }
+
+    function getItemProductName(item) {
+      return String(item?.productName || item?.name || item?.product?.name || item?.productName || 'Unknown').trim();
+    }
+
+    function getItemQuantity(item) {
+      return Number(item?.quantity ?? item?.qty ?? 0) || 0;
+    }
+
+    function getItemPrice(item, productPriceMap = {}) {
+      const productName = getItemProductName(item).toLowerCase();
+      if (productPriceMap[productName] != null) {
+        return Number(productPriceMap[productName]) || 0;
+      }
+      const explicitPrice = Number(item?.unitPrice ?? item?.price ?? item?.product?.price ?? 0) || 0;
+      return explicitPrice;
+    }
+
+    function getItemCategoryInfo(item, productDetailsMap = {}) {
+      const explicitCategory = String(item?.categoryName || item?.category || item?.category_name || item?.product?.categoryName || item?.product?.category || '').trim();
+      const explicitSubcategory = String(item?.subcategoryName || item?.subcategory || item?.subcategory_name || item?.product?.subcategoryName || item?.product?.subcategory || '').trim();
+      const productName = getItemProductName(item).toLowerCase();
+      const details = productDetailsMap[productName] || {};
+      return {
+        category: explicitCategory || details.category || 'Uncategorized',
+        subcategory: explicitSubcategory || details.subcategory || 'Uncategorized'
+      };
+    }
+
+    function getOrderTableName(order) {
+      return String(order?.tableName || order?.table || order?.orderData?.tableName || order?.order_data?.tableName || 'N/A').trim() || 'N/A';
+    }
+
+    function getOrderIdValue(order) {
+      return String(order?.id || order?.orderId || order?.orderData?.id || order?.order_data?.id || 'N/A');
+    }
+
     async function loadVoidedItemsReport() {
       try {
-        const orders = await RestaurantDB.getAllOrders();
+        const orders = await getOrdersForReports();
         const searchTerm = (voidedSearchInput?.value || '').toLowerCase();
         
-        // Collect all voided items from all orders
         let allVoidedItems = [];
         let totalVoidedValue = 0;
         let totalVoidedCount = 0;
         
         orders.forEach(order => {
-          if (!order.voidedItems || order.voidedItems.length === 0) return;
+          if (!shouldIncludeOrderInReports(order)) return;
+          if (!Array.isArray(order?.voidedItems) || order.voidedItems.length === 0) return;
           
           order.voidedItems.forEach(voidedItem => {
-            // Apply search filter
-            const searchMatch = !searchTerm || 
-              order.tableName.toLowerCase().includes(searchTerm) ||
-              order.id.toLowerCase().includes(searchTerm) ||
-              voidedItem.productName.toLowerCase().includes(searchTerm);
+            const productName = String(voidedItem?.productName || voidedItem?.name || 'Unknown').trim();
+            const quantity = Number(voidedItem?.quantity ?? voidedItem?.qty ?? 0) || 0;
+            const unitPrice = Number(voidedItem?.unitPrice ?? voidedItem?.price ?? 0) || 0;
+            const itemValue = unitPrice * quantity;
+            const tableName = getOrderTableName(order);
+            const orderId = getOrderIdValue(order);
+
+            const searchMatch = !searchTerm ||
+              String(tableName).toLowerCase().includes(searchTerm) ||
+              String(orderId).toLowerCase().includes(searchTerm) ||
+              productName.toLowerCase().includes(searchTerm);
             
             if (!searchMatch) return;
             
-            const itemValue = voidedItem.unitPrice * voidedItem.quantity;
-            
             allVoidedItems.push({
-              orderCreatedAt: order.createdAt || new Date().toISOString(),
-              orderId: order.id,
-              tableName: order.tableName,
-              productName: voidedItem.productName,
-              quantity: voidedItem.quantity,
-              unitPrice: voidedItem.unitPrice,
+              orderCreatedAt: order.createdAt || order.updatedAt || new Date().toISOString(),
+              orderId,
+              tableName,
+              productName,
+              quantity,
+              unitPrice,
               totalValue: itemValue
             });
             
             totalVoidedValue += itemValue;
-            totalVoidedCount += voidedItem.quantity;
+            totalVoidedCount += quantity;
           });
         });
         
@@ -3022,43 +3101,37 @@ function showToast(message, type = 'success', duration = 3000) {
 
     async function loadItemsSummaryReport() {
       try {
-        const allOrders = await RestaurantDB.getAllOrders();
-        const allProducts = await getAllProductsWithPrices();
+        const allOrders = await getOrdersForReports();
+        const allProducts = await getProductsForReports();
         
-        // Create a map of product names to prices
         const productPriceMap = {};
         allProducts.forEach(product => {
           if (product.name) {
-            productPriceMap[product.name.toLowerCase()] = product.price || 0;
+            productPriceMap[String(product.name).toLowerCase()] = Number(product.price || 0);
           }
         });
         
-        // Group items by productName and sum quantities
         const itemsSummary = {};
         
         allOrders.forEach(order => {
-          // Only include completed/sent orders
-          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
-            if (order.items && Array.isArray(order.items)) {
-              order.items.forEach(item => {
-                const productName = item.productName || 'Unknown';
-                const quantity = item.quantity || 0;
-                
-                // Get the product price from the products database
-                const productNameLower = productName.toLowerCase();
-                const unitPrice = productPriceMap[productNameLower] || 0;
-                
-                if (!itemsSummary[productName]) {
-                  itemsSummary[productName] = {
-                    productName: productName,
-                    unitPrice: unitPrice,
-                    totalQuantity: 0
-                  };
-                }
-                
-                itemsSummary[productName].totalQuantity += quantity;
-              });
-            }
+          if (!shouldIncludeOrderInReports(order)) return;
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              const productName = getItemProductName(item);
+              const quantity = getItemQuantity(item);
+              const unitPrice = getItemPrice(item, productPriceMap);
+              
+              if (!itemsSummary[productName]) {
+                itemsSummary[productName] = {
+                  productName,
+                  unitPrice,
+                  totalQuantity: 0
+                };
+              }
+              
+              itemsSummary[productName].totalQuantity += quantity;
+              itemsSummary[productName].unitPrice = unitPrice;
+            });
           }
         });
         
@@ -3121,18 +3194,15 @@ function showToast(message, type = 'success', duration = 3000) {
 
     async function loadCategorySummaryReport() {
       try {
-        const allOrders = await RestaurantDB.getAllOrders();
-        const allProducts = await getAllProductsWithPrices();
+        const allOrders = await getOrdersForReports();
+        const allProducts = await getProductsForReports();
         
-        // Fetch all categories and create a map of category ID to category name
         const allCategories = await RestaurantDB.getAllCategories();
         const categoryMap = {};
         allCategories.forEach(category => {
           categoryMap[category.id] = category.name || 'Uncategorized';
         });
-        console.log('Category Map:', categoryMap);
         
-        // Create a map of product names to their details (price and category ID)
         const productDetailsMap = {};
         allProducts.forEach(product => {
           if (product.name) {
@@ -3141,45 +3211,36 @@ function showToast(message, type = 'success', duration = 3000) {
               price: product.price || 0,
               category: categoryName
             };
-            productDetailsMap[product.name.toLowerCase()] = details;
-            // Also store by original case for matching
-            productDetailsMap[product.name] = details;
+            productDetailsMap[String(product.name).toLowerCase()] = details;
+            productDetailsMap[String(product.name)] = details;
           }
         });
-        console.log('Product Details Map:', productDetailsMap);
         
-        // Group items by category and sum quantities and values
         const categorySummary = {};
         
         allOrders.forEach(order => {
-          // Only include completed/sent orders
-          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
-            if (order.items && Array.isArray(order.items)) {
-              order.items.forEach(item => {
-                const productName = item.productName || 'Unknown';
-                const quantity = item.quantity || 0;
-                
-                // Get the product details from the database
-                const productNameLower = productName.toLowerCase();
-                const productDetails = productDetailsMap[productNameLower] || { price: 0, category: 'Uncategorized' };
-                const unitPrice = productDetails.price;
-                const category = productDetails.category;
-                const itemTotal = quantity * unitPrice;
-                
-                if (!categorySummary[category]) {
-                  categorySummary[category] = {
-                    category: category,
-                    itemCount: 0,
-                    totalQuantity: 0,
-                    totalValue: 0
-                  };
-                }
-                
-                categorySummary[category].itemCount += 1;
-                categorySummary[category].totalQuantity += quantity;
-                categorySummary[category].totalValue += itemTotal;
-              });
-            }
+          if (!shouldIncludeOrderInReports(order)) return;
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              const quantity = getItemQuantity(item);
+              const categoryInfo = getItemCategoryInfo(item, productDetailsMap);
+              const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
+              const itemTotal = quantity * unitPrice;
+              const category = categoryInfo.category || 'Uncategorized';
+              
+              if (!categorySummary[category]) {
+                categorySummary[category] = {
+                  category,
+                  itemCount: 0,
+                  totalQuantity: 0,
+                  totalValue: 0
+                };
+              }
+              
+              categorySummary[category].itemCount += 1;
+              categorySummary[category].totalQuantity += quantity;
+              categorySummary[category].totalValue += itemTotal;
+            });
           }
         });
         
@@ -3236,18 +3297,15 @@ function showToast(message, type = 'success', duration = 3000) {
 
     async function loadSubcategorySummaryReport() {
       try {
-        const allOrders = await RestaurantDB.getAllOrders();
-        const allProducts = await getAllProductsWithPrices();
+        const allOrders = await getOrdersForReports();
+        const allProducts = await getProductsForReports();
         
-        // Fetch all subcategories and create a map of subcategory ID to subcategory name
         const allSubcategories = await RestaurantDB.getAllSubcategories();
         const subcategoryMap = {};
         allSubcategories.forEach(subcategory => {
           subcategoryMap[subcategory.id] = subcategory.name || 'Uncategorized';
         });
-        console.log('Subcategory Map:', subcategoryMap);
         
-        // Create a map of product names to their details (price and subcategory ID)
         const productDetailsMap = {};
         allProducts.forEach(product => {
           if (product.name) {
@@ -3256,45 +3314,36 @@ function showToast(message, type = 'success', duration = 3000) {
               price: product.price || 0,
               subcategory: subcategoryName
             };
-            productDetailsMap[product.name.toLowerCase()] = details;
-            // Also store by original case for matching
-            productDetailsMap[product.name] = details;
+            productDetailsMap[String(product.name).toLowerCase()] = details;
+            productDetailsMap[String(product.name)] = details;
           }
         });
-        console.log('Product Details Map:', productDetailsMap);
         
-        // Group items by subcategory and sum quantities and values
         const subcategorySummary = {};
         
         allOrders.forEach(order => {
-          // Only include completed/sent orders
-          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
-            if (order.items && Array.isArray(order.items)) {
-              order.items.forEach(item => {
-                const productName = item.productName || 'Unknown';
-                const quantity = item.quantity || 0;
-                
-                // Get the product details from the database
-                const productNameLower = productName.toLowerCase();
-                const productDetails = productDetailsMap[productNameLower] || { price: 0, subcategory: 'Uncategorized' };
-                const unitPrice = productDetails.price;
-                const subcategory = productDetails.subcategory;
-                const itemTotal = quantity * unitPrice;
-                
-                if (!subcategorySummary[subcategory]) {
-                  subcategorySummary[subcategory] = {
-                    subcategory: subcategory,
-                    itemCount: 0,
-                    totalQuantity: 0,
-                    totalValue: 0
-                  };
-                }
-                
-                subcategorySummary[subcategory].itemCount += 1;
-                subcategorySummary[subcategory].totalQuantity += quantity;
-                subcategorySummary[subcategory].totalValue += itemTotal;
-              });
-            }
+          if (!shouldIncludeOrderInReports(order)) return;
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              const quantity = getItemQuantity(item);
+              const categoryInfo = getItemCategoryInfo(item, productDetailsMap);
+              const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
+              const itemTotal = quantity * unitPrice;
+              const subcategory = categoryInfo.subcategory || 'Uncategorized';
+              
+              if (!subcategorySummary[subcategory]) {
+                subcategorySummary[subcategory] = {
+                  subcategory,
+                  itemCount: 0,
+                  totalQuantity: 0,
+                  totalValue: 0
+                };
+              }
+              
+              subcategorySummary[subcategory].itemCount += 1;
+              subcategorySummary[subcategory].totalQuantity += quantity;
+              subcategorySummary[subcategory].totalValue += itemTotal;
+            });
           }
         });
         
@@ -3944,10 +3993,9 @@ function showToast(message, type = 'success', duration = 3000) {
     // **END OF DAY REPORT**
     async function generateEndOfDayReport() {
       try {
-        const allOrders = await RestaurantDB.getAllOrders();
-        const allProducts = await getAllProductsWithPrices();
+        const allOrders = await getOrdersForReports();
+        const allProducts = await getProductsForReports();
         
-        // Get event name from settings or use default
         const settings = await RestaurantDB.getSetting('eventName');
         const eventName = settings?.value || 'Restaurant';
         
@@ -3979,57 +4027,50 @@ function showToast(message, type = 'success', duration = 3000) {
         const voidedItems = [];
         
         allOrders.forEach(order => {
-          if (order.status && (order.status === 'sent' || order.status === 'completed')) {
-            if (order.items && Array.isArray(order.items)) {
-              order.items.forEach(item => {
-                const productName = item.productName || 'Unknown';
-                const quantity = item.quantity || 0;
-                const productNameLower = productName.toLowerCase();
-                const productDetails = productDetailsMap[productNameLower] || { price: 0, category: 'Uncategorized', subcategory: 'Uncategorized' };
-                const unitPrice = productDetails.price;
-                const total = quantity * unitPrice;
-                
-                // Items summary
-                if (!itemsSummary[productName]) {
-                  itemsSummary[productName] = { qty: 0, amount: 0 };
-                }
-                itemsSummary[productName].qty += quantity;
-                itemsSummary[productName].amount += total;
-                
-                // Category summary
-                const category = productDetails.category;
-                if (!categorySummary[category]) {
-                  categorySummary[category] = 0;
-                }
-                categorySummary[category] += total;
-                
-                // Subcategory summary
-                const subcategory = productDetails.subcategory;
-                if (!subcategorySummary[subcategory]) {
-                  subcategorySummary[subcategory] = 0;
-                }
-                subcategorySummary[subcategory] += total;
+          if (!shouldIncludeOrderInReports(order)) return;
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              const productName = getItemProductName(item);
+              const quantity = getItemQuantity(item);
+              const productNameLower = productName.toLowerCase();
+              const productDetails = productDetailsMap[productNameLower] || { price: 0, category: 'Uncategorized', subcategory: 'Uncategorized' };
+              const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
+              const total = quantity * unitPrice;
+              
+              if (!itemsSummary[productName]) {
+                itemsSummary[productName] = { qty: 0, amount: 0 };
+              }
+              itemsSummary[productName].qty += quantity;
+              itemsSummary[productName].amount += total;
+              
+              const category = productDetails.category || 'Uncategorized';
+              if (!categorySummary[category]) {
+                categorySummary[category] = 0;
+              }
+              categorySummary[category] += total;
+              
+              const subcategory = productDetails.subcategory || 'Uncategorized';
+              if (!subcategorySummary[subcategory]) {
+                subcategorySummary[subcategory] = 0;
+              }
+              subcategorySummary[subcategory] += total;
+            });
+          }
+          
+          if (Array.isArray(order.voidedItems)) {
+            order.voidedItems.forEach(item => {
+              const productName = String(item?.productName || item?.name || 'Unknown').trim();
+              const quantity = Number(item?.quantity ?? item?.qty ?? 0) || 0;
+              const unitPrice = Number(item?.unitPrice ?? item?.price ?? 0) || 0;
+              const total = quantity * unitPrice;
+              
+              voidedItems.push({
+                table: getOrderTableName(order),
+                product: productName,
+                qty: quantity,
+                total
               });
-            }
-            
-            // Voided items
-            if (order.voidedItems && Array.isArray(order.voidedItems)) {
-              order.voidedItems.forEach(item => {
-                const productName = item.productName || 'Unknown';
-                const quantity = item.quantity || 0;
-                const productNameLower = productName.toLowerCase();
-                const productDetails = productDetailsMap[productNameLower] || { price: 0, category: 'Uncategorized', subcategory: 'Uncategorized' };
-                const unitPrice = productDetails.price;
-                const total = quantity * unitPrice;
-                
-                voidedItems.push({
-                  table: order.table || 'N/A',
-                  product: productName,
-                  qty: quantity,
-                  total: total
-                });
-              });
-            }
+            });
           }
         });
 
