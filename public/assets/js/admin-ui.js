@@ -2957,14 +2957,41 @@ function showToast(message, type = 'success', duration = 3000) {
       return explicitPrice;
     }
 
-    function getItemCategoryInfo(item, productDetailsMap = {}) {
+    function getItemCategoryInfo(item, productDetailsMap = {}, categoryNameMap = {}, subcategoryDetailsMap = {}) {
       const explicitCategory = String(item?.categoryName || item?.category || item?.category_name || item?.product?.categoryName || item?.product?.category || '').trim();
       const explicitSubcategory = String(item?.subcategoryName || item?.subcategory || item?.subcategory_name || item?.product?.subcategoryName || item?.product?.subcategory || '').trim();
+      const product = item?.product || item?.productDetails || null;
       const productName = getItemProductName(item).toLowerCase();
-      const details = productDetailsMap[productName] || {};
+      const productId = String(item?.productId ?? item?.product_id ?? product?.id ?? item?.id ?? '').trim();
+
+      let category = explicitCategory || '';
+      let subcategory = explicitSubcategory || '';
+
+      if (!category) {
+        const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? product?.categoryId ?? null;
+        if (categoryId != null && categoryId !== '' && categoryNameMap[String(categoryId)]) {
+          category = categoryNameMap[String(categoryId)];
+        }
+      }
+
+      if (!subcategory) {
+        const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? product?.subcategoryId ?? null;
+        const subcategoryDetails = subcategoryDetailsMap[String(subcategoryId)] || null;
+        if (subcategoryDetails?.name) {
+          subcategory = subcategoryDetails.name;
+          if (!category && subcategoryDetails.parentCategoryName) {
+            category = subcategoryDetails.parentCategoryName;
+          }
+        }
+      }
+
+      const details = productDetailsMap[productName] || productDetailsMap[productId] || productDetailsMap[String(product?.name)] || {};
+      if (!category) category = details.category || 'Uncategorized';
+      if (!subcategory) subcategory = details.subcategory || 'Uncategorized';
+
       return {
-        category: explicitCategory || details.category || 'Uncategorized',
-        subcategory: explicitSubcategory || details.subcategory || 'Uncategorized'
+        category: category || 'Uncategorized',
+        subcategory: subcategory || 'Uncategorized'
       };
     }
 
@@ -3198,21 +3225,32 @@ function showToast(message, type = 'success', duration = 3000) {
         const allProducts = await getProductsForReports();
         
         const allCategories = await RestaurantDB.getAllCategories();
-        const categoryMap = {};
-        allCategories.forEach(category => {
-          categoryMap[category.id] = category.name || 'Uncategorized';
-        });
+        const categoryNameMap = Object.fromEntries((allCategories || []).map(category => [String(category.id), category.name || 'Uncategorized']));
+        
+        const allSubcategories = await RestaurantDB.getAllSubcategories();
+        const subcategoryDetailsMap = Object.fromEntries((allSubcategories || []).map(subcategory => [
+          String(subcategory.id),
+          {
+            name: subcategory.name || 'Uncategorized',
+            parentCategoryName: categoryNameMap[String(subcategory.parent ?? subcategory.parent_category_id ?? '')] || ''
+          }
+        ]));
         
         const productDetailsMap = {};
         allProducts.forEach(product => {
           if (product.name) {
-            const categoryName = categoryMap[product.cat] || 'Uncategorized';
+            const categoryName = categoryNameMap[String(product.cat)] || 'Uncategorized';
+            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || 'Uncategorized';
             const details = {
               price: product.price || 0,
-              category: categoryName
+              category: categoryName,
+              subcategory: subcategoryName
             };
             productDetailsMap[String(product.name).toLowerCase()] = details;
             productDetailsMap[String(product.name)] = details;
+            if (product.id != null) {
+              productDetailsMap[String(product.id)] = details;
+            }
           }
         });
         
@@ -3223,7 +3261,7 @@ function showToast(message, type = 'success', duration = 3000) {
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const quantity = getItemQuantity(item);
-              const categoryInfo = getItemCategoryInfo(item, productDetailsMap);
+              const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap);
               const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
               const itemTotal = quantity * unitPrice;
               const category = categoryInfo.category || 'Uncategorized';
@@ -3300,22 +3338,33 @@ function showToast(message, type = 'success', duration = 3000) {
         const allOrders = await getOrdersForReports();
         const allProducts = await getProductsForReports();
         
+        const allCategories = await RestaurantDB.getAllCategories();
+        const categoryNameMap = Object.fromEntries((allCategories || []).map(category => [String(category.id), category.name || 'Uncategorized']));
+
         const allSubcategories = await RestaurantDB.getAllSubcategories();
-        const subcategoryMap = {};
-        allSubcategories.forEach(subcategory => {
-          subcategoryMap[subcategory.id] = subcategory.name || 'Uncategorized';
-        });
+        const subcategoryDetailsMap = Object.fromEntries((allSubcategories || []).map(subcategory => [
+          String(subcategory.id),
+          {
+            name: subcategory.name || 'Uncategorized',
+            parentCategoryName: categoryNameMap[String(subcategory.parent ?? subcategory.parent_category_id ?? '')] || ''
+          }
+        ]));
         
         const productDetailsMap = {};
         allProducts.forEach(product => {
           if (product.name) {
-            const subcategoryName = subcategoryMap[product.sub] || 'Uncategorized';
+            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || 'Uncategorized';
+            const categoryName = categoryNameMap[String(product.cat)] || 'Uncategorized';
             const details = {
               price: product.price || 0,
+              category: categoryName,
               subcategory: subcategoryName
             };
             productDetailsMap[String(product.name).toLowerCase()] = details;
             productDetailsMap[String(product.name)] = details;
+            if (product.id != null) {
+              productDetailsMap[String(product.id)] = details;
+            }
           }
         });
         
@@ -3326,7 +3375,7 @@ function showToast(message, type = 'success', duration = 3000) {
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const quantity = getItemQuantity(item);
-              const categoryInfo = getItemCategoryInfo(item, productDetailsMap);
+              const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap);
               const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
               const itemTotal = quantity * unitPrice;
               const subcategory = categoryInfo.subcategory || 'Uncategorized';
