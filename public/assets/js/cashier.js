@@ -557,6 +557,43 @@ function showToast(message, type = 'success', duration = 3000) {
   const nameEl = document.getElementById('cashier-name');
   const avatarEl = document.getElementById('cashier-avatar');
   const roleEl = document.getElementById('cashier-role');
+  const mobileNavToggle = document.getElementById('mobile-nav-toggle');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  const primarySidebar = document.getElementById('primary-sidebar');
+
+  function setMobileSidebarState(open) {
+    if (!primarySidebar) return;
+    primarySidebar.classList.toggle('is-open', open);
+    document.body.classList.toggle('mobile-sidebar-open', open);
+    if (sidebarBackdrop) {
+      sidebarBackdrop.classList.toggle('active', open);
+      sidebarBackdrop.setAttribute('aria-hidden', String(!open));
+    }
+    if (mobileNavToggle) {
+      mobileNavToggle.setAttribute('aria-expanded', String(open));
+    }
+  }
+
+  function closeMobileSidebar() {
+    setMobileSidebarState(false);
+  }
+
+  if (mobileNavToggle) {
+    mobileNavToggle.addEventListener('click', () => {
+      const isOpen = mobileNavToggle.getAttribute('aria-expanded') === 'true';
+      setMobileSidebarState(!isOpen);
+    });
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', closeMobileSidebar);
+  }
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 960) {
+      closeMobileSidebar();
+    }
+  });
 
   function refreshCashierSidebar(sessionData) {
     const profile = sessionData || Auth.getSession();
@@ -630,6 +667,9 @@ function showToast(message, type = 'success', duration = 3000) {
     document.querySelectorAll('.panel').forEach(p=>{ p.setAttribute('aria-hidden','true'); p.style.display='none'; });
     const target = document.getElementById(panel);
     if(target){ target.removeAttribute('aria-hidden'); target.style.display='block'; }
+    if (window.innerWidth <= 960) {
+      closeMobileSidebar();
+    }
   }));
   if(settingsBtn){
     settingsBtn.addEventListener('click', ()=>{

@@ -510,7 +510,7 @@
         if (recentSalesTotal) recentSalesTotal.textContent = `Total: ₦${new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(total)}`;
       }
     }
-    renderPosOrderCards(currentWaiterOrders);
+    renderFilteredOrderCards();
   }
 
   async function handleSharedOrderChange(event) {
@@ -623,6 +623,11 @@
     });
   }
 
+  function renderFilteredOrderCards() {
+    const orders = Array.isArray(currentWaiterOrders) ? currentWaiterOrders : [];
+    renderPosOrderCards(orders);
+  }
+
   function bindStatusTabEvents() {
     const mapping = [
       ['pos-status-all', 'all'],
@@ -637,7 +642,7 @@
           const statusSelect = $('pos-order-status-filter');
           if (statusSelect) statusSelect.value = currentOrderStatusFilter;
           updateStatusTabActive(currentOrderStatusFilter);
-          renderPosOrderCards(currentWaiterOrders);
+          renderFilteredOrderCards();
         });
       }
     });
@@ -646,7 +651,7 @@
     if (searchInput) {
       searchInput.addEventListener('input', (event) => {
         currentOrderSearchQuery = event.target.value;
-        renderPosOrderCards(currentWaiterOrders);
+        renderFilteredOrderCards();
       });
     }
 
@@ -655,7 +660,7 @@
       statusSelect.addEventListener('change', (event) => {
         currentOrderStatusFilter = event.target.value;
         updateStatusTabActive(currentOrderStatusFilter);
-        renderPosOrderCards(currentWaiterOrders);
+        renderFilteredOrderCards();
       });
     }
 
@@ -663,7 +668,7 @@
     if (sortSelect) {
       sortSelect.addEventListener('change', (event) => {
         currentOrderSortMode = event.target.value;
-        renderPosOrderCards(currentWaiterOrders);
+        renderFilteredOrderCards();
       });
     }
 
