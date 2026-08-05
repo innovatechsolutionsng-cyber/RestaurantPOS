@@ -434,12 +434,43 @@
               <div class="card-title-row">
                 <div>
                   <h3 class="section-title">Sales board</h3>
-                  <div class="muted">All orders, sorted newest first.</div>
+                  <div class="muted">Track daily results and open order details for a specific day.</div>
                 </div>
-                <button id="btn-refresh-sales" class="btn btn-primary">Refresh</button>
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:16px;">
-                <input id="sales-search" type="text" placeholder="Search by table, waiter, cashier, or status" style="flex:1;min-width:220px;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+
+              <div class="stats-grid sales-metrics-grid">
+                <div class="card stat-card sales-metric-card">
+                  <div class="stat-meta">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16v4H4zM4 10h16v10H4z" fill="currentColor"/></svg>
+                    <div class="muted">Total revenue</div>
+                  </div>
+                  <div class="stat-value" id="sales-total-revenue">₦0.00</div>
+                  <div class="muted">Completed sales for the selected day</div>
+                </div>
+                <div class="card stat-card sales-metric-card">
+                  <div class="stat-meta">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" fill="currentColor"/></svg>
+                    <div class="muted">Completed orders</div>
+                  </div>
+                  <div class="stat-value" id="sales-completed-orders">0</div>
+                  <div class="muted">Finished orders</div>
+                </div>
+                <div class="card stat-card sales-metric-card">
+                  <div class="stat-meta">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" fill="currentColor"/></svg>
+                    <div class="muted">Pending orders</div>
+                  </div>
+                  <div class="stat-value" id="sales-pending-orders">0</div>
+                  <div class="muted">Needs attention</div>
+                </div>
+              </div>
+
+              <div class="sales-controls">
+                <label class="sales-filter-field">
+                  <span class="muted">Date</span>
+                  <input id="sales-date-filter" type="date" class="input sales-date-filter" />
+                </label>
+                <input id="sales-search" type="text" placeholder="Search by table, waiter, cashier, or status" class="input sales-search-input">
               </div>
               <div class="sales-panel-grid">
                 <div id="sales-card-list" class="orders-container">
@@ -500,6 +531,12 @@
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <div id="transaction-history-pagination" class="mt-sm" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+                <span id="transaction-history-page-info" class="muted"></span>
+                <button id="transaction-history-page-prev" class="btn btn-ghost" type="button">Prev</button>
+                <button id="transaction-history-page-next" class="btn btn-ghost" type="button">Next</button>
               </div>
             </div>
           </section>
@@ -700,9 +737,15 @@
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                   <div>
                     <h3 class="section-title" style="margin:0;">Sales comparison</h3>
-                    <div class="muted">Compare revenue performance for today and yesterday.</div>
+                    <div class="muted">Compare revenue performance for a selected day and the previous day.</div>
                   </div>
-                  <button id="btn-refresh-bi-report" class="btn btn-primary" style="padding:10px 16px;">Refresh BI</button>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <label style="display:flex;flex-direction:column;gap:6px;font-size:0.9rem;color:#374151;">
+                      <span class="muted">Date</span>
+                      <input id="bi-report-date-filter" type="date" style="padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;min-width:170px;">
+                    </label>
+                    <button id="btn-refresh-bi-report" class="btn btn-primary" style="padding:10px 16px;">Refresh BI</button>
+                  </div>
                 </div>
                 <div style="margin-top:18px;display:grid;gap:16px;grid-template-columns:1fr 1fr;align-items:end;">
                   <div style="padding:18px;border-radius:14px;background:#f8fafc;">

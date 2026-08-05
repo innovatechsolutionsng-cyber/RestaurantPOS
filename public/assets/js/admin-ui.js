@@ -736,17 +736,46 @@ function showToast(message, type = 'success', duration = 3000) {
     renderSalesDetail(order);
   }
 
+  function getSalesDateFilterValue() {
+    const salesDateFilter = document.getElementById('sales-date-filter');
+    if (salesDateFilter && salesDateFilter.value) {
+      const [year, month, day] = salesDateFilter.value.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    const today = new Date();
+    if (salesDateFilter) {
+      salesDateFilter.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
+    return today;
+  }
+
   async function loadSalesPanel() {
     const cardList = document.getElementById('sales-card-list');
     const detailContent = document.getElementById('sales-detail-content');
     const searchInput = document.getElementById('sales-search');
+    const salesDateFilter = document.getElementById('sales-date-filter');
+    const salesRevenueEl = document.getElementById('sales-total-revenue');
+    const salesCompletedEl = document.getElementById('sales-completed-orders');
+    const salesPendingEl = document.getElementById('sales-pending-orders');
     if (!cardList || !detailContent) return;
+
+    const selectedDate = getSalesDateFilterValue();
+    const dateStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    const dateEnd = new Date(dateStart);
+    dateEnd.setDate(dateStart.getDate() + 1);
 
     try {
       const allOrders = await loadAdminOrders();
-
       const searchTerm = (searchInput?.value || '').toLowerCase().trim();
-      const filteredOrders = (allOrders || []).filter((order) => {
+
+      const dateFilteredOrders = (allOrders || []).filter((order) => {
+        const created = getOrderCreatedAt(order);
+        if (Number.isNaN(created.getTime())) return false;
+        return created >= dateStart && created < dateEnd;
+      });
+
+      const filteredOrders = dateFilteredOrders.filter((order) => {
         const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']).toLowerCase();
         const cashier = getOrderPerson(order, ['cashierName', 'cashier', 'createdBy', 'created_by', 'orderData.cashierName', 'orderData.cashier', 'orderData.createdBy', 'orderData.created_by', 'order.orderData.cashierName', 'order.orderData.cashier', 'order.orderData.createdBy', 'order.orderData.created_by']).toLowerCase();
         const status = getOrderStatus(order).toLowerCase();
@@ -756,10 +785,21 @@ function showToast(message, type = 'success', duration = 3000) {
         return !searchTerm || [waiter, cashier, status, method, table, id].some(value => value.includes(searchTerm));
       });
 
+      const completedCount = filteredOrders.filter((order) => getOrderStatus(order) === 'completed').length;
+      const pendingCount = filteredOrders.filter((order) => getOrderStatus(order) === 'pending').length;
+      const revenue = filteredOrders.reduce((sum, order) => {
+        if (getOrderStatus(order) !== 'completed') return sum;
+        return sum + getOrderAmount(order);
+      }, 0);
+
+      if (salesRevenueEl) salesRevenueEl.textContent = `₦${formatCurrency(revenue)}`;
+      if (salesCompletedEl) salesCompletedEl.textContent = String(completedCount);
+      if (salesPendingEl) salesPendingEl.textContent = String(pendingCount);
+
       salesOrdersCache = filteredOrders.sort((a, b) => new Date(getOrderCreatedAt(b)) - new Date(getOrderCreatedAt(a)));
 
       if (salesOrdersCache.length === 0) {
-        cardList.innerHTML = '<div class="muted">No sales match your search.</div>';
+        cardList.innerHTML = '<div class="muted">No sales match your search for this day.</div>';
         detailContent.innerHTML = '<p class="muted">Select a sale card to view details.</p>';
         return;
       }
@@ -809,9 +849,26 @@ function showToast(message, type = 'success', duration = 3000) {
       selectSalesOrder(chosenId);
     } catch (err) {
       console.error('Failed to load sales panel:', err);
+      if (salesRevenueEl) salesRevenueEl.textContent = '₦0.00';
+      if (salesCompletedEl) salesCompletedEl.textContent = '0';
+      if (salesPendingEl) salesPendingEl.textContent = '0';
       cardList.innerHTML = '<div class="muted">Unable to load sales.</div>';
       detailContent.innerHTML = '<p class="muted">Unable to display selected sale.</p>';
     }
+  }
+
+  function getBiReportDateFilterValue() {
+    const biDateFilter = document.getElementById('bi-report-date-filter');
+    if (biDateFilter) {
+      if (biDateFilter.value) {
+        const [year, month, day] = biDateFilter.value.split('-').map(Number);
+        return new Date(year, month - 1, day);
+      }
+      const today = new Date();
+      biDateFilter.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      return today;
+    }
+    return new Date();
   }
 
   async function renderBIReport() {
@@ -837,23 +894,26 @@ function showToast(message, type = 'success', duration = 3000) {
 
       const orders = BACKEND_AVAILABLE && summaryRes ? (Array.isArray(summaryRes.orders) ? summaryRes.orders : []) : (Array.isArray(fallbackOrders) ? fallbackOrders : []);
       const products = BACKEND_AVAILABLE && summaryRes ? (Array.isArray(summaryRes.products) ? summaryRes.products : []) : (Array.isArray(fallbackProducts) ? fallbackProducts : []);
-      const range = getBusinessDayRange(businessDayCutoff);
-      const yesterdayRange = { start: new Date(range.start), end: new Date(range.end) };
-      yesterdayRange.start.setDate(yesterdayRange.start.getDate() - 1);
-      yesterdayRange.end.setDate(yesterdayRange.end.getDate() - 1);
+      const selectedDate = getBiReportDateFilterValue();
+      const selectedDayStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const selectedDayEnd = new Date(selectedDayStart);
+      selectedDayEnd.setDate(selectedDayStart.getDate() + 1);
+      const previousDayStart = new Date(selectedDayStart);
+      previousDayStart.setDate(previousDayStart.getDate() - 1);
+      const previousDayEnd = new Date(selectedDayStart);
 
       const completedOrders = orders.filter((order) => getOrderStatus(order) === 'completed');
-      const todaysOrders = completedOrders.filter((order) => {
+      const selectedDayOrders = completedOrders.filter((order) => {
         const createdAt = getOrderCreatedAt(order);
-        return !Number.isNaN(createdAt.getTime()) && createdAt >= range.start && createdAt < range.end;
+        return !Number.isNaN(createdAt.getTime()) && createdAt >= selectedDayStart && createdAt < selectedDayEnd;
       });
-      const yesterdaysOrders = completedOrders.filter((order) => {
+      const previousDayOrders = completedOrders.filter((order) => {
         const createdAt = getOrderCreatedAt(order);
-        return !Number.isNaN(createdAt.getTime()) && createdAt >= yesterdayRange.start && createdAt < yesterdayRange.end;
+        return !Number.isNaN(createdAt.getTime()) && createdAt >= previousDayStart && createdAt < selectedDayStart;
       });
 
-      const todayRevenue = todaysOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
-      const yesterdayRevenue = yesterdaysOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
+      const todayRevenue = selectedDayOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
+      const yesterdayRevenue = previousDayOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
       const delta = yesterdayRevenue === 0 ? (todayRevenue === 0 ? 0 : 100) : ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100;
       const deltaLabel = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
 
@@ -944,8 +1004,12 @@ function showToast(message, type = 'success', duration = 3000) {
   }
 
   const btnRefreshBIReport = document.getElementById('btn-refresh-bi-report');
+  const biReportDateFilter = document.getElementById('bi-report-date-filter');
   if (btnRefreshBIReport) {
     btnRefreshBIReport.addEventListener('click', renderBIReport);
+  }
+  if (biReportDateFilter) {
+    biReportDateFilter.addEventListener('change', renderBIReport);
   }
 
   async function isBackendAvailable() {
@@ -1226,13 +1290,13 @@ function showToast(message, type = 'success', duration = 3000) {
     if (refreshBtn) refreshBtn.click();
   });
 
-  const btnRefreshSales = document.getElementById('btn-refresh-sales');
   const salesSearchInput = document.getElementById('sales-search');
-  if (btnRefreshSales) {
-    btnRefreshSales.addEventListener('click', loadSalesPanel);
-  }
+  const salesDateFilterInput = document.getElementById('sales-date-filter');
   if (salesSearchInput) {
     salesSearchInput.addEventListener('input', loadSalesPanel);
+  }
+  if (salesDateFilterInput) {
+    salesDateFilterInput.addEventListener('change', loadSalesPanel);
   }
 
   // User management modal + table wiring
@@ -3226,6 +3290,11 @@ function showToast(message, type = 'success', duration = 3000) {
     const transactionHistorySearch = document.getElementById('transaction-history-search');
     const btnRefreshTransactionHistory = document.getElementById('btn-refresh-transaction-history');
     const btnEndOfDayReport = document.getElementById('btn-end-of-day-report');
+    const transactionHistoryPageInfo = document.getElementById('transaction-history-page-info');
+    const transactionHistoryPagePrev = document.getElementById('transaction-history-page-prev');
+    const transactionHistoryPageNext = document.getElementById('transaction-history-page-next');
+    const TRANSACTION_HISTORY_PAGE_SIZE = 10;
+    let transactionHistoryPage = 1;
 
     async function loadTransactionHistory() {
       try {
@@ -3293,10 +3362,27 @@ function showToast(message, type = 'success', duration = 3000) {
           );
         }
 
+        const totalPages = Math.max(1, Math.ceil(transactions.length / TRANSACTION_HISTORY_PAGE_SIZE));
+        if (transactionHistoryPage > totalPages) transactionHistoryPage = totalPages;
+        const startIndex = (transactionHistoryPage - 1) * TRANSACTION_HISTORY_PAGE_SIZE;
+        const pageTransactions = transactions.slice(startIndex, startIndex + TRANSACTION_HISTORY_PAGE_SIZE);
+
+        if (transactionHistoryPageInfo) {
+          transactionHistoryPageInfo.textContent = `Page ${transactionHistoryPage} of ${totalPages}`;
+        }
+        if (transactionHistoryPagePrev) {
+          transactionHistoryPagePrev.disabled = transactionHistoryPage <= 1;
+          transactionHistoryPagePrev.style.opacity = transactionHistoryPage <= 1 ? '0.6' : '1';
+        }
+        if (transactionHistoryPageNext) {
+          transactionHistoryPageNext.disabled = transactionHistoryPage >= totalPages;
+          transactionHistoryPageNext.style.opacity = transactionHistoryPage >= totalPages ? '0.6' : '1';
+        }
+
         // Render table with new column order: Date, Table Number, Items, Waiter, Cashier, Total, Payment Method, Ref, Status
-        transactionHistoryTbody.innerHTML = transactions.length === 0 
+        transactionHistoryTbody.innerHTML = pageTransactions.length === 0 
           ? '<tr><td colspan="9" style="padding: 20px; text-align: center; color: #9ca3af;">No transactions found</td></tr>'
-          : transactions.map((tx, idx) => {
+          : pageTransactions.map((tx, idx) => {
             const statusColor = tx.status === 'completed' ? '#10b981' : tx.status === 'sent' ? '#3b82f6' : '#ef4444';
             return `
             <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
@@ -3319,11 +3405,33 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     if (btnRefreshTransactionHistory) {
-      btnRefreshTransactionHistory.addEventListener('click', loadTransactionHistory);
+      btnRefreshTransactionHistory.addEventListener('click', () => {
+        transactionHistoryPage = 1;
+        loadTransactionHistory();
+      });
     }
     
     if (transactionHistorySearch) {
-      transactionHistorySearch.addEventListener('input', loadTransactionHistory);
+      transactionHistorySearch.addEventListener('input', () => {
+        transactionHistoryPage = 1;
+        loadTransactionHistory();
+      });
+    }
+
+    if (transactionHistoryPagePrev) {
+      transactionHistoryPagePrev.addEventListener('click', () => {
+        if (transactionHistoryPage > 1) {
+          transactionHistoryPage -= 1;
+          loadTransactionHistory();
+        }
+      });
+    }
+
+    if (transactionHistoryPageNext) {
+      transactionHistoryPageNext.addEventListener('click', () => {
+        transactionHistoryPage += 1;
+        loadTransactionHistory();
+      });
     }
 
 
