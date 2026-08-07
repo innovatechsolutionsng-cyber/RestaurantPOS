@@ -370,11 +370,12 @@
                 <p>No orders yet. Create an order to get started.</p>
               </div>
             </div>
+            <div id="orders-pagination" class="pagination" style="margin-top:12px;display:flex;justify-content:center;gap:8px;align-items:center;"></div>
           </section>
 
           <!-- Sales Panel -->
           <section id="sales" class="panel" role="region" aria-hidden="true">
-            <h2 class="page-title">Previous Business Day Sales</h2>
+            <h2 class="page-title"> Business Day Sales</h2>
             <div class="stats-grid" style="margin-bottom:18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px;">
               <div class="card stat-card">
                 <div class="stat-meta"><div class="muted">Orders</div></div>
@@ -417,6 +418,7 @@
                     <tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No previous business day orders.</td></tr>
                   </tbody>
                 </table>
+                <div id="previous-sales-pagination" class="pagination" style="margin-top:8px;display:flex;justify-content:center;gap:8px;align-items:center;"></div>
               </div>
             </div>
           </section>

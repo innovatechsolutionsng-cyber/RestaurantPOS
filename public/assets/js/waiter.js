@@ -309,6 +309,10 @@
       }
     });
 
+    if (panelId === 'reports') {
+      renderWaiterReports();
+    }
+
     if (isMobile()) {
       setMobileSidebarState(false);
     }
@@ -692,6 +696,7 @@
     realtimeRefreshTimer = setInterval(refreshWaiterRealtime, REALTIME_REFRESH_INTERVAL);
   }
 
+  wireWaiterReportControls();
   await refreshDashboard();
   scheduleBusinessDayRefresh();
   bindStatusTabEvents();
@@ -776,6 +781,252 @@
 
   function formatCurrency(value) {
     return `₦${new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0)}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  }
+
+  function getOrderCreatedDate(order) {
+    const createdAt = order?.createdAt || order?.orderData?.createdAt || order?.created_at || order?.date || order?.orderData?.order?.createdAt || order?.orderData?.order?.created_at;
+    const created = new Date(createdAt || '');
+    return Number.isNaN(created.getTime()) ? null : created;
+  }
+
+  function getItemSubcategoryName(item) {
+    const rawSubcategory = item?.subcategoryName || item?.subcategory || item?.subCategoryName || item?.subCategory || item?.sub_name || item?.product?.subcategoryName || item?.product?.subcategory || item?.product?.subCategoryName || item?.product?.subCategory || '';
+    if (rawSubcategory) return String(rawSubcategory).trim();
+
+    const subcategoryId = item?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? item?.product?.sub ?? null;
+    if (subcategoryId != null && subcategoryId !== '' && Array.isArray(allSubcategories)) {
+      const matchedSubcategory = allSubcategories.find((subcategory) => String(subcategory.id) === String(subcategoryId));
+      if (matchedSubcategory?.name) return String(matchedSubcategory.name).trim();
+    }
+
+    return 'Unspecified';
+  }
+
+  function getOrderPaymentMethod(order) {
+    if (Array.isArray(order?.payments) && order.payments.length) {
+      return order.payments.map((entry) => String(entry?.method || '')).filter(Boolean).join(', ') || 'N/A';
+    }
+    return String(order?.paymentMethod || order?.payment_method || order?.payment?.method || 'N/A').trim() || 'N/A';
+  }
+
+  function getReportRange() {
+    const sel = document.getElementById('report-range');
+    const startInput = document.getElementById('report-start');
+    const endInput = document.getElementById('report-end');
+    const now = new Date();
+    let label = 'Today';
+    let range = {
+      start: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0),
+      end: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
+    };
+
+    if (sel) {
+      const value = sel.value || 'today';
+      if (value === 'yesterday') {
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const yesterdayStart = new Date(todayStart);
+        yesterdayStart.setDate(todayStart.getDate() - 1);
+        range = { start: yesterdayStart, end: new Date(todayStart) };
+        label = 'Yesterday';
+      } else if (value === 'this-week') {
+        const startOfWeek = new Date(now);
+        const day = startOfWeek.getDay();
+        const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+        startOfWeek.setDate(diff);
+        startOfWeek.setHours(0, 0, 0, 0);
+        range = { start: startOfWeek, end: new Date(now.getTime()) };
+        label = 'This Week';
+      } else if (value === 'custom') {
+        if (startInput && startInput.value) {
+          range.start = new Date(startInput.value + 'T00:00:00');
+        }
+        if (endInput && endInput.value) {
+          range.end = new Date(endInput.value + 'T23:59:59');
+        }
+        label = startInput && endInput && startInput.value && endInput.value
+          ? `${new Date(range.start).toLocaleDateString()} - ${new Date(range.end).toLocaleDateString()}`
+          : 'Custom Range';
+      }
+    }
+
+    return { start: range.start, end: range.end, label };
+  }
+
+  async function renderWaiterReports() {
+    const tbodyItems = document.querySelector('#report-items-table tbody');
+    const tbodyCats = document.querySelector('#report-categories-table tbody');
+    const tbodySubs = document.querySelector('#report-subcategories-table tbody');
+    const tbodyVoids = document.querySelector('#report-voided-table tbody');
+    const paymentsEl = document.getElementById('report-payments');
+    const reportDateEl = document.getElementById('report-date');
+
+    if (!tbodyItems || !tbodyCats || !tbodySubs || !tbodyVoids || !paymentsEl) return;
+
+    if (!allCategories.length && !allSubcategories.length && !allProducts.length) {
+      await loadInventoryData();
+    }
+
+    const rangeInfo = getReportRange();
+    if (reportDateEl) {
+      reportDateEl.textContent = rangeInfo.label || 'Today';
+    }
+
+    try {
+      const allWaiterOrders = await getOrders();
+      const filteredOrders = (allWaiterOrders || []).filter((order) => {
+        const createdAt = getOrderCreatedDate(order);
+        return createdAt && createdAt >= rangeInfo.start && createdAt < rangeInfo.end;
+      });
+
+      const itemsMap = new Map();
+      const categoryMap = new Map();
+      const subcategoryMap = new Map();
+      const paymentsMap = new Map();
+      const voidedList = [];
+
+      filteredOrders.forEach((order) => {
+        if (Array.isArray(order?.payments) && order.payments.length) {
+          order.payments.forEach((payment) => {
+            const method = String(payment?.method || 'unknown').toLowerCase();
+            paymentsMap.set(method, (paymentsMap.get(method) || 0) + (Number(payment?.amount) || 0));
+          });
+        } else {
+          const paymentMethod = String(order?.paymentMethod || order?.payment_method || order?.payment?.method || 'unknown').toLowerCase();
+          paymentsMap.set(paymentMethod, (paymentsMap.get(paymentMethod) || 0) + (Number(order?.totalAmount || 0) || 0));
+        }
+
+        (Array.isArray(order?.items) ? order.items : []).forEach((item) => {
+          const name = item?.productName || item?.name || item?.product?.name || 'Unknown';
+          const quantity = Number(item?.quantity || item?.qty || 0);
+          const unitPrice = Number(item?.unitPrice ?? item?.price ?? item?.product?.price ?? 0);
+          const lineRevenue = quantity * unitPrice;
+          const itemKey = item?.productId || name || JSON.stringify(item);
+          if (!itemsMap.has(itemKey)) {
+            itemsMap.set(itemKey, { name, qty: 0, revenue: 0 });
+          }
+          const currentItem = itemsMap.get(itemKey);
+          currentItem.qty += quantity;
+          currentItem.revenue += lineRevenue;
+
+          const categoryName = getItemCategoryName(item) || 'Uncategorized';
+          const subcategoryName = getItemSubcategoryName(item) || 'Unspecified';
+
+          if (!categoryMap.has(categoryName)) {
+            categoryMap.set(categoryName, { items: 0, revenue: 0 });
+          }
+          const categoryEntry = categoryMap.get(categoryName);
+          categoryEntry.items += quantity;
+          categoryEntry.revenue += lineRevenue;
+
+          if (!subcategoryMap.has(subcategoryName)) {
+            subcategoryMap.set(subcategoryName, { items: 0, revenue: 0 });
+          }
+          const subcategoryEntry = subcategoryMap.get(subcategoryName);
+          subcategoryEntry.items += quantity;
+          subcategoryEntry.revenue += lineRevenue;
+        });
+
+        if (Array.isArray(order?.voidedItems) && order.voidedItems.length) {
+          order.voidedItems.forEach((entry) => {
+            voidedList.push({
+              item: entry?.productName || entry?.name || 'Unknown',
+              qty: Number(entry?.quantity || entry?.qty || 0),
+              table: order?.tableName || '—'
+            });
+          });
+        }
+      });
+
+      const itemsArr = Array.from(itemsMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
+      const itemsTotal = itemsArr.reduce((sum, item) => sum + item.revenue, 0);
+      tbodyItems.innerHTML = itemsArr.length === 0
+        ? '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>'
+        : itemsArr.map((item) => `<tr><td>${escapeHtml(item.name)}</td><td style="text-align:center">${item.qty}</td><td style="text-align:right">${formatCurrency(item.revenue)}</td></tr>`).join('');
+      const reportItemTotal = document.getElementById('report-item-total');
+      if (reportItemTotal) reportItemTotal.textContent = `Total: ${formatCurrency(itemsTotal)}`;
+
+      const categoryArr = Array.from(categoryMap.entries()).map(([name, entry]) => ({ name, ...entry })).sort((a, b) => b.revenue - a.revenue);
+      const categoryTotal = categoryArr.reduce((sum, entry) => sum + entry.revenue, 0);
+      tbodyCats.innerHTML = categoryArr.length === 0
+        ? '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>'
+        : categoryArr.map((entry) => `<tr><td>${escapeHtml(entry.name)}</td><td style="text-align:center">${entry.items}</td><td style="text-align:right">${formatCurrency(entry.revenue)}</td></tr>`).join('');
+      const reportCategoryTotal = document.getElementById('report-category-total');
+      if (reportCategoryTotal) reportCategoryTotal.textContent = `Total: ${formatCurrency(categoryTotal)}`;
+
+      const subcategoryArr = Array.from(subcategoryMap.entries()).map(([name, entry]) => ({ name, ...entry })).sort((a, b) => b.revenue - a.revenue);
+      const subcategoryTotal = subcategoryArr.reduce((sum, entry) => sum + entry.revenue, 0);
+      tbodySubs.innerHTML = subcategoryArr.length === 0
+        ? '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>'
+        : subcategoryArr.map((entry) => `<tr><td>${escapeHtml(entry.name)}</td><td style="text-align:center">${entry.items}</td><td style="text-align:right">${formatCurrency(entry.revenue)}</td></tr>`).join('');
+      const reportSubcategoryTotal = document.getElementById('report-subcategory-total');
+      if (reportSubcategoryTotal) reportSubcategoryTotal.textContent = `Total: ${formatCurrency(subcategoryTotal)}`;
+
+      tbodyVoids.innerHTML = voidedList.length === 0
+        ? '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No voided items</td></tr>'
+        : voidedList.map((entry) => `<tr><td>${escapeHtml(entry.item)}</td><td style="text-align:center">${entry.qty}</td><td>${escapeHtml(entry.table)}</td></tr>`).join('');
+
+      const paymentsList = Array.from(paymentsMap.entries()).map(([method, amount]) => ({ method, amount })).sort((a, b) => b.amount - a.amount);
+      const paymentsListContainer = paymentsEl.querySelector('.report-payments-list');
+      if (paymentsListContainer) {
+        paymentsListContainer.innerHTML = paymentsList.length === 0
+          ? '<div class="muted" style="text-align:center;padding:12px;">No payments yet</div>'
+          : paymentsList.map((payment) => `<div class="report-payment-item"><div class="label">${escapeHtml(payment.method.toUpperCase())}</div><div class="value">${formatCurrency(payment.amount)}</div></div>`).join('');
+      }
+
+      if (window.Chart) {
+        const topLabels = itemsArr.slice(0, 8).map((item) => item.name);
+        const topData = itemsArr.slice(0, 8).map((item) => Math.round(item.revenue * 100) / 100);
+        const topChartEl = document.getElementById('chart-top-items');
+        if (topChartEl) {
+          topChartEl.parentElement.style.display = topLabels.length ? 'block' : 'none';
+          if (window.waiterTopChart) {
+            window.waiterTopChart.data.labels = topLabels;
+            window.waiterTopChart.data.datasets[0].data = topData;
+            window.waiterTopChart.update();
+          } else {
+            window.waiterTopChart = new Chart(topChartEl, { type: 'bar', data: { labels: topLabels, datasets: [{ label: 'Revenue', data: topData, backgroundColor: ['#60a5fa','#7c3aed','#34d399','#f59e0b','#fb7185','#60a5fa','#7dd3fc','#a78bfa'] }] }, options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
+          }
+        }
+
+        const paymentLabels = paymentsList.slice(0, 8).map((payment) => payment.method.toUpperCase());
+        const paymentData = paymentsList.slice(0, 8).map((payment) => Math.round(payment.amount * 100) / 100);
+        const paymentChartEl = document.getElementById('chart-payments');
+        if (paymentChartEl) {
+          paymentChartEl.parentElement.style.display = paymentLabels.length ? 'block' : 'none';
+          if (window.waiterPaymentChart) {
+            window.waiterPaymentChart.data.labels = paymentLabels;
+            window.waiterPaymentChart.data.datasets[0].data = paymentData;
+            window.waiterPaymentChart.update();
+          } else {
+            window.waiterPaymentChart = new Chart(paymentChartEl, { type: 'doughnut', data: { labels: paymentLabels, datasets: [{ data: paymentData, backgroundColor: ['#60a5fa','#7c3aed','#34d399','#f59e0b','#fb7185','#60a5fa','#7dd3fc','#a78bfa'] }] }, options: { plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false } });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to render waiter reports:', err);
+    }
+  }
+
+  function wireWaiterReportControls() {
+    const sel = document.getElementById('report-range');
+    const startInput = document.getElementById('report-start');
+    const endInput = document.getElementById('report-end');
+
+    if (sel) {
+      sel.addEventListener('change', () => {
+        const custom = sel.value === 'custom';
+        if (startInput) startInput.style.display = custom ? 'inline-block' : 'none';
+        if (endInput) endInput.style.display = custom ? 'inline-block' : 'none';
+        renderWaiterReports();
+      });
+    }
+    if (startInput) startInput.addEventListener('change', () => renderWaiterReports());
+    if (endInput) endInput.addEventListener('change', () => renderWaiterReports());
+    // export button removed; reports render when range or dates change
   }
 
   async function loadWaiterTables() {

@@ -885,6 +885,11 @@ function showToast(message, type = 'success', duration = 3000) {
   let billingSettings = { taxPercentage: 0, serviceChargePercentage: 0, discountPercentage: 0 }; // Billing settings from admin
   let currentVoidedItems = []; // Track voided items in current order
   let currentVoidRemark = ''; // Track void remark
+  // Pagination state
+  let salesCurrentPage = 1;
+  const salesPerPage = 15;
+  let posCurrentPage = 1;
+  const posPerPage = 20;
 
   // Load products and waiters
   function normalizeTableList(tables){
@@ -2685,6 +2690,8 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     const sorted = sortOrders(filtered, sortBy);
+    // reset POS pagination when filters change
+    posCurrentPage = 1;
     renderOrdersList(sorted);
     return sorted;
   }
@@ -2999,10 +3006,19 @@ function showToast(message, type = 'success', duration = 3000) {
 
     if(orders.length === 0){
       tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No sales found for this date.</td></tr>';
+      const paginationContainer = document.getElementById('previous-sales-pagination');
+      if (paginationContainer) paginationContainer.innerHTML = '';
       return;
     }
 
-    tbody.innerHTML = orders.map(o => {
+    const totalPages = Math.max(1, Math.ceil(orders.length / salesPerPage));
+    if (salesCurrentPage > totalPages) salesCurrentPage = totalPages;
+    if (salesCurrentPage < 1) salesCurrentPage = 1;
+    const startIdx = (salesCurrentPage - 1) * salesPerPage;
+    const endIdx = startIdx + salesPerPage;
+    const pageOrders = orders.slice(startIdx, endIdx);
+
+    tbody.innerHTML = pageOrders.map(o => {
       const createdAt = getOrderCreatedAt(o);
       const when = !Number.isNaN(createdAt.getTime()) ? createdAt.toLocaleString() : '—';
       const status = String(getOrderStatus(o)).toLowerCase();
@@ -3020,6 +3036,22 @@ function showToast(message, type = 'success', duration = 3000) {
         </tr>
       `;
     }).join('');
+
+    // Render pagination controls
+    const paginationContainer = document.getElementById('previous-sales-pagination');
+    if (paginationContainer) {
+      paginationContainer.innerHTML = '';
+      const prevBtn = document.createElement('button'); prevBtn.className = 'btn btn-secondary'; prevBtn.textContent = 'Prev';
+      prevBtn.disabled = salesCurrentPage <= 1;
+      prevBtn.addEventListener('click', () => { salesCurrentPage = Math.max(1, salesCurrentPage - 1); renderSalesPanel(); });
+      const nextBtn = document.createElement('button'); nextBtn.className = 'btn btn-secondary'; nextBtn.textContent = 'Next';
+      nextBtn.disabled = salesCurrentPage >= totalPages;
+      nextBtn.addEventListener('click', () => { salesCurrentPage = Math.min(totalPages, salesCurrentPage + 1); renderSalesPanel(); });
+      const info = document.createElement('div'); info.className = 'muted'; info.style.padding = '6px 8px'; info.textContent = `Page ${salesCurrentPage} of ${totalPages}`;
+      paginationContainer.appendChild(prevBtn);
+      paginationContainer.appendChild(info);
+      paginationContainer.appendChild(nextBtn);
+    }
   }
 
   // small helper to escape html
@@ -3193,6 +3225,8 @@ function showToast(message, type = 'success', duration = 3000) {
     if (salesDateFilter) {
       salesDateFilter.value = getSalesDateFilterValue();
       const refreshSalesPanel = () => {
+        // Reset to first page when date changes
+        salesCurrentPage = 1;
         if (salesDateFilter.value) {
           renderSalesPanel();
         } else {
@@ -3236,12 +3270,22 @@ function showToast(message, type = 'success', duration = 3000) {
     
     if (!orders || orders.length === 0) {
       container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--muted); grid-column: 1/-1;">No orders yet. Create an order to get started.</div>';
+      const paginationEl = document.getElementById('orders-pagination');
+      if (paginationEl) paginationEl.innerHTML = '';
       return;
     }
     
+    // Pagination: determine slice for current page
+    const totalPages = Math.max(1, Math.ceil(orders.length / posPerPage));
+    if (posCurrentPage > totalPages) posCurrentPage = totalPages;
+    if (posCurrentPage < 1) posCurrentPage = 1;
+    const start = (posCurrentPage - 1) * posPerPage;
+    const end = start + posPerPage;
+    const pageOrders = orders.slice(start, end);
+
     container.innerHTML = '';
-    
-    orders.forEach(order => {
+
+    pageOrders.forEach(order => {
       const totalItems = (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const totalAmount = Number(order.totalAmount ?? order.billingBreakdown?.total ?? order.subtotal ?? 0);
       const latestMergedTable = Array.isArray(order.mergedTables) && order.mergedTables.length > 0
@@ -3369,6 +3413,20 @@ function showToast(message, type = 'success', duration = 3000) {
       
       container.appendChild(card);
     });
+
+    // Render pagination controls for POS orders
+    const paginationEl = document.getElementById('orders-pagination');
+    if (paginationEl) {
+      paginationEl.innerHTML = '';
+      const prev = document.createElement('button'); prev.className = 'btn btn-secondary'; prev.textContent = 'Prev'; prev.disabled = posCurrentPage <= 1;
+      prev.addEventListener('click', () => { posCurrentPage = Math.max(1, posCurrentPage - 1); renderOrdersList(orders); });
+      const info = document.createElement('div'); info.className = 'muted'; info.style.padding = '6px 8px'; info.textContent = `Page ${posCurrentPage} of ${totalPages}`;
+      const next = document.createElement('button'); next.className = 'btn btn-secondary'; next.textContent = 'Next'; next.disabled = posCurrentPage >= totalPages;
+      next.addEventListener('click', () => { posCurrentPage = Math.min(totalPages, posCurrentPage + 1); renderOrdersList(orders); });
+      paginationEl.appendChild(prev);
+      paginationEl.appendChild(info);
+      paginationEl.appendChild(next);
+    }
   }
 
   // Edit order (load into modal)
@@ -5743,6 +5801,25 @@ function showToast(message, type = 'success', duration = 3000) {
     showPaymentModal();
   }
 
+  // Small helper: show a modal-like success message that auto-closes
+  function showAutoClosingModal(message, duration = 2200) {
+    try {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.setAttribute('aria-hidden', 'false');
+      modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-panel" role="dialog" aria-modal="true" style="max-width:420px;padding:18px;text-align:center;">
+          <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;">${escapeHtml(message)}</div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const remove = () => modal.remove();
+      modal.querySelector('.modal-backdrop')?.addEventListener('click', remove);
+      setTimeout(remove, duration);
+    } catch (err) { console.warn('showAutoClosingModal failed', err); }
+  }
+
   function getActiveSplitContext(order = editingOrder) {
     if (!order) return null;
     if (order.splitFromBillId) {
@@ -6156,15 +6233,19 @@ function showToast(message, type = 'success', duration = 3000) {
         }
 
         await saveOrderToBackend(paymentOrder);
-        
-        alert(splitContext ? `Split place ${paymentOrder.splitPlace || 1} completed! Payment recorded.` : 'Order completed! Payment recorded.');
-        
-        // Auto-print receipt after closing bill
+
+        // Show auto-closing confirmation modal
+        showAutoClosingModal(splitContext ? `Split place ${paymentOrder.splitPlace || 1} completed! Payment recorded.` : 'Order completed! Payment recorded.', 2200);
+
+        // Auto-print receipt after closing bill using the saved paymentOrder
         setTimeout(() => {
-          console.log('About to print receipt. editingOrder:', editingOrder);
-          printReceiptThermal(editingOrder);
-        }, 300);
-        
+          try {
+            console.log('About to print receipt for paymentOrder:', paymentOrder);
+            printReceiptThermal(paymentOrder);
+          } catch (e) { console.error('Printing failed after payment:', e); }
+        }, 250);
+
+        // Close modal and refresh orders
         closeOrderModal();
         await loadAndRenderOrders();
       } catch (err) {
