@@ -482,33 +482,72 @@ function showToast(message, type = 'success', duration = 3000) {
   }
 
   function getOrderAmount(order) {
-    const rawAmount = normalizeOrderProperty(order, [
+    const amountCandidates = [
       'totalAmount',
       'total',
       'subtotal',
       'amount',
+      'grandTotal',
+      'grand_total',
       'order.totalAmount',
       'order.total',
       'order.subtotal',
       'order.amount',
+      'order.grandTotal',
+      'order.grand_total',
       'orderData.totalAmount',
       'orderData.total',
       'orderData.subtotal',
       'orderData.amount',
+      'orderData.grandTotal',
+      'orderData.grand_total',
       'order_data.totalAmount',
       'order_data.total',
       'order_data.subtotal',
       'order_data.amount',
+      'order_data.grandTotal',
+      'order_data.grand_total',
       'order.orderData.totalAmount',
       'order.orderData.total',
       'order.orderData.subtotal',
       'order.orderData.amount',
+      'order.orderData.grandTotal',
+      'order.orderData.grand_total',
       'order.order_data.totalAmount',
       'order.order_data.total',
       'order.order_data.subtotal',
-      'order.order_data.amount'
+      'order.order_data.amount',
+      'order.order_data.grandTotal',
+      'order.order_data.grand_total'
+    ];
+
+    for (const key of amountCandidates) {
+      const value = normalizeOrderProperty(order, [key]);
+      if (value === null || value === undefined || value === '') continue;
+      const parsedValue = Number(String(value).replace(/[^0-9.-]+/g, ''));
+      if (!Number.isNaN(parsedValue) && parsedValue !== 0) {
+        return parsedValue;
+      }
+    }
+
+    const items = normalizeOrderProperty(order, [
+      'items',
+      'order.items',
+      'orderData.items',
+      'order_data.items',
+      'order.orderData.items',
+      'order.order_data.items'
     ]);
-    return Number(rawAmount || 0);
+
+    if (Array.isArray(items)) {
+      return items.reduce((sum, item) => {
+        const quantity = Number(item?.quantity ?? item?.qty ?? 0) || 0;
+        const unitPrice = Number(item?.unitPrice ?? item?.price ?? item?.amount ?? 0) || 0;
+        return sum + (quantity * unitPrice);
+      }, 0);
+    }
+
+    return 0;
   }
 
   function getOrderCreatedAt(order) {
@@ -570,6 +609,11 @@ function showToast(message, type = 'success', duration = 3000) {
       'state'
     ]);
     return String(rawStatus || '').toLowerCase();
+  }
+
+  function isSettledOrder(order) {
+    const status = getOrderStatus(order);
+    return ['completed', 'sent', 'paid', 'success', 'settled', 'closed'].includes(status);
   }
 
   async function loadAdminOrders() {
@@ -903,12 +947,12 @@ function showToast(message, type = 'success', duration = 3000) {
       previousDayStart.setDate(previousDayStart.getDate() - 1);
       const previousDayEnd = new Date(selectedDayStart);
 
-      const completedOrders = orders.filter((order) => getOrderStatus(order) === 'completed');
-      const selectedDayOrders = completedOrders.filter((order) => {
+      const settledOrders = orders.filter((order) => isSettledOrder(order));
+      const selectedDayOrders = settledOrders.filter((order) => {
         const createdAt = getOrderCreatedAt(order);
         return !Number.isNaN(createdAt.getTime()) && createdAt >= selectedDayStart && createdAt < selectedDayEnd;
       });
-      const previousDayOrders = completedOrders.filter((order) => {
+      const previousDayOrders = settledOrders.filter((order) => {
         const createdAt = getOrderCreatedAt(order);
         return !Number.isNaN(createdAt.getTime()) && createdAt >= previousDayStart && createdAt < selectedDayStart;
       });
@@ -922,7 +966,7 @@ function showToast(message, type = 'success', duration = 3000) {
       const categorySummary = {};
       const staffSummary = { waiters: {}, cashiers: {} };
 
-      completedOrders.forEach((order) => {
+      settledOrders.forEach((order) => {
         const items = Array.isArray(order.items) ? order.items : [];
         const orderAmount = getOrderAmount(order);
         const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']);
@@ -976,9 +1020,9 @@ function showToast(message, type = 'success', duration = 3000) {
         ? '<circle cx="54" cy="54" r="42" fill="none" stroke="#e5e7eb" stroke-width="18"></circle>'
         : paymentEntries.map((entry, index) => {
             const segmentLength = paymentTotalRevenue === 0 ? 0 : (entry.revenue / paymentTotalRevenue) * circumference;
-            const offset = -currentOffset;
+            const offset = circumference - currentOffset;
             currentOffset += segmentLength;
-            return `<circle cx="54" cy="54" r="42" fill="none" stroke="${paymentColors[index % paymentColors.length]}" stroke-width="18" stroke-dasharray="${segmentLength} ${circumference}" stroke-dashoffset="${offset}" transform="rotate(-90 54 54)" />`;
+            return `<circle cx="54" cy="54" r="42" fill="none" stroke="${paymentColors[index % paymentColors.length]}" stroke-width="18" stroke-linecap="round" stroke-dasharray="${segmentLength} ${Math.max(circumference - segmentLength, 0)}" stroke-dashoffset="${offset}" transform="rotate(-90 54 54)" />`;
           }).join('');
 
       bestSellerNameEl.textContent = bestSeller ? `${bestSeller.name} (${bestSeller.quantity} sold)` : 'No sales yet';
@@ -1014,6 +1058,16 @@ function showToast(message, type = 'success', duration = 3000) {
               ${pieSegments}
             </svg>
             <div class="muted" style="text-align:center;font-size:0.9rem;">${paymentEntries.length === 0 ? 'No completed sales for this day' : 'Completed orders by payment method'}</div>
+            ${paymentEntries.length > 0 ? `
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;width:100%;max-width:320px;">
+                ${paymentEntries.map((entry, index) => `
+                  <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:999px;background:#f8fafc;justify-content:center;">
+                    <span style="width:10px;height:10px;border-radius:999px;background:${paymentColors[index % paymentColors.length]};display:inline-block;"></span>
+                    <span style="font-size:0.82rem;white-space:nowrap;">${entry.label}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
           </div>
           <div style="display:grid;gap:10px;min-width:220px;">
             ${paymentEntries.length === 0 ? '<div class="muted">No payment breakdown available.</div>' : paymentEntries.map((entry, index) => `
@@ -1046,8 +1100,13 @@ function showToast(message, type = 'success', duration = 3000) {
       const maxValue = Math.max(todayRevenue, yesterdayRevenue, 1);
       const todayBarHeight = Math.round((todayRevenue / maxValue) * 100);
       const yesterdayBarHeight = Math.round((yesterdayRevenue / maxValue) * 100);
-      todayBarEl.style.height = `${Math.max(todayBarHeight, 12)}%`;
-      yesterdayBarEl.style.height = `${Math.max(yesterdayBarHeight, 12)}%`;
+      const fallbackHeight = 18;
+      todayBarEl.style.height = `${Math.max(todayBarHeight, fallbackHeight)}%`;
+      yesterdayBarEl.style.height = `${Math.max(yesterdayBarHeight, fallbackHeight)}%`;
+      todayBarEl.style.minHeight = '18px';
+      yesterdayBarEl.style.minHeight = '18px';
+      todayBarEl.style.display = 'inline-block';
+      yesterdayBarEl.style.display = 'inline-block';
     } catch (err) {
       console.error('Failed to render BI report:', err);
     }

@@ -1637,7 +1637,8 @@ function showToast(message, type = 'success', duration = 3000) {
         'cash': '💵 Cash',
         'pos': '💳 POS Card',
         'transfer': '📱 Bank Transfer',
-        'credit': '📝 Credit'
+        'credit': '📝 Credit',
+        'complementary': '🎁 Complementary'
       };
       payments.forEach(p => {
         paymentsHTML += `
@@ -1650,12 +1651,12 @@ function showToast(message, type = 'success', duration = 3000) {
     }
     
     const detailsHTML = `
-      <div style="display: flex; flex-direction: column; gap: 0; padding: 0; height: 100%;">
-        <div style="padding: 20px; border-bottom: 1px solid #e5e7eb;">
+      <div style="display: flex; flex-direction: column; gap: 0; padding: 0; height: 100%; min-height: 0;">
+        <div style="padding: 20px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0;">
           <h3 style="margin: 0; font-size: 1.3rem; font-weight: 700;">Order Details</h3>
         </div>
         
-        <div style="padding: 20px; overflow-y: auto; flex: 1;">
+        <div style="padding: 20px; overflow-y: auto; flex: 1; min-height: 0; -webkit-overflow-scrolling: touch;">
           <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
             <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
               <div>
@@ -1718,7 +1719,7 @@ function showToast(message, type = 'success', duration = 3000) {
           ` : ''}
         </div>
         
-        <div style="padding: 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; justify-content: flex-end;">
+        <div style="padding: 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0;">
           <button class="btn btn-ghost" id="btn-close-details" style="margin: 0;">Close</button>
           <button class="btn btn-primary" id="btn-print-details" style="margin: 0;">Print Receipt</button>
         </div>
@@ -2902,6 +2903,19 @@ function showToast(message, type = 'success', duration = 3000) {
     }catch(err){ console.error('Failed to render reports', err); }
   }
 
+  function getSalesDateFilterValue() {
+    const input = document.getElementById('sales-date-filter');
+    const today = new Date();
+    const defaultValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (input) {
+      if (!input.value) {
+        input.value = defaultValue;
+      }
+      return input.value || defaultValue;
+    }
+    return defaultValue;
+  }
+
   function renderSalesPanel(){
     const countEl = document.getElementById('sales-orders-count');
     const completedEl = document.getElementById('sales-completed-count');
@@ -2911,27 +2925,36 @@ function showToast(message, type = 'success', duration = 3000) {
     const tbody = document.getElementById('previous-sales-body');
 
     if(!tbody) return;
-    const range = getPreviousBusinessDayRange(businessDayCutoff, new Date());
-    const orders = filterPreviousBusinessDayOrders(allOrdersCache || []).sort((a,b)=> getOrderCreatedAt(b) - getOrderCreatedAt(a));
-    const completedOrders = orders.filter(o => getOrderStatus(o) === 'completed');
-    const pendingOrders = orders.filter(o => !isOrderClosed(o));
+
+    const selectedDateValue = getSalesDateFilterValue();
+    const selectedDate = new Date(`${selectedDateValue}T00:00:00`);
+    const nextDate = new Date(selectedDate);
+    nextDate.setDate(selectedDate.getDate() + 1);
+
+    const orders = (allOrdersCache || []).filter((order) => {
+      const createdAt = getOrderCreatedAt(order);
+      return !Number.isNaN(createdAt.getTime()) && createdAt >= selectedDate && createdAt < nextDate;
+    }).sort((a,b)=> getOrderCreatedAt(b) - getOrderCreatedAt(a));
+
+    const completedOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() === 'completed');
+    const pendingOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() !== 'completed');
     const revenue = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
 
     if(countEl) countEl.textContent = String(orders.length);
     if(completedEl) completedEl.textContent = String(completedOrders.length);
     if(pendingEl) pendingEl.textContent = String(pendingOrders.length);
     if(revenueEl) revenueEl.textContent = formatCurrency(revenue);
-    if(rangeEl) rangeEl.textContent = `Range: ${range.start.toLocaleString()} — ${range.end.toLocaleString()}`;
+    if(rangeEl) rangeEl.textContent = `Range: ${selectedDate.toLocaleDateString()}`;
 
     if(orders.length === 0){
-      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No previous business day orders found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No sales found for this date.</td></tr>';
       return;
     }
 
     tbody.innerHTML = orders.map(o => {
       const createdAt = getOrderCreatedAt(o);
       const when = !Number.isNaN(createdAt.getTime()) ? createdAt.toLocaleString() : '—';
-      const status = getOrderStatus(o);
+      const status = String(getOrderStatus(o)).toLowerCase();
       const statusLabel = status === 'completed' ? 'Completed' : 'Pending';
       const badgeStyle = status === 'completed'
         ? 'background:rgba(16,185,129,0.14);color:#065f46;border:1px solid rgba(16,185,129,0.3);'
@@ -3112,6 +3135,17 @@ function showToast(message, type = 'success', duration = 3000) {
       });
     });
   }
+
+  // Wire sales date filter
+  (function wireSalesDateFilter(){
+    const salesDateFilter = document.getElementById('sales-date-filter');
+    if (salesDateFilter) {
+      salesDateFilter.value = getSalesDateFilterValue();
+      salesDateFilter.addEventListener('change', () => {
+        renderSalesPanel();
+      });
+    }
+  })();
 
   // Wire report buttons (refresh and export)
   document.addEventListener('click', (ev)=>{
@@ -5755,6 +5789,10 @@ function showToast(message, type = 'success', duration = 3000) {
                 <input type="checkbox" class="payment-method-checkbox" value="credit" style="margin-right: 8px;">
                 <label>📝 Credit</label>
               </div>
+              <div class="payment-method-card" data-method="complementary">
+                <input type="checkbox" class="payment-method-checkbox" value="complementary" style="margin-right: 8px;">
+                <label>🎁 Complementary</label>
+              </div>
             </div>
             
             <div id="payment-amounts-section" class="payment-amounts-section">
@@ -5942,7 +5980,8 @@ function showToast(message, type = 'success', duration = 3000) {
         'cash': '💵 Cash',
         'pos': '💳 POS Card',
         'transfer': '📱 Bank Transfer',
-        'credit': '📝 Credit'
+        'credit': '📝 Credit',
+        'complementary': '🎁 Complementary'
       };
       
       payments.forEach(p => {
