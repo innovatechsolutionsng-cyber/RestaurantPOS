@@ -301,6 +301,17 @@ function showToast(message, type = 'success', duration = 3000) {
     };
   }
 
+  function isOrderOwnedByCurrentCashier(order) {
+    if (!order || typeof order !== 'object') return false;
+    const currentCashier = getCurrentCashierName();
+    const cashierName = String(order.cashierName || order.cashier || order.createdBy || '').trim();
+    return cashierName && cashierName === currentCashier;
+  }
+
+  function filterOrdersForCurrentCashier(orders) {
+    return (orders || []).filter(order => isOrderOwnedByCurrentCashier(order));
+  }
+
   function parsePotentialOrderJson(value) {
     if (typeof value !== 'string') return value;
     try {
@@ -2206,11 +2217,12 @@ function showToast(message, type = 'success', duration = 3000) {
     let totalOrders = 0;
     let totalVoidedItems = 0;
     const currentOrders = filterBusinessDayOrders(allOrdersCache || []);
+    const cashierOrders = filterOrdersForCurrentCashier(currentOrders);
     
-    // Calculate stats from current business day orders
-    if (currentOrders.length > 0) {
-      totalOrders = currentOrders.length;
-      currentOrders.forEach(order => {
+    // Calculate stats from current cashier's business day orders
+    if (cashierOrders.length > 0) {
+      totalOrders = cashierOrders.length;
+      cashierOrders.forEach(order => {
         if (order.totalAmount) {
           totalRevenue += order.totalAmount;
           if (getOrderStatus(order) === 'completed') {
@@ -3000,29 +3012,30 @@ function showToast(message, type = 'success', duration = 3000) {
       return !Number.isNaN(createdAt.getTime()) && createdAt >= selectedDate && createdAt < nextDate;
     }).sort((a,b)=> getOrderCreatedAt(b) - getOrderCreatedAt(a));
 
-    const completedOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() === 'completed');
-    const pendingOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() !== 'completed');
-    const revenue = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+    const cashierOrders = filterOrdersForCurrentCashier(orders);
+    const completedOrders = cashierOrders.filter(o => String(getOrderStatus(o)).toLowerCase() === 'completed');
+    const pendingOrders = cashierOrders.filter(o => String(getOrderStatus(o)).toLowerCase() !== 'completed');
+    const revenue = cashierOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
 
-    if(countEl) countEl.textContent = String(orders.length);
+    if(countEl) countEl.textContent = String(cashierOrders.length);
     if(completedEl) completedEl.textContent = String(completedOrders.length);
     if(pendingEl) pendingEl.textContent = String(pendingOrders.length);
     if(revenueEl) revenueEl.textContent = formatCurrency(revenue);
     if(rangeEl) rangeEl.textContent = `Range: ${selectedDate.toLocaleDateString()}`;
 
-    if(orders.length === 0){
-      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No sales found for this date.</td></tr>';
+    if(cashierOrders.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No sales found for your account on this date.</td></tr>';
       const paginationContainer = document.getElementById('previous-sales-pagination');
       if (paginationContainer) paginationContainer.innerHTML = '';
       return;
     }
 
-    const totalPages = Math.max(1, Math.ceil(orders.length / salesPerPage));
+    const totalPages = Math.max(1, Math.ceil(cashierOrders.length / salesPerPage));
     if (salesCurrentPage > totalPages) salesCurrentPage = totalPages;
     if (salesCurrentPage < 1) salesCurrentPage = 1;
     const startIdx = (salesCurrentPage - 1) * salesPerPage;
     const endIdx = startIdx + salesPerPage;
-    const pageOrders = orders.slice(startIdx, endIdx);
+    const pageOrders = cashierOrders.slice(startIdx, endIdx);
 
     tbody.innerHTML = pageOrders.map(o => {
       const createdAt = getOrderCreatedAt(o);
