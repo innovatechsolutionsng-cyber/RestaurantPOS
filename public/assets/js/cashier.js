@@ -2803,6 +2803,7 @@ function showToast(message, type = 'success', duration = 3000) {
         const d = new Date(o.createdAt);
         return d >= rangeInfo.start && d < rangeInfo.end;
       });
+      const cashierOrders = filterOrdersForCurrentCashier(orders);
 
       // Aggregate by item
       const itemsMap = new Map();
@@ -2815,7 +2816,7 @@ function showToast(message, type = 'success', duration = 3000) {
       const subcategoryNames = Object.fromEntries((allSubcategories || []).map(sc => [String(sc.id), sc.name || 'Uncategorized']));
       const subcategoryParent = Object.fromEntries((allSubcategories || []).map(sc => [String(sc.id), String(sc.parent || '')]));
 
-      orders.forEach(o => {
+      cashierOrders.forEach(o => {
         // payments
         if(Array.isArray(o.payments) && o.payments.length){
           o.payments.forEach(p => {
@@ -3101,16 +3102,17 @@ function showToast(message, type = 'success', duration = 3000) {
         const created = getOrderCreatedAt(o);
         return !Number.isNaN(created.getTime()) && created >= range.start && created < range.end;
       });
+      const cashierOrders = filterOrdersForCurrentCashier(currentDayOrders);
 
-      const totalRevenue = currentDayOrders.reduce((sum, o) => {
+      const totalRevenue = cashierOrders.reduce((sum, o) => {
         const status = String((o.status || '')).toLowerCase();
         if (status !== 'completed') return sum;
         const v = parseFloat(o.totalAmount || 0);
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
       if(revenueEl) revenueEl.textContent = formatCurrency(totalRevenue);
-      if(ordersEl) ordersEl.textContent = String(currentDayOrders.length || 0);
-      if(pendingEl) pendingEl.textContent = String(currentDayOrders.filter(o => String((o.status || '')).toLowerCase() === 'pending').length || 0);
+      if(ordersEl) ordersEl.textContent = String(cashierOrders.length || 0);
+      if(pendingEl) pendingEl.textContent = String(cashierOrders.filter(o => String((o.status || '')).toLowerCase() === 'pending').length || 0);
       if(waitersEl) waitersEl.textContent = String((allWaiters || []).length || 0);
       if(itemsEl) itemsEl.textContent = String((allProducts || []).length || 0);
       renderRecentSalesTable();
@@ -3177,8 +3179,9 @@ function showToast(message, type = 'success', duration = 3000) {
     try{
       const range = getReportRange();
       const orders = (allOrdersCache || []).filter(o => o && o.createdAt && new Date(o.createdAt) >= range.start && new Date(o.createdAt) < range.end);
+      const cashierOrders = filterOrdersForCurrentCashier(orders);
       const itemsMap = new Map();
-      orders.forEach(o => {
+      cashierOrders.forEach(o => {
         if(Array.isArray(o.items)){
           o.items.forEach(it=>{
             const id = it.productId || it.productName || JSON.stringify(it);
@@ -3203,7 +3206,7 @@ function showToast(message, type = 'success', duration = 3000) {
     const totalEl = document.getElementById('recent-sales-total');
     if(!tbody) return;
 
-    const currentDayOrders = filterBusinessDayOrders(allOrdersCache || [])
+const currentDayOrders = filterOrdersForCurrentCashier(filterBusinessDayOrders(allOrdersCache || []))
       .sort((a,b)=> getOrderCreatedAt(b) - getOrderCreatedAt(a))
       .slice(0, 8);
 
