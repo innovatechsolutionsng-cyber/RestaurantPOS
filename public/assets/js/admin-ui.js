@@ -682,6 +682,8 @@ function showToast(message, type = 'success', duration = 3000) {
 
   let salesOrdersCache = [];
   let selectedSalesOrderId = null;
+  const SALES_PAGE_SIZE = 14;
+  let salesCurrentPage = 1;
 
   function getOrderStableId(order, index) {
     return String(order.id ?? order._id ?? order.orderId ?? order.reference ?? `sale-${index}`);
@@ -780,6 +782,42 @@ function showToast(message, type = 'success', duration = 3000) {
     renderSalesDetail(order);
   }
 
+  function renderSalesPagination(totalItems) {
+    const paginationContainer = document.getElementById('sales-pagination');
+    if (!paginationContainer) return;
+
+    const totalPages = Math.max(1, Math.ceil(totalItems / SALES_PAGE_SIZE));
+    if (salesCurrentPage > totalPages) salesCurrentPage = totalPages;
+
+    paginationContainer.style.display = 'flex';
+    paginationContainer.innerHTML = `
+      <span class="muted" style="margin-right:8px;">Page ${salesCurrentPage} of ${totalPages}</span>
+      <button id="sales-page-prev" class="btn btn-ghost" type="button" ${salesCurrentPage === 1 ? 'disabled' : ''}>Prev</button>
+      <button id="sales-page-next" class="btn btn-ghost" type="button" ${salesCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
+    `;
+
+    const prevBtn = document.getElementById('sales-page-prev');
+    const nextBtn = document.getElementById('sales-page-next');
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (salesCurrentPage > 1) {
+          salesCurrentPage -= 1;
+          loadSalesPanel();
+        }
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        if (salesCurrentPage < totalPages) {
+          salesCurrentPage += 1;
+          loadSalesPanel();
+        }
+      });
+    }
+  }
+
   function getSalesDateFilterValue() {
     const salesDateFilter = document.getElementById('sales-date-filter');
     if (salesDateFilter && salesDateFilter.value) {
@@ -845,10 +883,16 @@ function showToast(message, type = 'success', duration = 3000) {
       if (salesOrdersCache.length === 0) {
         cardList.innerHTML = '<div class="muted">No sales match your search for this day.</div>';
         detailContent.innerHTML = '<p class="muted">Select a sale card to view details.</p>';
+        renderSalesPagination(0);
         return;
       }
 
-      cardList.innerHTML = salesOrdersCache.map((order, idx) => {
+      const totalPages = Math.max(1, Math.ceil(salesOrdersCache.length / SALES_PAGE_SIZE));
+      if (salesCurrentPage > totalPages) salesCurrentPage = totalPages;
+      const startIndex = (salesCurrentPage - 1) * SALES_PAGE_SIZE;
+      const pageOrders = salesOrdersCache.slice(startIndex, startIndex + SALES_PAGE_SIZE);
+
+      cardList.innerHTML = pageOrders.map((order, idx) => {
         const orderId = getOrderStableId(order, idx);
         const status = getOrderStatus(order) || 'N/A';
         const statusLabel = String(status).charAt(0).toUpperCase() + String(status).slice(1);
@@ -887,10 +931,11 @@ function showToast(message, type = 'success', duration = 3000) {
         });
       });
 
-      const chosenId = selectedSalesOrderId && salesOrdersCache.some((order, idx) => getOrderStableId(order, idx) === selectedSalesOrderId)
+      const chosenId = selectedSalesOrderId && pageOrders.some((order, idx) => getOrderStableId(order, idx) === selectedSalesOrderId)
         ? selectedSalesOrderId
-        : getOrderStableId(salesOrdersCache[0], 0);
+        : getOrderStableId(pageOrders[0], 0);
       selectSalesOrder(chosenId);
+      renderSalesPagination(salesOrdersCache.length);
     } catch (err) {
       console.error('Failed to load sales panel:', err);
       if (salesRevenueEl) salesRevenueEl.textContent = '₦0.00';
@@ -1402,10 +1447,16 @@ function showToast(message, type = 'success', duration = 3000) {
   const salesSearchInput = document.getElementById('sales-search');
   const salesDateFilterInput = document.getElementById('sales-date-filter');
   if (salesSearchInput) {
-    salesSearchInput.addEventListener('input', loadSalesPanel);
+    salesSearchInput.addEventListener('input', () => {
+      salesCurrentPage = 1;
+      loadSalesPanel();
+    });
   }
   if (salesDateFilterInput) {
-    salesDateFilterInput.addEventListener('change', loadSalesPanel);
+    salesDateFilterInput.addEventListener('change', () => {
+      salesCurrentPage = 1;
+      loadSalesPanel();
+    });
   }
 
   // User management modal + table wiring

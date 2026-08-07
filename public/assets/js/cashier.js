@@ -332,6 +332,28 @@ function showToast(message, type = 'success', duration = 3000) {
     return null;
   }
 
+  function parseOrderDateValue(value) {
+    if (value instanceof Date) return value;
+    if (typeof value === 'number' && !Number.isNaN(value)) {
+      return new Date(value);
+    }
+    if (typeof value !== 'string') return new Date(NaN);
+
+    const trimmed = String(value).trim();
+    if (!trimmed) return new Date(NaN);
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [year, month, day] = trimmed.split('-').map(Number);
+      return new Date(year, month - 1, day, 0, 0, 0, 0);
+    }
+
+    const direct = new Date(trimmed);
+    if (!Number.isNaN(direct.getTime())) return direct;
+
+    const fallback = new Date(trimmed.replace(' ', 'T'));
+    return fallback;
+  }
+
   function getOrderCreatedAt(order) {
     const rawCreated = getNestedOrderProperty(order, [
       'createdAt',
@@ -345,7 +367,7 @@ function showToast(message, type = 'success', duration = 3000) {
       'order.order_data.createdAt',
       'order.order_data.created_at'
     ]);
-    return rawCreated ? new Date(rawCreated) : new Date(NaN);
+    return parseOrderDateValue(rawCreated);
   }
 
   function getOrderUpdatedAt(order) {
@@ -1581,10 +1603,16 @@ function showToast(message, type = 'success', duration = 3000) {
       setTimeout(() => {
         // Restore original modal HTML for order form
         const modalPanel = modal.querySelector('.modal-panel');
-        if (modalPanel && originalModalHTML) {
-          modalPanel.innerHTML = originalModalHTML;
-          // Re-wire modal buttons after restoration
-          rewireModalButtons();
+        if (modalPanel) {
+          if (!originalModalHTML) {
+            captureOriginalModalHTML();
+          }
+          if (originalModalHTML) {
+            modalPanel.innerHTML = originalModalHTML;
+            modalPanel.removeAttribute('style');
+            // Re-wire modal buttons after restoration
+            rewireModalButtons();
+          }
         }
         
         // Reset all state BEFORE hiding modal to prevent stale references
@@ -1656,7 +1684,7 @@ function showToast(message, type = 'success', duration = 3000) {
           <h3 style="margin: 0; font-size: 1.3rem; font-weight: 700;">Order Details</h3>
         </div>
         
-        <div style="padding: 20px; overflow-y: auto; flex: 1; min-height: 0; -webkit-overflow-scrolling: touch;">
+        <div style="padding: 20px; overflow-y: auto; flex: 1 1 auto; min-height: 0; -webkit-overflow-scrolling: touch;">
           <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
             <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px;">
               <div>
@@ -1726,6 +1754,12 @@ function showToast(message, type = 'success', duration = 3000) {
       </div>
     `;
     
+    modalPanel.style.maxHeight = '92vh';
+    modalPanel.style.overflow = 'hidden';
+    modalPanel.style.display = 'flex';
+    modalPanel.style.flexDirection = 'column';
+    modalPanel.style.width = 'min(94vw, 760px)';
+    modalPanel.style.minWidth = 'min(94vw, 560px)';
     modalPanel.innerHTML = detailsHTML;
     
     modal.setAttribute('aria-hidden', 'false');
@@ -2736,6 +2770,9 @@ function showToast(message, type = 'success', duration = 3000) {
 
       // determine date range from controls
       const rangeInfo = getReportRange();
+      if (reportDateEl) {
+        reportDateEl.textContent = rangeInfo.label || 'Today';
+      }
       const orders = (allOrdersCache || []).filter(o => {
         if(!o || !o.createdAt) return false;
         const d = new Date(o.createdAt);
@@ -2911,9 +2948,25 @@ function showToast(message, type = 'success', duration = 3000) {
       if (!input.value) {
         input.value = defaultValue;
       }
-      return input.value || defaultValue;
+      return String(input.value || defaultValue).trim();
     }
     return defaultValue;
+  }
+
+  function getSalesDateRange(selectedDateValue) {
+    const parsed = parseOrderDateValue(selectedDateValue);
+    if (Number.isNaN(parsed.getTime())) {
+      const fallback = new Date();
+      return {
+        start: new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 0, 0, 0, 0),
+        end: new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate() + 1, 0, 0, 0, 0)
+      };
+    }
+
+    const start = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1);
+    return { start, end };
   }
 
   function renderSalesPanel(){
@@ -2927,9 +2980,7 @@ function showToast(message, type = 'success', duration = 3000) {
     if(!tbody) return;
 
     const selectedDateValue = getSalesDateFilterValue();
-    const selectedDate = new Date(`${selectedDateValue}T00:00:00`);
-    const nextDate = new Date(selectedDate);
-    nextDate.setDate(selectedDate.getDate() + 1);
+    const { start: selectedDate, end: nextDate } = getSalesDateRange(selectedDateValue);
 
     const orders = (allOrdersCache || []).filter((order) => {
       const createdAt = getOrderCreatedAt(order);
@@ -3141,9 +3192,16 @@ function showToast(message, type = 'success', duration = 3000) {
     const salesDateFilter = document.getElementById('sales-date-filter');
     if (salesDateFilter) {
       salesDateFilter.value = getSalesDateFilterValue();
-      salesDateFilter.addEventListener('change', () => {
-        renderSalesPanel();
-      });
+      const refreshSalesPanel = () => {
+        if (salesDateFilter.value) {
+          renderSalesPanel();
+        } else {
+          salesDateFilter.value = getSalesDateFilterValue();
+          renderSalesPanel();
+        }
+      };
+      salesDateFilter.addEventListener('change', refreshSalesPanel);
+      salesDateFilter.addEventListener('input', refreshSalesPanel);
     }
   })();
 
