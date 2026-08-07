@@ -1249,6 +1249,8 @@ function showToast(message, type = 'success', duration = 3000) {
     footerMessage,
     tableName,
     waiterName,
+    cashierName,
+    paymentMethod,
     clientName,
     receiptDate,
     receiptTime,
@@ -1328,6 +1330,8 @@ function showToast(message, type = 'success', duration = 3000) {
         <div class="order-info">
           <div class="info-row"><span class="info-label">Table:</span><span class="info-value">${tableName}</span></div>
           <div class="info-row"><span class="info-label">Waiter:</span><span class="info-value">${waiterName}</span></div>
+          ${cashierName ? `<div class="info-row"><span class="info-label">Cashier:</span><span class="info-value">${cashierName}</span></div>` : ''}
+          ${paymentMethod ? `<div class="info-row"><span class="info-label">Payment:</span><span class="info-value">${paymentMethod}</span></div>` : ''}
           ${clientName ? `<div class="info-row"><span class="info-label">Client:</span><span class="info-value">${clientName}</span></div>` : ''}
         </div>
         ${splitReference && typeof splitReference === 'string' ? `<div class="split-warning">⚠ SPLIT BILL #${splitReference}</div>` : ''}
@@ -1375,6 +1379,8 @@ function showToast(message, type = 'success', duration = 3000) {
         footerMessage: receiptSettings.footerMessage || options.footerMessage || 'Please come again soon',
         tableName: order?.tableName || options.tableName || 'N/A',
         waiterName: order?.waiterName || options.waiterName || 'N/A',
+        cashierName: order?.cashierName || order?.cashier || options.cashierName || order?.createdBy || 'N/A',
+        paymentMethod: order?.paymentMethod || options.paymentMethod || (Array.isArray(order?.payments) ? order.payments.map(p => p.method).filter(Boolean).join(', ') : ''),
         clientName: order?.clientName || options.clientName || '',
         receiptDate: options.receiptDate || new Date().toLocaleDateString('en-NG'),
         receiptTime: options.receiptTime || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
@@ -3027,7 +3033,7 @@ function showToast(message, type = 'success', duration = 3000) {
         ? 'background:rgba(16,185,129,0.14);color:#065f46;border:1px solid rgba(16,185,129,0.3);'
         : 'background:rgba(59,130,246,0.14);color:#1d4ed8;border:1px solid rgba(59,130,246,0.3);';
       return `
-        <tr>
+        <tr data-order-id="${o.id || ''}" class="sales-order-row" style="cursor:pointer;">
           <td style="padding:8px;border-bottom:1px solid var(--border);">${when}</td>
           <td style="padding:8px;border-bottom:1px solid var(--border);">${o.tableName || '—'}</td>
           <td style="padding:8px;border-bottom:1px solid var(--border);">${o.waiterName || '—'}</td>
@@ -3036,6 +3042,17 @@ function showToast(message, type = 'success', duration = 3000) {
         </tr>
       `;
     }).join('');
+
+    tbody.querySelectorAll('tr[data-order-id]').forEach(row => {
+      row.addEventListener('click', () => {
+        const orderId = row.getAttribute('data-order-id');
+        if (!orderId) return;
+        const order = (allOrdersCache || []).find(o => String(o.id) === String(orderId));
+        if (order) {
+          showOrderDetailsModal(order);
+        }
+      });
+    });
 
     // Render pagination controls
     const paginationContainer = document.getElementById('previous-sales-pagination');
@@ -4926,6 +4943,8 @@ function showToast(message, type = 'success', duration = 3000) {
     const eventPhone = order.eventPhone || (selectedEventId ? (allEvents.find(e => e.id == selectedEventId)?.phone || '') : '');
     const tableName = order.tableName || 'N/A';
     const waiterName = order.waiterName || 'N/A';
+    const cashierName = order.cashierName || order.cashier || order.createdBy || getCurrentCashierName();
+    const paymentMethod = order.paymentMethod || (Array.isArray(order.payments) ? order.payments.map(p => p.method).filter(Boolean).join(', ') : '');
     const clientName = order.clientName || '';
     const receiptBusinessName = receiptSettings.businessName || eventName;
     const receiptAddress = receiptSettings.address;
@@ -5242,7 +5261,9 @@ function showToast(message, type = 'success', duration = 3000) {
       email: receiptEmail,
       footerMessage: receiptFooterMessage,
       receiptDate,
-      receiptTime
+      receiptTime,
+      cashierName,
+      paymentMethod
     });
   }
 
