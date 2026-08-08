@@ -4725,15 +4725,57 @@ function showToast(message, type = 'success', duration = 3000) {
     const eodArchivesList = document.getElementById('eod-archives-list');
     const EOD_ARCHIVES_KEY = 'adminEodArchives';
 
-    function loadEodArchives() {
-      let archives = [];
+    async function loadEodArchives() {
+      let localArchives = [];
       try {
         const raw = localStorage.getItem(EOD_ARCHIVES_KEY);
-        archives = raw ? JSON.parse(raw) : [];
+        localArchives = raw ? JSON.parse(raw) : [];
       } catch (error) {
         console.error('Error reading archive data:', error);
-        archives = [];
+        localArchives = [];
       }
+
+      // Attempt to fetch backend-stored EOD reports when available
+      let remoteArchives = [];
+      try {
+        if (typeof BACKEND_AVAILABLE !== 'undefined' && BACKEND_AVAILABLE && typeof fetchBackend === 'function') {
+          const resp = await fetchBackend('/api/reports/eod');
+          if (resp && resp.success && Array.isArray(resp.reports)) {
+            remoteArchives = (resp.reports || []).map(r => ({
+              id: r.id,
+              reportId: r.id,
+              title: r.title || 'End of Day Report',
+              dateDisplay: (r.timestamp ? new Date(r.timestamp).toLocaleString() : ''),
+              date: (r.timestamp ? new Date(r.timestamp).toLocaleDateString() : ''),
+              time: (r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : ''),
+              totalValue: Number(r.totalValue || 0),
+              data: r.reportData || {},
+              summary: {}
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load remote EOD reports:', err);
+        remoteArchives = [];
+      }
+
+      // Merge remote and local archives, preferring remote entries when duplicates exist
+      const merged = [];
+      const seenIds = new Set();
+      remoteArchives.forEach((a) => {
+        if (a.reportId) seenIds.add(String(a.reportId));
+        else if (a.id) seenIds.add(String(a.id));
+        merged.push(a);
+      });
+      localArchives.forEach((a) => {
+        const idToCheck = a.reportId || a.id;
+        if (!idToCheck || !seenIds.has(String(idToCheck))) {
+          merged.push(a);
+          if (idToCheck) seenIds.add(String(idToCheck));
+        }
+      });
+
+      const archives = merged;
 
       if (!eodArchivesList) return;
       if (!archives.length) {
@@ -4924,10 +4966,10 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     if (btnRefreshArchives) {
-      btnRefreshArchives.addEventListener('click', loadEodArchives);
+      btnRefreshArchives.addEventListener('click', async () => await loadEodArchives());
     }
 
-    loadEodArchives();
+    await loadEodArchives();
     
     // Helper function to format currency
     function formatCurrency(amount) {
