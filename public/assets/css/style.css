@@ -618,6 +618,9 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(245,158,11,0.12);
   }
+  /* Small inline spinner for button loading states */
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,0.12);border-top-color:rgba(0,0,0,0.56);border-radius:50%;vertical-align:middle;margin-right:8px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .order-card-label{color:var(--muted);font-size:.8rem}
   .order-card-value{font-weight:600;color:var(--text);font-size:.86rem}
   .order-card-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;justify-content:center}

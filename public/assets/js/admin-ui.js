@@ -4815,7 +4815,7 @@ function showToast(message, type = 'success', duration = 3000) {
       });
     }
 
-    function saveEodArchive(reportData) {
+    async function saveEodArchive(reportData) {
       if (!reportData) return;
       let archives = [];
       try {
@@ -4898,14 +4898,28 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     if (btnSaveEod) {
-      btnSaveEod.addEventListener('click', () => {
+      btnSaveEod.addEventListener('click', async () => {
         if (!window.eodReportData) {
           alert('Generate a report before saving it to archives.');
           return;
         }
-        saveEodArchive(window.eodReportData);
-        loadEodArchives();
-        alert('Report saved to archives.');
+
+        // Save button loading state
+        const origHtml = btnSaveEod.innerHTML;
+        try {
+          btnSaveEod.disabled = true;
+          btnSaveEod.innerHTML = '<span class="spinner" aria-hidden="true"></span> Saving...';
+
+          await saveEodArchive(window.eodReportData);
+          loadEodArchives();
+          alert('Report saved to archives.');
+        } catch (err) {
+          console.error('Failed to save EOD report:', err);
+          alert('Failed to save report: ' + (err && err.message ? err.message : 'Unknown error'));
+        } finally {
+          btnSaveEod.disabled = false;
+          btnSaveEod.innerHTML = origHtml;
+        }
       });
     }
 
