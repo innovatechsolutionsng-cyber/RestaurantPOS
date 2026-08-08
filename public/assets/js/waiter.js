@@ -30,6 +30,9 @@
 
   let businessDayCutoff = '00:00';
   let businessDayRefreshTimer = null;
+  // Billing settings (from admin UI)
+  let billingSettings = { taxPercentage: 0, serviceChargePercentage: 0, discountPercentage: 0 };
+  let billingSettingsLoaded = false;
 
   function showToast(message, type = 'success', duration = 3000) {
     const toast = document.createElement('div');
@@ -156,6 +159,35 @@
       }
     } catch (err) {
       console.warn('Failed to load business day cutoff:', err);
+    }
+  }
+
+  // Load billing settings from admin (try local DB first, fall back to backend)
+  async function loadBillingSettings() {
+    try {
+      if (typeof RestaurantDB !== 'undefined' && RestaurantDB && typeof RestaurantDB.getSetting === 'function') {
+        const taxSetting = await RestaurantDB.getSetting('taxPercentage').catch(() => null);
+        const serviceSetting = await RestaurantDB.getSetting('serviceChargePercentage').catch(() => null);
+        const discountSetting = await RestaurantDB.getSetting('discountPercentage').catch(() => null);
+        billingSettings.taxPercentage = taxSetting ? parseFloat(taxSetting.value) || 0 : billingSettings.taxPercentage || 0;
+        billingSettings.serviceChargePercentage = serviceSetting ? parseFloat(serviceSetting.value) || 0 : billingSettings.serviceChargePercentage || 0;
+        billingSettings.discountPercentage = discountSetting ? parseFloat(discountSetting.value) || 0 : billingSettings.discountPercentage || 0;
+      } else if (typeof fetchBackend === 'function') {
+        const [taxRes, serviceRes, discountRes] = await Promise.all([
+          fetchBackend('/api/settings/tax').catch(() => null),
+          fetchBackend('/api/settings/service-charge').catch(() => null),
+          fetchBackend('/api/settings/discount').catch(() => null)
+        ]);
+        billingSettings.taxPercentage = taxRes ? parseFloat(taxRes.value) || 0 : billingSettings.taxPercentage || 0;
+        billingSettings.serviceChargePercentage = serviceRes ? parseFloat(serviceRes.value) || 0 : billingSettings.serviceChargePercentage || 0;
+        billingSettings.discountPercentage = discountRes ? parseFloat(discountRes.value) || 0 : billingSettings.discountPercentage || 0;
+      }
+      billingSettingsLoaded = true;
+      console.log('Waiter billing settings loaded:', billingSettings);
+    } catch (err) {
+      console.warn('Failed to load waiter billing settings, using defaults', err);
+      billingSettings = { taxPercentage: billingSettings.taxPercentage || 0, serviceChargePercentage: billingSettings.serviceChargePercentage || 0, discountPercentage: billingSettings.discountPercentage || 0 };
+      billingSettingsLoaded = true;
     }
   }
 
@@ -456,6 +488,9 @@
   }
 
   async function refreshDashboard() {
+    if (!billingSettingsLoaded) {
+      await loadBillingSettings().catch(() => {});
+    }
     await loadBusinessDayCutoff();
     const orders = await getOrders();
     const waiterName = String(session?.username || '').trim().toLowerCase();
@@ -696,6 +731,7 @@
     realtimeRefreshTimer = setInterval(refreshWaiterRealtime, REALTIME_REFRESH_INTERVAL);
   }
 
+  await loadBillingSettings().catch(() => {});
   wireWaiterReportControls();
   await refreshDashboard();
   scheduleBusinessDayRefresh();
@@ -876,6 +912,8 @@
     }
 
     try {
+      // Ensure billing settings are available for any breakdowns
+      try{ await loadBillingSettings(); }catch(e){ /* ignore */ }
       const allWaiterOrders = await getOrders();
       const filteredOrders = (allWaiterOrders || []).filter((order) => {
         const createdAt = getOrderCreatedDate(order);
@@ -1403,7 +1441,11 @@
       if (message) message.textContent = 'Add at least one product to place the order.';
       return;
     }
-    const totalAmount = currentOrderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = currentOrderItems.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+    const discount = (subtotal * (billingSettings.discountPercentage || 0)) / 100;
+    const tax = (subtotal * (billingSettings.taxPercentage || 0)) / 100;
+    const service = (subtotal * (billingSettings.serviceChargePercentage || 0)) / 100;
+    const totalAmount = subtotal - discount + tax + service;
     container.innerHTML = currentOrderItems.map((item) => {
       const lineTotal = item.price * item.quantity;
       return `
@@ -1426,9 +1468,12 @@
     `;
     }).join('');
     container.innerHTML += `
-      <div class="order-summary-total">
-        <span>Order Total</span>
-        <strong>${formatCurrency(totalAmount)}</strong>
+      <div class="order-summary-breakdown">
+        <div style="display:flex;justify-content:space-between;"> <span>Subtotal</span><strong>${formatCurrency(subtotal)}</strong></div>
+        ${discount > 0 ? `<div style="display:flex;justify-content:space-between;color:#ef4444;"> <span>Discount (${billingSettings.discountPercentage}%)</span><strong>-${formatCurrency(discount)}</strong></div>` : ''}
+        ${tax > 0 ? `<div style="display:flex;justify-content:space-between;color:#10b981;"> <span>Tax (${billingSettings.taxPercentage}%)</span><strong>+${formatCurrency(tax)}</strong></div>` : ''}
+        ${service > 0 ? `<div style="display:flex;justify-content:space-between;color:#3b82f6;"> <span>Service (${billingSettings.serviceChargePercentage}%)</span><strong>+${formatCurrency(service)}</strong></div>` : ''}
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-weight:700;"> <span>Total</span><strong>${formatCurrency(totalAmount)}</strong></div>
       </div>
     `;
     if (message) message.textContent = '';
@@ -1533,6 +1578,15 @@
       sub: item.sub ?? item.product?.sub ?? null
     }));
 
+    const receiptSubtotal = Number(order.subtotal ?? order.billingBreakdown?.subtotal ?? normalizedItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0));
+    const receiptDiscountPercentage = Number(order.discountPercentage ?? order.billingBreakdown?.discountPercentage ?? 0);
+    const receiptTaxPercentage = Number(order.taxPercentage ?? order.billingBreakdown?.taxPercentage ?? 0);
+    const receiptServiceChargePercentage = Number(order.serviceChargePercentage ?? order.billingBreakdown?.serviceChargePercentage ?? 0);
+    const receiptDiscountAmount = Number(order.discountAmount ?? order.billingBreakdown?.discountAmount ?? (receiptSubtotal * receiptDiscountPercentage) / 100);
+    const receiptTaxAmount = Number(order.taxAmount ?? order.billingBreakdown?.taxAmount ?? (receiptSubtotal * receiptTaxPercentage) / 100);
+    const receiptServiceChargeAmount = Number(order.serviceChargeAmount ?? order.billingBreakdown?.serviceChargeAmount ?? (receiptSubtotal * receiptServiceChargePercentage) / 100);
+    const receiptTotal = Number(order.totalAmount ?? order.billingBreakdown?.totalAmount ?? receiptSubtotal - receiptDiscountAmount + receiptTaxAmount + receiptServiceChargeAmount);
+
     const groupedItems = buildCategoryGroupedItems(normalizedItems);
     const shouldSplitByCategory = groupedItems.length > 1;
     const printGroups = shouldSplitByCategory
@@ -1573,6 +1627,13 @@
             </div>
             ${shouldSplitByCategory ? `<div class="banner">${categoryLabel}</div>` : ''}
             <div style="margin-top:8px;">${itemsHtml}</div>
+            <div class="meta" style="margin-top:12px;border-top:1px solid #000;padding-top:8px;">
+              <div class="meta-row"><span>Subtotal</span><span>${formatCurrency(receiptSubtotal)}</span></div>
+              ${receiptDiscountAmount > 0 ? `<div class="meta-row"><span>Discount (${receiptDiscountPercentage}%)</span><span>-${formatCurrency(receiptDiscountAmount)}</span></div>` : ''}
+              ${receiptTaxAmount > 0 ? `<div class="meta-row"><span>Tax (${receiptTaxPercentage}%)</span><span>+${formatCurrency(receiptTaxAmount)}</span></div>` : ''}
+              ${receiptServiceChargeAmount > 0 ? `<div class="meta-row"><span>Service (${receiptServiceChargePercentage}%)</span><span>+${formatCurrency(receiptServiceChargeAmount)}</span></div>` : ''}
+              <div class="meta-row" style="font-weight:700;"><span>Total</span><span>${formatCurrency(receiptTotal)}</span></div>
+            </div>
           </body>
         </html>
       `;
@@ -1599,7 +1660,11 @@
 
   async function saveOrderToBackend(orderData, orderId = null) {
     const finalOrderId = orderId || `waiter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const totalAmount = currentOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const subtotal = currentOrderItems.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+    const discountAmount = (subtotal * (billingSettings.discountPercentage || 0)) / 100;
+    const taxAmount = (subtotal * (billingSettings.taxPercentage || 0)) / 100;
+    const serviceChargeAmount = (subtotal * (billingSettings.serviceChargePercentage || 0)) / 100;
+    const totalAmount = subtotal - discountAmount + taxAmount + serviceChargeAmount;
     const now = new Date().toISOString();
     const isUpdate = Boolean(orderId);
     const orderPayload = {
@@ -1621,7 +1686,24 @@
         cat: item.cat ?? item.product?.cat ?? null,
         sub: item.sub ?? item.product?.sub ?? null
       })),
+      subtotal,
+      discountPercentage: billingSettings.discountPercentage || 0,
+      discountAmount,
+      taxPercentage: billingSettings.taxPercentage || 0,
+      taxAmount,
+      serviceChargePercentage: billingSettings.serviceChargePercentage || 0,
+      serviceChargeAmount,
       totalAmount,
+      billingBreakdown: {
+        subtotal,
+        discountPercentage: billingSettings.discountPercentage || 0,
+        discountAmount,
+        taxPercentage: billingSettings.taxPercentage || 0,
+        taxAmount,
+        serviceChargePercentage: billingSettings.serviceChargePercentage || 0,
+        serviceChargeAmount,
+        totalAmount
+      },
       allowCashierDelete: isUpdate ? false : true,
       createdFrom: isUpdate ? 'waiter-update' : 'waiter-create',
       createdAt: now,

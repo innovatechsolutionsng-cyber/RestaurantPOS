@@ -2219,18 +2219,23 @@ function showToast(message, type = 'success', duration = 3000) {
     const currentOrders = filterBusinessDayOrders(allOrdersCache || []);
     const cashierOrders = filterOrdersForCurrentCashier(currentOrders);
     
-    // Calculate stats from current cashier's business day orders
+    // Calculate system-wide revenue from current business day orders
+    if (currentOrders.length > 0) {
+      totalRevenue = currentOrders.reduce((sum, order) => {
+        const v = parseFloat(order.totalAmount || 0);
+        return sum + (isNaN(v) ? 0 : v);
+      }, 0);
+    }
+
+    // Calculate other POS stats from current cashier's business day orders
     if (cashierOrders.length > 0) {
       totalOrders = cashierOrders.length;
       cashierOrders.forEach(order => {
-        if (order.totalAmount) {
-          totalRevenue += order.totalAmount;
-          if (getOrderStatus(order) === 'completed') {
-            completedRevenue += order.totalAmount;
-          }
+        if (order.totalAmount && getOrderStatus(order) === 'completed') {
+          completedRevenue += parseFloat(order.totalAmount) || 0;
         }
         if (order.voidedItems && order.voidedItems.length > 0) {
-          totalVoidedItems += order.voidedItems.reduce((sum, item) => sum + item.quantity, 0);
+          totalVoidedItems += order.voidedItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
         }
       });
     }
@@ -3105,14 +3110,12 @@ function showToast(message, type = 'success', duration = 3000) {
       const cashierOrders = filterOrdersForCurrentCashier(currentDayOrders);
 
       const totalRevenue = cashierOrders.reduce((sum, o) => {
-        const status = String((o.status || '')).toLowerCase();
-        if (status !== 'completed') return sum;
         const v = parseFloat(o.totalAmount || 0);
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
       if(revenueEl) revenueEl.textContent = formatCurrency(totalRevenue);
       if(ordersEl) ordersEl.textContent = String(cashierOrders.length || 0);
-      if(pendingEl) pendingEl.textContent = String(cashierOrders.filter(o => String((o.status || '')).toLowerCase() === 'pending').length || 0);
+      if(pendingEl) pendingEl.textContent = String(currentDayOrders.filter(o => String((o.status || '')).toLowerCase() === 'pending').length || 0);
       if(waitersEl) waitersEl.textContent = String((allWaiters || []).length || 0);
       if(itemsEl) itemsEl.textContent = String((allProducts || []).length || 0);
       renderRecentSalesTable();
