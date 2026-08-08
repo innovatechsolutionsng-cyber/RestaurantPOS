@@ -2217,27 +2217,27 @@ function showToast(message, type = 'success', duration = 3000) {
     let totalOrders = 0;
     let totalVoidedItems = 0;
     const currentOrders = filterBusinessDayOrders(allOrdersCache || []);
-    const cashierOrders = filterOrdersForCurrentCashier(currentOrders);
     
-    // Calculate system-wide revenue from current business day orders
+    // Calculate system-wide revenue and order counts from current business day orders
     if (currentOrders.length > 0) {
+      totalOrders = currentOrders.length;
       totalRevenue = currentOrders.reduce((sum, order) => {
         const v = parseFloat(order.totalAmount || 0);
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
-    }
-
-    // Calculate other POS stats from current cashier's business day orders
-    if (cashierOrders.length > 0) {
-      totalOrders = cashierOrders.length;
-      cashierOrders.forEach(order => {
-        if (order.totalAmount && getOrderStatus(order) === 'completed') {
-          completedRevenue += parseFloat(order.totalAmount) || 0;
+      completedRevenue = currentOrders.reduce((sum, order) => {
+        if (getOrderStatus(order) === 'completed') {
+          const v = parseFloat(order.totalAmount || 0);
+          return sum + (isNaN(v) ? 0 : v);
         }
+        return sum;
+      }, 0);
+      totalVoidedItems = currentOrders.reduce((sum, order) => {
         if (order.voidedItems && order.voidedItems.length > 0) {
-          totalVoidedItems += order.voidedItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+          return sum + order.voidedItems.reduce((itemSum, item) => itemSum + (Number(item.quantity) || 0), 0);
         }
-      });
+        return sum;
+      }, 0);
     }
     
     // Update the stat cards
@@ -3018,30 +3018,29 @@ function showToast(message, type = 'success', duration = 3000) {
       return !Number.isNaN(createdAt.getTime()) && createdAt >= selectedDate && createdAt < nextDate;
     }).sort((a,b)=> getOrderCreatedAt(b) - getOrderCreatedAt(a));
 
-    const cashierOrders = filterOrdersForCurrentCashier(orders);
-    const completedOrders = cashierOrders.filter(o => String(getOrderStatus(o)).toLowerCase() === 'completed');
-    const pendingOrders = cashierOrders.filter(o => String(getOrderStatus(o)).toLowerCase() !== 'completed');
-    const revenue = cashierOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+    const completedOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() === 'completed');
+    const pendingOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() !== 'completed');
+    const revenue = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
 
-    if(countEl) countEl.textContent = String(cashierOrders.length);
+    if(countEl) countEl.textContent = String(orders.length);
     if(completedEl) completedEl.textContent = String(completedOrders.length);
     if(pendingEl) pendingEl.textContent = String(pendingOrders.length);
     if(revenueEl) revenueEl.textContent = formatCurrency(revenue);
     if(rangeEl) rangeEl.textContent = `Range: ${selectedDate.toLocaleDateString()}`;
 
-    if(cashierOrders.length === 0){
-      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No sales found for your account on this date.</td></tr>';
+    if(orders.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center;">No sales found for this date.</td></tr>';
       const paginationContainer = document.getElementById('previous-sales-pagination');
       if (paginationContainer) paginationContainer.innerHTML = '';
       return;
     }
 
-    const totalPages = Math.max(1, Math.ceil(cashierOrders.length / salesPerPage));
+    const totalPages = Math.max(1, Math.ceil(orders.length / salesPerPage));
     if (salesCurrentPage > totalPages) salesCurrentPage = totalPages;
     if (salesCurrentPage < 1) salesCurrentPage = 1;
     const startIdx = (salesCurrentPage - 1) * salesPerPage;
     const endIdx = startIdx + salesPerPage;
-    const pageOrders = cashierOrders.slice(startIdx, endIdx);
+    const pageOrders = orders.slice(startIdx, endIdx);
 
     tbody.innerHTML = pageOrders.map(o => {
       const createdAt = getOrderCreatedAt(o);
@@ -3113,9 +3112,15 @@ function showToast(message, type = 'success', duration = 3000) {
         const v = parseFloat(o.totalAmount || 0);
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
+      const totalOrdersCount = currentDayOrders.length;
+      const completedOrdersCount = currentDayOrders.filter(o => String((o.status || '')).toLowerCase() === 'completed').length;
+      const pendingOrdersCount = currentDayOrders.filter(o => String((o.status || '')).toLowerCase() === 'pending').length;
+
       if(revenueEl) revenueEl.textContent = formatCurrency(totalRevenue);
-      if(ordersEl) ordersEl.textContent = String(cashierOrders.length || 0);
-      if(pendingEl) pendingEl.textContent = String(currentDayOrders.filter(o => String((o.status || '')).toLowerCase() === 'pending').length || 0);
+      if(ordersEl) ordersEl.textContent = String(totalOrdersCount || 0);
+      const completedEl = document.getElementById('stat-completed-orders');
+      if(completedEl) completedEl.textContent = String(completedOrdersCount || 0);
+      if(pendingEl) pendingEl.textContent = String(pendingOrdersCount || 0);
       if(waitersEl) waitersEl.textContent = String((allWaiters || []).length || 0);
       if(itemsEl) itemsEl.textContent = String((allProducts || []).length || 0);
       renderRecentSalesTable();
@@ -3209,7 +3214,7 @@ function showToast(message, type = 'success', duration = 3000) {
     const totalEl = document.getElementById('recent-sales-total');
     if(!tbody) return;
 
-const currentDayOrders = filterOrdersForCurrentCashier(filterBusinessDayOrders(allOrdersCache || []))
+    const currentDayOrders = filterBusinessDayOrders(allOrdersCache || [])
       .sort((a,b)=> getOrderCreatedAt(b) - getOrderCreatedAt(a))
       .slice(0, 8);
 
