@@ -1561,7 +1561,7 @@
     renderModalOrderItems(modal);
   }
 
-  function printReceipt(order, itemsToPrint = null) {
+  function printReceipt(order, itemsToPrint = null, { hideBillingSummary = false } = {}) {
     const printWindow = window.open('', '_blank', 'width=380,height=700');
     if (!printWindow) return;
 
@@ -1628,10 +1628,10 @@
             ${shouldSplitByCategory ? `<div class="banner">${categoryLabel}</div>` : ''}
             <div style="margin-top:8px;">${itemsHtml}</div>
             <div class="meta" style="margin-top:12px;border-top:1px solid #000;padding-top:8px;">
-              <div class="meta-row"><span>Subtotal</span><span>${formatCurrency(receiptSubtotal)}</span></div>
+              ${hideBillingSummary ? '' : `<div class="meta-row"><span>Subtotal</span><span>${formatCurrency(receiptSubtotal)}</span></div>
               ${receiptDiscountAmount > 0 ? `<div class="meta-row"><span>Discount (${receiptDiscountPercentage}%)</span><span>-${formatCurrency(receiptDiscountAmount)}</span></div>` : ''}
               ${receiptTaxAmount > 0 ? `<div class="meta-row"><span>Tax (${receiptTaxPercentage}%)</span><span>+${formatCurrency(receiptTaxAmount)}</span></div>` : ''}
-              ${receiptServiceChargeAmount > 0 ? `<div class="meta-row"><span>Service (${receiptServiceChargePercentage}%)</span><span>+${formatCurrency(receiptServiceChargeAmount)}</span></div>` : ''}
+              ${receiptServiceChargeAmount > 0 ? `<div class="meta-row"><span>Service (${receiptServiceChargePercentage}%)</span><span>+${formatCurrency(receiptServiceChargeAmount)}</span></div>` : ''}`}
               <div class="meta-row" style="font-weight:700;"><span>Total</span><span>${formatCurrency(receiptTotal)}</span></div>
             </div>
           </body>
@@ -1709,6 +1709,21 @@
       createdAt: now,
       updatedAt: now
     };
+
+    // If updating an existing order, preserve merge metadata so merged badge remains
+    if (isUpdate && typeof allOrdersCache !== 'undefined' && Array.isArray(allOrdersCache)) {
+      const existing = (allOrdersCache || []).find(o => String(o.id) === String(orderId));
+      if (existing) {
+        if (existing.mergedTables && existing.mergedTables.length > 0) {
+          orderPayload.mergedTables = existing.mergedTables;
+        }
+        if (existing.mergeReference) orderPayload.mergeReference = existing.mergeReference;
+        if (existing.mergeTargetTableName) orderPayload.mergeTargetTableName = existing.mergeTargetTableName;
+        if (existing.mergeTargetWaiterName) orderPayload.mergeTargetWaiterName = existing.mergeTargetWaiterName;
+        if (existing.mergeSourceTableName) orderPayload.mergeSourceTableName = existing.mergeSourceTableName;
+        if (existing.mergeSourceWaiterName) orderPayload.mergeSourceWaiterName = existing.mergeSourceWaiterName;
+      }
+    }
 
     if (typeof fetchBackend !== 'function') {
       throw new Error('backend_unavailable');
@@ -1814,7 +1829,7 @@
           ? currentOrderItems.filter((item) => item && !item.isExisting)
           : currentOrderItems;
         if (itemsForReceipt.length || !currentOrderId) {
-          printReceipt(orderPayload, itemsForReceipt);
+          printReceipt(orderPayload, itemsForReceipt, { hideBillingSummary: true });
         }
         close();
         await refreshDashboard();

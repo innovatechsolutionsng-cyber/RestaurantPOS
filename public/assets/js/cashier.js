@@ -1745,6 +1745,26 @@ function showToast(message, type = 'success', duration = 3000) {
               ${itemsHTML}
             </div>
           </div>
+
+              ${order.mergedTables && order.mergedTables.length > 0 ? `
+              <div style="margin-bottom:20px;">
+                <div style="font-weight:600; margin-bottom:8px;">Merged From</div>
+                <div style="background:#fff7ed; padding:12px; border-radius:6px; border:1px solid #fde3bf;">
+                  ${order.mergedTables.map(m => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px dashed #f3e0bf;">
+                      <div style="min-width:0;">
+                        <div style="font-weight:700;">${m.tableName || '—'}</div>
+                        <div style="font-size:0.85rem; color:#6b7280;">${m.waiterName || 'Unassigned'}</div>
+                      </div>
+                      <div style="text-align:right;">
+                        <div style="font-weight:700;">${m.itemCount || 0} items</div>
+                        <div style="font-size:0.9rem; color:#374151;">${formatCurrency(Number(m.totalAmount || 0))}</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+              ` : ''}
           
           <div style="background: #f0fdf4; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #10b981;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
@@ -3019,11 +3039,13 @@ function showToast(message, type = 'success', duration = 3000) {
     }).sort((a,b)=> getOrderCreatedAt(b) - getOrderCreatedAt(a));
 
     const completedOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() === 'completed');
+    // Completed for sales panel should reflect orders processed by current cashier only
+    const cashierCompletedOrders = completedOrders.filter(o => isOrderOwnedByCurrentCashier(o));
     const pendingOrders = orders.filter(o => String(getOrderStatus(o)).toLowerCase() !== 'completed');
     const revenue = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
 
     if(countEl) countEl.textContent = String(orders.length);
-    if(completedEl) completedEl.textContent = String(completedOrders.length);
+    if(completedEl) completedEl.textContent = String(cashierCompletedOrders.length);
     if(pendingEl) pendingEl.textContent = String(pendingOrders.length);
     if(revenueEl) revenueEl.textContent = formatCurrency(revenue);
     if(rangeEl) rangeEl.textContent = `Range: ${selectedDate.toLocaleDateString()}`;
@@ -3113,7 +3135,8 @@ function showToast(message, type = 'success', duration = 3000) {
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
       const totalOrdersCount = currentDayOrders.length;
-      const completedOrdersCount = currentDayOrders.filter(o => String((o.status || '')).toLowerCase() === 'completed').length;
+      // Completed orders count on dashboard should reflect orders processed by the current cashier
+      const completedOrdersCount = cashierOrders.filter(o => String((o.status || '')).toLowerCase() === 'completed').length;
       const pendingOrdersCount = currentDayOrders.filter(o => String((o.status || '')).toLowerCase() === 'pending').length;
 
       if(revenueEl) revenueEl.textContent = formatCurrency(totalRevenue);
