@@ -42,7 +42,7 @@
               <li><a href="#directories" class="nav-link" data-panel="directories" title="User management"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 4H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8a2 2 0 0 0-2-2h-6l-2-2z" fill="currentColor"/></svg><span>User management</span></a></li>
               <li><a href="#sales" class="nav-link" data-panel="sales" title="Sales"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16v16H4z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 8h8M8 12h8M8 16h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Sales</span></a></li>
               <li><a href="#transactions" class="nav-link" data-panel="transactions" title="Transactions"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" fill="currentColor"/></svg><span>Transactions History</span></a></li>
-              <li><a href="#bi-report" class="nav-link" data-panel="bi-report" title="B.I Report"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h16V4H4v16zm2-10h4v8H6v-8zm6 4h4v4h-4v-4zm0-8h4v4h-4V6zm-6 6h4v2H6v-2z" fill="currentColor"/></svg><span>B.I Report</span></a></li>
+              <li><a href="#bi-report" class="nav-link" data-panel="bi-report" title="B.I Report"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h16V4H4v16zm2-10h4v8H6v-8zm6 4h4v4h-4v-4zm0-8h4v4h-4V6zm-6 6h4v2H6v-2z" fill="currentColor"/></svg><span>Business Intelligence(B.I)</span></a></li>
               <li><a href="#reports" class="nav-link" data-panel="reports" title="Reports"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z" fill="currentColor"/></svg><span>Reports</span></a></li>
               <li><a href="#archives" class="nav-link" data-panel="archives" title="Archives"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16v4H4V5zm0 6h16v8H4v-8zm2 2v4h12v-4H6z" fill="currentColor"/></svg><span>Archives</span></a></li>
             </ul>
@@ -719,22 +719,8 @@
                 <button id="btn-refresh-archives" class="btn btn-primary" style="padding: 8px 16px;">Refresh</button>
               </div>
 
-              <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse;">
-                  <thead style="background: #f3f4f6; border-bottom: 2px solid #d1d5db;">
-                    <tr>
-                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Report</th>
-                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Date</th>
-                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Value</th>
-                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="eod-archives-tbody">
-                    <tr>
-                      <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No archived reports yet.</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div id="eod-archives-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">
+                <div id="eod-archives-empty" style="padding: 20px; text-align: center; color: #9ca3af; grid-column: 1 / -1;">No archived reports yet.</div>
               </div>
             </div>
           </section>

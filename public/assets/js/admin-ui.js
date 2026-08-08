@@ -4234,6 +4234,43 @@ function showToast(message, type = 'success', duration = 3000) {
         const categoriesArray = Object.entries(categorySummary).sort((a, b) => b[1] - a[1]);
         const subcategoriesArray = Object.entries(subcategorySummary).sort((a, b) => b[1] - a[1]);
         
+        const paymentBreakdown = {};
+        const staffSummary = { waiters: {}, cashiers: {} };
+        
+        allOrders.forEach(order => {
+          if (!shouldIncludeOrderInReports(order)) return;
+          const orderAmount = getOrderAmount(order);
+          const paymentMethod = String(getOrderPaymentMethod(order) || 'N/A').trim() || 'N/A';
+          if (!paymentBreakdown[paymentMethod]) {
+            paymentBreakdown[paymentMethod] = { label: paymentMethod, count: 0, revenue: 0 };
+          }
+          paymentBreakdown[paymentMethod].count += 1;
+          paymentBreakdown[paymentMethod].revenue += orderAmount;
+
+          const waiter = getOrderPerson(order, ['waiterName', 'waiter', 'waiter_name', 'orderData.waiterName', 'orderData.waiter', 'orderData.waiter_name', 'order.orderData.waiterName', 'order.orderData.waiter', 'order.orderData.waiter_name']);
+          const cashier = getOrderPerson(order, ['cashierName', 'cashier', 'createdBy', 'created_by', 'orderData.cashierName', 'orderData.cashier', 'orderData.createdBy', 'orderData.created_by', 'order.orderData.cashierName', 'order.orderData.cashier', 'order.orderData.createdBy', 'order.orderData.created_by']);
+          if (waiter && waiter !== 'N/A') {
+            staffSummary.waiters[waiter] = (staffSummary.waiters[waiter] || 0) + orderAmount;
+          }
+          if (cashier && cashier !== 'N/A') {
+            staffSummary.cashiers[cashier] = (staffSummary.cashiers[cashier] || 0) + orderAmount;
+          }
+        });
+
+        const paymentEntries = Object.values(paymentBreakdown).sort((a, b) => b.revenue - a.revenue);
+        const topProducts = itemsArray
+          .map(([product, data]) => ({ product, qty: data.qty, amount: data.amount }))
+          .sort((a, b) => b.qty - a.qty || b.amount - a.amount)
+          .slice(0, 10);
+        const topWaiters = Object.entries(staffSummary.waiters)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name, revenue]) => ({ name, revenue }));
+        const topCashiers = Object.entries(staffSummary.cashiers)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name, revenue]) => ({ name, revenue }));
+
         // Calculate totals
         const itemsTotalQty = itemsArray.reduce((sum, item) => sum + item[1].qty, 0);
         const itemsTotalAmount = itemsArray.reduce((sum, item) => sum + item[1].amount, 0);
@@ -4241,6 +4278,10 @@ function showToast(message, type = 'success', duration = 3000) {
         const subcategoriesTotalValue = subcategoriesArray.reduce((sum, sub) => sum + sub[1], 0);
         const voidedTotalQty = voidedItems.reduce((sum, item) => sum + item.qty, 0);
         const voidedTotalValue = voidedItems.reduce((sum, item) => sum + item.total, 0);
+        const itemsCount = itemsArray.length;
+        const categoriesCount = categoriesArray.length;
+        const subcategoriesCount = subcategoriesArray.length;
+        const voidedCount = voidedItems.length;
         
         let html = `
           <div style="font-family: Arial, sans-serif; color: #1f2937;">
@@ -4366,6 +4407,63 @@ function showToast(message, type = 'success', duration = 3000) {
               </table>
             </div>
           </div>
+
+            <!-- Payment Breakdown -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">PAYMENT BREAKDOWN</h3>
+              ${paymentEntries.length === 0 ? '<div style="color:#6b7280;">No payment records available.</div>' : `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;">
+                  ${paymentEntries.map((entry) => `
+                    <div style="padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;">
+                      <div style="font-weight:700; margin-bottom: 8px;">${entry.label}</div>
+                      <div style="font-size:0.95rem; color:#475569;">Orders: ${entry.count}</div>
+                      <div style="font-size:0.95rem; color:#475569;">Revenue: ₦${formatCurrency(entry.revenue)}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              `}
+            </div>
+
+            <!-- Top Selling Products -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">TOP SELLING PRODUCTS</h3>
+              ${topProducts.length === 0 ? '<div style="color:#6b7280;">No sold products yet.</div>' : `
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                  <thead>
+                    <tr style="background: #f3f4f6;">
+                      <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Product</th>
+                      <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">Qty Sold</th>
+                      <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${topProducts.map((item) => `
+                      <tr>
+                        <td style="padding: 12px; border: 1px solid #e5e7eb;">${item.product}</td>
+                        <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb;">${item.qty}</td>
+                        <td style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">₦${formatCurrency(item.amount)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+
+            <!-- Staff Performance -->
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">STAFF PERFORMANCE</h3>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;">
+                <div style="padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;">
+                  <div style="font-weight:700; margin-bottom: 10px;">Top Waiters</div>
+                  ${topWaiters.length === 0 ? '<div style="color:#6b7280;">No waiter performance yet.</div>' : `<ol style="margin:0;padding-left:18px;color:#111827;">${topWaiters.map((person) => `<li style="margin-bottom:8px;">${person.name} — ₦${formatCurrency(person.revenue)}</li>`).join('')}</ol>`}
+                </div>
+                <div style="padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;">
+                  <div style="font-weight:700; margin-bottom: 10px;">Top Cashiers</div>
+                  ${topCashiers.length === 0 ? '<div style="color:#6b7280;">No cashier performance yet.</div>' : `<ol style="margin:0;padding-left:18px;color:#111827;">${topCashiers.map((person) => `<li style="margin-bottom:8px;">${person.name} — ₦${formatCurrency(person.revenue)}</li>`).join('')}</ol>`}
+                </div>
+              </div>
+            </div>
+          </div>
         `;
 
         // Display in modal
@@ -4381,7 +4479,7 @@ function showToast(message, type = 'success', duration = 3000) {
           eodModal.style.display = 'flex';
         }
 
-        // Store report data for export
+        // Store report data for export and archiving
         window.eodReportData = {
           eventName,
           dateStr,
@@ -4396,6 +4494,19 @@ function showToast(message, type = 'success', duration = 3000) {
           subcategoriesTotalValue,
           voidedTotalQty,
           voidedTotalValue,
+          itemsCount,
+          categoriesCount,
+          subcategoriesCount,
+          voidedCount,
+          paymentBreakdown,
+          paymentEntries,
+          topProducts,
+          topWaiters,
+          topCashiers,
+          staffPerformance: {
+            waiters: topWaiters,
+            cashiers: topCashiers
+          },
           html
         };
       } catch (error) {
@@ -4611,7 +4722,7 @@ function showToast(message, type = 'success', duration = 3000) {
 
     const btnSaveEod = document.getElementById('btn-save-eod');
     const btnRefreshArchives = document.getElementById('btn-refresh-archives');
-    const eodArchivesTbody = document.getElementById('eod-archives-tbody');
+    const eodArchivesList = document.getElementById('eod-archives-list');
     const EOD_ARCHIVES_KEY = 'adminEodArchives';
 
     function loadEodArchives() {
@@ -4624,28 +4735,78 @@ function showToast(message, type = 'success', duration = 3000) {
         archives = [];
       }
 
-      if (!eodArchivesTbody) return;
+      if (!eodArchivesList) return;
       if (!archives.length) {
-        eodArchivesTbody.innerHTML = `
-          <tr>
-            <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No archived reports yet.</td>
-          </tr>
+        eodArchivesList.innerHTML = `
+          <div id="eod-archives-empty" style="padding: 20px; text-align: center; color: #9ca3af; grid-column: 1 / -1;">No archived reports yet.</div>
         `;
         return;
       }
 
-      eodArchivesTbody.innerHTML = archives.map((entry, idx) => `
-        <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
-          <td style="padding: 12px; font-size: 0.9rem; font-weight: 600;">${entry.title || 'End of Day Report'}</td>
-          <td style="padding: 12px; font-size: 0.9rem;">${entry.dateDisplay || entry.date || 'Unknown'}</td>
-          <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formatCurrency(entry.totalValue)}</td>
-          <td style="padding: 12px; text-align: right;">
-            <button type="button" class="btn btn-ghost" data-archive-id="${entry.id}">View</button>
-          </td>
-        </tr>
-      `).join('');
+      eodArchivesList.innerHTML = archives.map((entry) => {
+        const topProducts = entry.data?.topProducts || entry.summary?.topProducts || (entry.data?.itemsArray || []).slice(0, 3).map(([product, data]) => ({ product, qty: data.qty }));
+        const paymentEntries = entry.data?.paymentEntries || entry.data?.paymentBreakdown || entry.summary?.paymentBreakdown || [];
+        const topWaiterEntry = (entry.data?.topWaiters || entry.data?.staffPerformance?.waiters || entry.summary?.staffPerformance?.waiters || [])[0];
+        const topCashierEntry = (entry.data?.topCashiers || entry.data?.staffPerformance?.cashiers || entry.summary?.staffPerformance?.cashiers || [])[0];
+        const topWaiter = topWaiterEntry ? `${topWaiterEntry.name} - ₦${formatCurrency(topWaiterEntry.revenue)}` : 'No waiter';
+        const topCashier = topCashierEntry ? `${topCashierEntry.name} - ₦${formatCurrency(topCashierEntry.revenue)}` : 'No cashier';
+        const itemsCount = entry.data?.itemsCount ?? entry.summary?.itemsCount ?? (entry.data?.itemsArray || []).length;
+        const categoriesCount = entry.data?.categoriesCount ?? entry.summary?.categoriesCount ?? (entry.data?.categoriesArray || []).length;
+        const subcategoriesCount = entry.data?.subcategoriesCount ?? entry.summary?.subcategoriesCount ?? (entry.data?.subcategoriesArray || []).length;
+        const voidedCount = entry.data?.voidedCount ?? entry.summary?.voidedCount ?? (entry.data?.voidedItems || []).length;
+        const voidedTotalValue = entry.data?.voidedTotalValue ?? entry.summary?.voidedTotalValue ?? (entry.data?.voidedItems || []).reduce((sum, item) => sum + (item.total || 0), 0);
 
-      const viewButtons = eodArchivesTbody.querySelectorAll('button[data-archive-id]');
+        return `
+          <article class="card" style="display:flex;flex-direction:column;gap:16px;min-height:240px;">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                <div>
+                  <div style="font-size:0.9rem;color:#6b7280;margin-bottom:4px;">${entry.title || 'End of Day Report'}</div>
+                  <div style="font-size:0.85rem;color:#475569;">${entry.dateDisplay || entry.date || 'Unknown date'}</div>
+                </div>
+                <div style="font-weight:700;font-size:1rem;">₦${formatCurrency(entry.totalValue)}</div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px;">
+                <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                  <div style="font-size:0.82rem;color:#475569;">Top product</div>
+                  <div style="font-weight:700;margin-top:6px;">${topProducts[0]?.product || 'N/A'}</div>
+                  <div style="font-size:0.82rem;color:#6b7280;">${topProducts[0] ? `${topProducts[0].qty} sold` : 'No sales'}</div>
+                </div>
+                <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                  <div style="font-size:0.82rem;color:#475569;">Payment method</div>
+                  <div style="font-weight:700;margin-top:6px;">${paymentEntries[0]?.label || 'N/A'}</div>
+                  <div style="font-size:0.82rem;color:#6b7280;">${paymentEntries[0] ? `${paymentEntries[0].count} orders` : 'No data'}</div>
+                </div>
+                <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                  <div style="font-size:0.82rem;color:#475569;">Top staff</div>
+                  <div style="font-weight:700;margin-top:6px;">${topWaiter || 'No waiter'}</div>
+                  <div style="font-size:0.82rem;color:#6b7280;">${topCashier || 'No cashier'}</div>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                <div style="padding:12px;border-radius:12px;background:#eef2ff;">
+                  <div style="font-size:0.82rem;color:#475569;">Categories</div>
+                  <div style="margin-top:6px;font-weight:700;">${categoriesCount}</div>
+                </div>
+                <div style="padding:12px;border-radius:12px;background:#eef2ff;">
+                  <div style="font-size:0.82rem;color:#475569;">Voided items</div>
+                  <div style="margin-top:6px;font-weight:700;">${voidedCount}</div>
+                  <div style="font-size:0.82rem;color:#6b7280;">₦${formatCurrency(voidedTotalValue)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+              <div style="font-size:0.85rem;color:#475569;">${topProducts.length} top products</div>
+              <button type="button" class="btn btn-ghost" data-archive-id="${entry.id}" style="padding:10px 14px;">View report</button>
+            </div>
+          </article>
+        `;
+      }).join('');
+
+      const viewButtons = eodArchivesList.querySelectorAll('button[data-archive-id]');
       viewButtons.forEach((button) => {
         button.addEventListener('click', () => {
           const archivedId = button.dataset.archiveId;
@@ -4672,7 +4833,15 @@ function showToast(message, type = 'success', duration = 3000) {
         date: reportData.dateStr,
         time: reportData.timeStr,
         totalValue: reportData.itemsTotalAmount || 0,
-        data: reportData
+        data: reportData,
+        summary: {
+          topProducts: reportData.topProducts || [],
+          paymentBreakdown: reportData.paymentEntries || reportData.paymentBreakdown || [],
+          staffPerformance: {
+            waiters: reportData.topWaiters || reportData.staffPerformance?.waiters || [],
+            cashiers: reportData.topCashiers || reportData.staffPerformance?.cashiers || []
+          }
+        }
       };
       archives.unshift(entry);
       try {
