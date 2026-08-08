@@ -44,6 +44,7 @@
               <li><a href="#transactions" class="nav-link" data-panel="transactions" title="Transactions"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" fill="currentColor"/></svg><span>Transactions History</span></a></li>
               <li><a href="#bi-report" class="nav-link" data-panel="bi-report" title="B.I Report"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h16V4H4v16zm2-10h4v8H6v-8zm6 4h4v4h-4v-4zm0-8h4v4h-4V6zm-6 6h4v2H6v-2z" fill="currentColor"/></svg><span>B.I Report</span></a></li>
               <li><a href="#reports" class="nav-link" data-panel="reports" title="Reports"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z" fill="currentColor"/></svg><span>Reports</span></a></li>
+              <li><a href="#archives" class="nav-link" data-panel="archives" title="Archives"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16v4H4V5zm0 6h16v8H4v-8zm2 2v4h12v-4H6z" fill="currentColor"/></svg><span>Archives</span></a></li>
             </ul>
           </nav>
 
@@ -659,13 +660,12 @@
                     <tr>
                       <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Subcategory</th>
                       <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Items</th>
-                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Quantity</th>
                       <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Value</th>
                     </tr>
                   </thead>
                   <tbody id="subcategory-summary-tbody">
                     <tr>
-                      <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No subcategories found</td>
+                      <td colspan="3" style="padding: 20px; text-align: center; color: #9ca3af;">No subcategories found</td>
                     </tr>
                   </tbody>
                 </table>
@@ -694,13 +694,44 @@
                     <tr>
                       <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Category</th>
                       <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Items</th>
-                      <th style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Quantity</th>
                       <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Value</th>
                     </tr>
                   </thead>
                   <tbody id="category-summary-tbody">
                     <tr>
-                      <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No categories found</td>
+                      <td colspan="3" style="padding: 20px; text-align: center; color: #9ca3af;">No categories found</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="archives" class="panel" role="region" aria-hidden="true">
+            <h2 class="page-title">Archives</h2>
+            <div class="section-subtitle muted">Saved end-of-day reports are stored here for review and export.</div>
+            <div class="card mt-sm" style="padding: 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap;">
+                <div>
+                  <h3 class="section-title" style="margin: 0; font-size: 1.1rem;">End-of-Day Archives</h3>
+                  <div class="muted">Browse the most recent reports saved from the modal.</div>
+                </div>
+                <button id="btn-refresh-archives" class="btn btn-primary" style="padding: 8px 16px;">Refresh</button>
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead style="background: #f3f4f6; border-bottom: 2px solid #d1d5db;">
+                    <tr>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Report</th>
+                      <th style="padding: 12px; text-align: left; font-size: 0.9rem; font-weight: 600; color: #374151;">Date</th>
+                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Total Value</th>
+                      <th style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600; color: #374151;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="eod-archives-tbody">
+                    <tr>
+                      <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No archived reports yet.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1216,7 +1247,7 @@
           <div style="display: flex; gap: 8px;">
             <button id="btn-print-eod" class="btn btn-primary">Print</button>
             <button id="btn-export-csv-eod" class="btn btn-accent" style="background: #06b6d4; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">Export CSV</button>
-            <button type="button" class="btn btn-ghost" data-action="close-modal">Close</button>
+            <button id="btn-save-eod" type="button" class="btn btn-primary" style="background: #8b5cf6; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">Save Report</button>
           </div>
         </header>
         <div class="modal-body">

@@ -1438,11 +1438,7 @@ function showToast(message, type = 'success', duration = 3000) {
   activateQuickAction(qaCreateProduct, openCreateProductFlow);
   activateQuickAction(qaAddStaff, openAddStaffFlow);
   activateQuickAction(qaViewSales, openViewSalesFlow);
-  activateQuickAction(qaGenerateReport, () => {
-    showPanel('reports');
-    const refreshBtn = document.getElementById('btn-refresh-items-summary');
-    if (refreshBtn) refreshBtn.click();
-  });
+  activateQuickAction(qaGenerateReport, generateEndOfDayReport);
 
   const salesSearchInput = document.getElementById('sales-search');
   const salesDateFilterInput = document.getElementById('sales-date-filter');
@@ -3413,14 +3409,12 @@ function showToast(message, type = 'success', duration = 3000) {
           <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
             <td style="padding: 12px; font-size: 0.9rem; font-weight: 600;">${item.category}</td>
             <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${item.itemCount}</td>
-            <td style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 500;">${item.totalQuantity}</td>
             <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formatCurrency(item.totalValue)}</td>
           </tr>
         `).join('') + `
           <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
             <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
             <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalItems}</td>
-            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalQuantity}</td>
             <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${formatCurrency(grandTotalValue)}</td>
           </tr>
         `;
@@ -3527,14 +3521,12 @@ function showToast(message, type = 'success', duration = 3000) {
           <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
             <td style="padding: 12px; font-size: 0.9rem; font-weight: 600;">${item.subcategory}</td>
             <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${item.itemCount}</td>
-            <td style="padding: 12px; text-align: center; font-size: 0.9rem; font-weight: 500;">${item.totalQuantity}</td>
             <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formatCurrency(item.totalValue)}</td>
           </tr>
         `).join('') + `
           <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 600;">
             <td style="padding: 12px; font-size: 0.9rem;">TOTAL</td>
             <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalItems}</td>
-            <td style="padding: 12px; text-align: center; font-size: 0.9rem;">${grandTotalQuantity}</td>
             <td style="padding: 12px; text-align: right; font-size: 0.9rem;">₦${formatCurrency(grandTotalValue)}</td>
           </tr>
         `;
@@ -4616,6 +4608,123 @@ function showToast(message, type = 'success', duration = 3000) {
         }
       });
     }
+
+    const btnSaveEod = document.getElementById('btn-save-eod');
+    const btnRefreshArchives = document.getElementById('btn-refresh-archives');
+    const eodArchivesTbody = document.getElementById('eod-archives-tbody');
+    const EOD_ARCHIVES_KEY = 'adminEodArchives';
+
+    function loadEodArchives() {
+      let archives = [];
+      try {
+        const raw = localStorage.getItem(EOD_ARCHIVES_KEY);
+        archives = raw ? JSON.parse(raw) : [];
+      } catch (error) {
+        console.error('Error reading archive data:', error);
+        archives = [];
+      }
+
+      if (!eodArchivesTbody) return;
+      if (!archives.length) {
+        eodArchivesTbody.innerHTML = `
+          <tr>
+            <td colspan="4" style="padding: 20px; text-align: center; color: #9ca3af;">No archived reports yet.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      eodArchivesTbody.innerHTML = archives.map((entry, idx) => `
+        <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #f9fafb;' : ''}">
+          <td style="padding: 12px; font-size: 0.9rem; font-weight: 600;">${entry.title || 'End of Day Report'}</td>
+          <td style="padding: 12px; font-size: 0.9rem;">${entry.dateDisplay || entry.date || 'Unknown'}</td>
+          <td style="padding: 12px; text-align: right; font-size: 0.9rem; font-weight: 600;">₦${formatCurrency(entry.totalValue)}</td>
+          <td style="padding: 12px; text-align: right;">
+            <button type="button" class="btn btn-ghost" data-archive-id="${entry.id}">View</button>
+          </td>
+        </tr>
+      `).join('');
+
+      const viewButtons = eodArchivesTbody.querySelectorAll('button[data-archive-id]');
+      viewButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const archivedId = button.dataset.archiveId;
+          openArchivedReport(archivedId);
+        });
+      });
+    }
+
+    function saveEodArchive(reportData) {
+      if (!reportData) return;
+      let archives = [];
+      try {
+        const raw = localStorage.getItem(EOD_ARCHIVES_KEY);
+        archives = raw ? JSON.parse(raw) : [];
+      } catch (error) {
+        console.error('Error reading existing archive data:', error);
+        archives = [];
+      }
+
+      const entry = {
+        id: String(Date.now()),
+        title: `${reportData.eventName} End of Day Report`,
+        dateDisplay: `${reportData.dateStr} ${reportData.timeStr}`,
+        date: reportData.dateStr,
+        time: reportData.timeStr,
+        totalValue: reportData.itemsTotalAmount || 0,
+        data: reportData
+      };
+      archives.unshift(entry);
+      try {
+        localStorage.setItem(EOD_ARCHIVES_KEY, JSON.stringify(archives.slice(0, 20)));
+      } catch (error) {
+        console.error('Error saving archive entry:', error);
+      }
+    }
+
+    function openArchivedReport(archiveId) {
+      let archives = [];
+      try {
+        const raw = localStorage.getItem(EOD_ARCHIVES_KEY);
+        archives = raw ? JSON.parse(raw) : [];
+      } catch (error) {
+        console.error('Error reading archives for view:', error);
+        archives = [];
+      }
+
+      const entry = archives.find(item => item.id === archiveId);
+      if (!entry || !entry.data) {
+        alert('Unable to load archived report.');
+        return;
+      }
+
+      window.eodReportData = entry.data;
+      const eodContent = document.getElementById('eod-content');
+      const eodModal = document.getElementById('end-of-day-modal');
+      if (eodContent) eodContent.innerHTML = entry.data.html || '<p>No content available.</p>';
+      if (eodModal) {
+        eodModal.setAttribute('aria-hidden', 'false');
+        eodModal.style.display = 'flex';
+      }
+    }
+
+    if (btnSaveEod) {
+      btnSaveEod.addEventListener('click', () => {
+        if (!window.eodReportData) {
+          alert('Generate a report before saving it to archives.');
+          return;
+        }
+        saveEodArchive(window.eodReportData);
+        loadEodArchives();
+        alert('Report saved to archives.');
+      });
+    }
+
+    if (btnRefreshArchives) {
+      btnRefreshArchives.addEventListener('click', loadEodArchives);
+    }
+
+    loadEodArchives();
     
     // Helper function to format currency
     function formatCurrency(amount) {
@@ -4627,6 +4736,7 @@ function showToast(message, type = 'success', duration = 3000) {
     loadItemsSummaryReport();
     loadSubcategorySummaryReport();
     loadCategorySummaryReport();
+    loadEodArchives();
     loadTransactionHistory();
     await renderRecentSalesTable();
   })();
