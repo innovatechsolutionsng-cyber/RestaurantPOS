@@ -2638,7 +2638,26 @@ function showToast(message, type = 'success', duration = 3000) {
       const response = await fetchBackend('/api/orders/all');
       const orders = response.orders || [];
       // cache orders so we can filter/search locally
-      allOrdersCache = (orders || []).map(normalizeLoadedOrder);
+      const prevCache = Array.isArray(allOrdersCache) ? allOrdersCache.slice() : [];
+      allOrdersCache = (orders || []).map(normalizeLoadedOrder).map(lo => {
+        try {
+          const match = prevCache.find(p => (p && lo && (String(p.id) && String(lo.id) && String(p.id) === String(lo.id))) || (p && lo && p.tableName && lo.tableName && tablesMatch(p.tableName, lo.tableName)));
+          if (match) {
+            // preserve merge metadata if backend dropped it
+            if (Array.isArray(match.mergedTables) && match.mergedTables.length > 0 && (!lo.mergedTables || lo.mergedTables.length === 0)) {
+              lo.mergedTables = match.mergedTables;
+            }
+            if (match.mergeReference && !lo.mergeReference) lo.mergeReference = match.mergeReference;
+            if (match.mergeTargetTableName && !lo.mergeTargetTableName) lo.mergeTargetTableName = match.mergeTargetTableName;
+            if (match.mergeSourceTableName && !lo.mergeSourceTableName) lo.mergeSourceTableName = match.mergeSourceTableName;
+            if (match.mergeTargetWaiterName && !lo.mergeTargetWaiterName) lo.mergeTargetWaiterName = match.mergeTargetWaiterName;
+            if (match.mergeSourceWaiterName && !lo.mergeSourceWaiterName) lo.mergeSourceWaiterName = match.mergeSourceWaiterName;
+          }
+        } catch (e) {
+          // ignore preserve errors
+        }
+        return lo;
+      });
       const currentBusinessDayOrders = filterBusinessDayOrders(allOrdersCache);
       const savedSort = getSavedOrderSortValue('newest');
       const savedStatus = getSavedOrderStatusValue('');
