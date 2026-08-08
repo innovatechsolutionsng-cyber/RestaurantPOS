@@ -506,7 +506,30 @@ function showToast(message, type = 'success', duration = 3000) {
           idx = (allOrdersCache || []).findIndex(o => tablesMatch(o.tableName, fallbackOrder.tableName));
         }
         if (idx >= 0) {
-          allOrdersCache[idx] = { ...allOrdersCache[idx], ...u };
+          const existing = allOrdersCache[idx] || {};
+          const preserved = {};
+          const mergeFields = [
+            'mergedTables',
+            'mergeReference',
+            'mergeTargetTableName',
+            'mergeSourceTableName',
+            'mergeTargetWaiterName',
+            'mergeSourceWaiterName'
+          ];
+          mergeFields.forEach((field) => {
+            if (existing[field] !== undefined) {
+              if (field === 'mergedTables') {
+                if (Array.isArray(existing.mergedTables) && existing.mergedTables.length > 0) {
+                  if (!Array.isArray(u.mergedTables) || u.mergedTables.length === 0) {
+                    preserved.mergedTables = existing.mergedTables;
+                  }
+                }
+              } else if (existing[field] && !u[field]) {
+                preserved[field] = existing[field];
+              }
+            }
+          });
+          allOrdersCache[idx] = { ...existing, ...u, ...preserved };
         } else {
           allOrdersCache.push(u);
         }
@@ -2885,11 +2908,18 @@ function showToast(message, type = 'success', duration = 3000) {
             cur.revenue += rev;
 
             // category aggregation via product lookup and root tracing
-            const prod = (allProducts || []).find(p => String(p.id) === String(it.productId));
+            const productKey = String(it.productId ?? it.id ?? it.product?.id ?? '');
+            const prod = (allProducts || []).find(p => String(p.id) === productKey);
             let categoryName = prod ? categoryNames[String(prod.cat)] : '';
             let subcategoryName = prod ? subcategoryNames[String(prod.sub)] : '';
-            const fallbackCategory = it.category || it.categoryName || '';
-            const fallbackSubcategory = it.subcategory || it.subcategoryName || '';
+            const fallbackCategory = it.category || it.categoryName || it.product?.category || it.product?.categoryName || '';
+            const fallbackSubcategory = it.subcategory || it.subcategoryName || it.product?.subcategory || it.product?.subcategoryName || '';
+            if(!categoryName && it.product?.cat != null) {
+              categoryName = categoryNames[String(it.product.cat)] || '';
+            }
+            if(!subcategoryName && it.product?.sub != null) {
+              subcategoryName = subcategoryNames[String(it.product.sub)] || '';
+            }
             if(!categoryName && prod && prod.sub){
               const parentId = subcategoryParent[String(prod.sub)];
               if(parentId) categoryName = categoryNames[parentId] || categoryName;
@@ -2934,8 +2964,8 @@ function showToast(message, type = 'success', duration = 3000) {
       const catArr = Array.from(categoryMap.entries()).map(([k,v])=> ({k,items:v.items,revenue:v.revenue})).sort((a,b)=> b.revenue - a.revenue);
       const categoryTotal = catArr.reduce((sum, c) => sum + c.revenue, 0);
       if(tbodyCats){
-        if(catArr.length === 0) tbodyCats.innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>';
-        else tbodyCats.innerHTML = catArr.map(c=>`<tr><td>${escapeHtml(c.k)}</td><td style="text-align:center">${c.items}</td><td style="text-align:right">${formatCurrency(c.revenue)}</td></tr>`).join('');
+        if(catArr.length === 0) tbodyCats.innerHTML = '<tr><td colspan="2" class="muted" style="text-align:center;padding:12px;">No data</td></tr>';
+        else tbodyCats.innerHTML = catArr.map(c=>`<tr><td>${escapeHtml(c.k)}</td><td style="text-align:right">${formatCurrency(c.revenue)}</td></tr>`).join('');
       }
       const categoryTotalEl = document.getElementById('report-category-total');
       if(categoryTotalEl) categoryTotalEl.textContent = `Total: ${formatCurrency(categoryTotal)}`;
@@ -2944,8 +2974,8 @@ function showToast(message, type = 'success', duration = 3000) {
       const tbodySubs = document.querySelector('#report-subcategories-table tbody');
       if(tbodySubs){
         const subArr = Array.from(subcategoryMap.entries()).map(([k,v])=> ({ subcategory: k || 'Unspecified', items: v.items, revenue: v.revenue })).sort((a,b)=> b.revenue - a.revenue);
-        if(subArr.length === 0) tbodySubs.innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>';
-        else tbodySubs.innerHTML = subArr.map(c=>`<tr><td>${escapeHtml(c.subcategory)}</td><td style="text-align:center">${c.items}</td><td style="text-align:right">${formatCurrency(c.revenue)}</td></tr>`).join('');
+        if(subArr.length === 0) tbodySubs.innerHTML = '<tr><td colspan="2" class="muted" style="text-align:center;padding:12px;">No data</td></tr>';
+        else tbodySubs.innerHTML = subArr.map(c=>`<tr><td>${escapeHtml(c.subcategory)}</td><td style="text-align:right">${formatCurrency(c.revenue)}</td></tr>`).join('');
         const subcategoryTotal = subArr.reduce((sum, c) => sum + c.revenue, 0);
         const subcategoryTotalEl = document.getElementById('report-subcategory-total');
         if(subcategoryTotalEl) subcategoryTotalEl.textContent = `Total: ${formatCurrency(subcategoryTotal)}`;
@@ -5950,21 +5980,44 @@ function showToast(message, type = 'success', duration = 3000) {
     
     // Build breakdown HTML
     let breakdownHTML = '';
-    if (breakdown.discount > 0 || breakdown.tax > 0 || breakdown.serviceCharge > 0) {
-      let breakdownContent = '';
-      breakdownContent += '<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>Subtotal:</span><span>' + formatCurrency(subtotal) + '</span></div>';
-      
-      if (breakdown.discount > 0) {
-        breakdownContent += '<div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #10b981;"><span>Discount (' + breakdown.discountPercentage + '%):</span><span>-' + formatCurrency(breakdown.discount) + '</span></div>';
-      }
-      if (breakdown.tax > 0) {
-        breakdownContent += '<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>Tax (' + breakdown.taxPercentage + '%):</span><span>+' + formatCurrency(breakdown.tax) + '</span></div>';
-      }
-      if (breakdown.serviceCharge > 0) {
-        breakdownContent += '<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span>Service Charge (' + breakdown.serviceChargePercentage + '%):</span><span>+' + formatCurrency(breakdown.serviceCharge) + '</span></div>';
-      }
-      
-      breakdownHTML = '<div style="background: #f3e8ff; padding: 12px; border-radius: 6px; margin-bottom: 16px; border-left: 4px solid #9333ea;"><div style="font-weight: 600; margin-bottom: 8px; color: #7e22ce;">Bill Breakdown</div><div style="font-size: 0.9rem;">' + breakdownContent + '</div></div>';
+    const isBillingActive = breakdown.discountPercentage > 0 || breakdown.taxPercentage > 0 || breakdown.serviceChargePercentage > 0;
+    if (isBillingActive) {
+      breakdownHTML = `
+        <div style="background: #eff6ff; padding: 16px; border-radius: 14px; margin-bottom: 18px; border: 1px solid #c7d2fe;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a; letter-spacing: 0.04em;">Billing Settings</div>
+            <div style="font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.14em;">Active</div>
+          </div>
+          <div style="display: grid; gap: 9px; font-size: 0.92rem; color: #334155;">
+            <div style="display:flex;justify-content:space-between;">
+              <span>Subtotal</span>
+              <span style="font-weight:600;">${formatCurrency(subtotal)}</span>
+            </div>
+            ${breakdown.discountPercentage > 0 ? `
+              <div style="display:flex;justify-content:space-between;color:#0f766e;">
+                <span>Discount (${breakdown.discountPercentage}%)</span>
+                <span style="font-weight:600;">-${formatCurrency(breakdown.discount)}</span>
+              </div>
+            ` : ''}
+            ${breakdown.taxPercentage > 0 ? `
+              <div style="display:flex;justify-content:space-between;color:#1d4ed8;">
+                <span>Tax (${breakdown.taxPercentage}%)</span>
+                <span style="font-weight:600;">+${formatCurrency(breakdown.tax)}</span>
+              </div>
+            ` : ''}
+            ${breakdown.serviceChargePercentage > 0 ? `
+              <div style="display:flex;justify-content:space-between;color:#9333ea;">
+                <span>Service Charge (${breakdown.serviceChargePercentage}%)</span>
+                <span style="font-weight:600;">+${formatCurrency(breakdown.serviceCharge)}</span>
+              </div>
+            ` : ''}
+            <div style="border-top:1px solid #c7d2fe; padding-top: 10px; display:flex;justify-content:space-between;font-weight:700;color:#0f172a;">
+              <span>Total</span>
+              <span>${formatCurrency(billTotal)}</span>
+            </div>
+          </div>
+        </div>
+      `;
     }
     
     // Store original modal content to restore on cancel

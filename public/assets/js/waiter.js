@@ -990,16 +990,16 @@
       const categoryArr = Array.from(categoryMap.entries()).map(([name, entry]) => ({ name, ...entry })).sort((a, b) => b.revenue - a.revenue);
       const categoryTotal = categoryArr.reduce((sum, entry) => sum + entry.revenue, 0);
       tbodyCats.innerHTML = categoryArr.length === 0
-        ? '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>'
-        : categoryArr.map((entry) => `<tr><td>${escapeHtml(entry.name)}</td><td style="text-align:center">${entry.items}</td><td style="text-align:right">${formatCurrency(entry.revenue)}</td></tr>`).join('');
+        ? '<tr><td colspan="2" class="muted" style="text-align:center;padding:12px;">No data</td></tr>'
+        : categoryArr.map((entry) => `<tr><td>${escapeHtml(entry.name)}</td><td style="text-align:right">${formatCurrency(entry.revenue)}</td></tr>`).join('');
       const reportCategoryTotal = document.getElementById('report-category-total');
       if (reportCategoryTotal) reportCategoryTotal.textContent = `Total: ${formatCurrency(categoryTotal)}`;
 
       const subcategoryArr = Array.from(subcategoryMap.entries()).map(([name, entry]) => ({ name, ...entry })).sort((a, b) => b.revenue - a.revenue);
       const subcategoryTotal = subcategoryArr.reduce((sum, entry) => sum + entry.revenue, 0);
       tbodySubs.innerHTML = subcategoryArr.length === 0
-        ? '<tr><td colspan="3" class="muted" style="text-align:center;padding:12px;">No data</td></tr>'
-        : subcategoryArr.map((entry) => `<tr><td>${escapeHtml(entry.name)}</td><td style="text-align:center">${entry.items}</td><td style="text-align:right">${formatCurrency(entry.revenue)}</td></tr>`).join('');
+        ? '<tr><td colspan="2" class="muted" style="text-align:center;padding:12px;">No data</td></tr>'
+        : subcategoryArr.map((entry) => `<tr><td>${escapeHtml(entry.name)}</td><td style="text-align:right">${formatCurrency(entry.revenue)}</td></tr>`).join('');
       const reportSubcategoryTotal = document.getElementById('report-subcategory-total');
       if (reportSubcategoryTotal) reportSubcategoryTotal.textContent = `Total: ${formatCurrency(subcategoryTotal)}`;
 
@@ -1627,13 +1627,23 @@
             </div>
             ${shouldSplitByCategory ? `<div class="banner">${categoryLabel}</div>` : ''}
             <div style="margin-top:8px;">${itemsHtml}</div>
-            <div class="meta" style="margin-top:12px;border-top:1px solid #000;padding-top:8px;">
-              ${hideBillingSummary ? '' : `<div class="meta-row"><span>Subtotal</span><span>${formatCurrency(receiptSubtotal)}</span></div>
-              ${receiptDiscountAmount > 0 ? `<div class="meta-row"><span>Discount (${receiptDiscountPercentage}%)</span><span>-${formatCurrency(receiptDiscountAmount)}</span></div>` : ''}
-              ${receiptTaxAmount > 0 ? `<div class="meta-row"><span>Tax (${receiptTaxPercentage}%)</span><span>+${formatCurrency(receiptTaxAmount)}</span></div>` : ''}
-              ${receiptServiceChargeAmount > 0 ? `<div class="meta-row"><span>Service (${receiptServiceChargePercentage}%)</span><span>+${formatCurrency(receiptServiceChargeAmount)}</span></div>` : ''}`}
-              <div class="meta-row" style="font-weight:700;"><span>Total</span><span>${formatCurrency(receiptTotal)}</span></div>
+            ${hideBillingSummary ? '' : `
+            <div class="billing-summary" style="margin-top:14px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #d1d5db;font-size:12px;color:#111827;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;">
+                <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#111827;">Billing Summary</div>
+                <div style="font-size:11px;color:#6b7280;">${receiptDiscountAmount > 0 || receiptTaxAmount > 0 || receiptServiceChargeAmount > 0 ? 'Billing settings active' : 'Standard billing'}</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px 12px;line-height:1.5;">
+                <div style="color:#4b5563;">Subtotal</div>
+                <div style="text-align:right;font-weight:600;color:#111827;">${formatCurrency(receiptSubtotal)}</div>
+                ${receiptDiscountAmount > 0 ? `<div style="color:#4b5563;">Discount (${receiptDiscountPercentage}%)</div><div style="text-align:right;font-weight:600;color:#111827;">-${formatCurrency(receiptDiscountAmount)}</div>` : ''}
+                ${receiptTaxAmount > 0 ? `<div style="color:#4b5563;">Tax (${receiptTaxPercentage}%)</div><div style="text-align:right;font-weight:600;color:#111827;">${formatCurrency(receiptTaxAmount)}</div>` : ''}
+                ${receiptServiceChargeAmount > 0 ? `<div style="color:#4b5563;">Service Charge (${receiptServiceChargePercentage}%)</div><div style="text-align:right;font-weight:600;color:#111827;">${formatCurrency(receiptServiceChargeAmount)}</div>` : ''}
+                <div style="border-top:1px solid #d1d5db;padding-top:10px;font-size:13px;font-weight:700;color:#111827;">Total</div>
+                <div style="border-top:1px solid #d1d5db;padding-top:10px;text-align:right;font-size:13px;font-weight:700;color:#111827;">${formatCurrency(receiptTotal)}</div>
+              </div>
             </div>
+            `}
           </body>
         </html>
       `;
