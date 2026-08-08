@@ -1765,6 +1765,30 @@ async function startAdminServer(port = 3000) {
     }
   });
 
+  // GET single EOD report by id
+  app.get('/api/reports/eod/:id', async (req, res) => {
+    try {
+      const id = req.params.id;
+      if (!id) return res.status(400).json({ success: false, error: 'missing_id' });
+      if (!useMySQL || !dbPool) { return res.status(500).json({ success: false, error: 'database_unavailable' }); }
+      const connection = await dbPool.getConnection();
+      try {
+        const [rows] = await connection.query('SELECT id, terminal_id, title, total_value, report_data, timestamp FROM eod_reports WHERE id = ? LIMIT 1', [id]);
+        if (!rows || rows.length === 0) {
+          return res.status(404).json({ success: false, error: 'not_found' });
+        }
+        const r = rows[0];
+        const report = { id: r.id, terminalId: r.terminal_id, title: r.title, totalValue: Number(r.total_value || 0), reportData: JSON.parse(r.report_data || '{}'), timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : r.timestamp };
+        res.json({ success: true, report });
+      } finally {
+        connection.release();
+      }
+    } catch (err) {
+      console.error('Error fetching EOD report by id:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   /**
    * GET /api/cash/summary
    * Get cash summary from all terminals

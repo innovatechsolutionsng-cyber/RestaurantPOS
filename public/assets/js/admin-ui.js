@@ -4723,25 +4723,16 @@ function showToast(message, type = 'success', duration = 3000) {
     const btnSaveEod = document.getElementById('btn-save-eod');
     const btnRefreshArchives = document.getElementById('btn-refresh-archives');
     const eodArchivesList = document.getElementById('eod-archives-list');
-    const EOD_ARCHIVES_KEY = 'adminEodArchives';
 
     async function loadEodArchives() {
-      let localArchives = [];
-      try {
-        const raw = localStorage.getItem(EOD_ARCHIVES_KEY);
-        localArchives = raw ? JSON.parse(raw) : [];
-      } catch (error) {
-        console.error('Error reading archive data:', error);
-        localArchives = [];
-      }
+      // Fetch archives directly from backend only
+      if (!eodArchivesList) return;
 
-      // Attempt to fetch backend-stored EOD reports when available
-      let remoteArchives = [];
       try {
         if (typeof BACKEND_AVAILABLE !== 'undefined' && BACKEND_AVAILABLE && typeof fetchBackend === 'function') {
           const resp = await fetchBackend('/api/reports/eod');
-          if (resp && resp.success && Array.isArray(resp.reports)) {
-            remoteArchives = (resp.reports || []).map(r => ({
+          if (resp && resp.success && Array.isArray(resp.reports) && resp.reports.length > 0) {
+            const archives = resp.reports.map(r => ({
               id: r.id,
               reportId: r.id,
               title: r.title || 'End of Day Report',
@@ -4752,191 +4743,147 @@ function showToast(message, type = 'success', duration = 3000) {
               data: r.reportData || {},
               summary: {}
             }));
+
+            eodArchivesList.innerHTML = archives.map((entry) => {
+              const topProducts = entry.data?.topProducts || entry.summary?.topProducts || (entry.data?.itemsArray || []).slice(0, 3).map(([product, data]) => ({ product, qty: data.qty }));
+              const paymentEntries = entry.data?.paymentEntries || entry.data?.paymentBreakdown || entry.summary?.paymentBreakdown || [];
+              const topWaiterEntry = (entry.data?.topWaiters || entry.data?.staffPerformance?.waiters || entry.summary?.staffPerformance?.waiters || [])[0];
+              const topCashierEntry = (entry.data?.topCashiers || entry.data?.staffPerformance?.cashiers || entry.summary?.staffPerformance?.cashiers || [])[0];
+              const topWaiter = topWaiterEntry ? `${topWaiterEntry.name} - ₦${formatCurrency(topWaiterEntry.revenue)}` : 'No waiter';
+              const topCashier = topCashierEntry ? `${topCashierEntry.name} - ₦${formatCurrency(topCashierEntry.revenue)}` : 'No cashier';
+              const itemsCount = entry.data?.itemsCount ?? entry.summary?.itemsCount ?? (entry.data?.itemsArray || []).length;
+              const categoriesCount = entry.data?.categoriesCount ?? entry.summary?.categoriesCount ?? (entry.data?.categoriesArray || []).length;
+              const subcategoriesCount = entry.data?.subcategoriesCount ?? entry.summary?.subcategoriesCount ?? (entry.data?.subcategoriesArray || []).length;
+              const voidedCount = entry.data?.voidedCount ?? entry.summary?.voidedCount ?? (entry.data?.voidedItems || []).length;
+              const voidedTotalValue = entry.data?.voidedTotalValue ?? entry.summary?.voidedTotalValue ?? (entry.data?.voidedItems || []).reduce((sum, item) => sum + (item.total || 0), 0);
+
+              return `
+                <article class="card" style="display:flex;flex-direction:column;gap:16px;min-height:240px;">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                      <div>
+                        <div style="font-size:0.9rem;color:#6b7280;margin-bottom:4px;">${entry.title || 'End of Day Report'}</div>
+                        <div style="font-size:0.85rem;color:#475569;">${entry.dateDisplay || entry.date || 'Unknown date'}</div>
+                      </div>
+                      <div style="font-weight:700;font-size:1rem;">₦${formatCurrency(entry.totalValue)}</div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px;">
+                      <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                        <div style="font-size:0.82rem;color:#475569;">Top product</div>
+                        <div style="font-weight:700;margin-top:6px;">${topProducts[0]?.product || 'N/A'}</div>
+                        <div style="font-size:0.82rem;color:#6b7280;">${topProducts[0] ? `${topProducts[0].qty} sold` : 'No sales'}</div>
+                      </div>
+                      <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                        <div style="font-size:0.82rem;color:#475569;">Payment method</div>
+                        <div style="font-weight:700;margin-top:6px;">${paymentEntries[0]?.label || 'N/A'}</div>
+                        <div style="font-size:0.82rem;color:#6b7280;">${paymentEntries[0] ? `${paymentEntries[0].count} orders` : 'No data'}</div>
+                      </div>
+                      <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                        <div style="font-size:0.82rem;color:#475569;">Top staff</div>
+                        <div style="font-weight:700;margin-top:6px;">${topWaiter || 'No waiter'}</div>
+                        <div style="font-size:0.82rem;color:#6b7280;">${topCashier || 'No cashier'}</div>
+                      </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                      <div style="padding:12px;border-radius:12px;background:#eef2ff;">
+                        <div style="font-size:0.82rem;color:#475569;">Categories</div>
+                        <div style="margin-top:6px;font-weight:700;">${categoriesCount}</div>
+                      </div>
+                      <div style="padding:12px;border-radius:12px;background:#eef2ff;">
+                        <div style="font-size:0.82rem;color:#475569;">Voided items</div>
+                        <div style="margin-top:6px;font-weight:700;">${voidedCount}</div>
+                        <div style="font-size:0.82rem;color:#6b7280;">₦${formatCurrency(voidedTotalValue)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <div style="font-size:0.85rem;color:#475569;">${topProducts.length} top products</div>
+                    <button type="button" class="btn btn-ghost" data-archive-id="${entry.id}" style="padding:10px 14px;">View report</button>
+                  </div>
+                </article>
+              `;
+            }).join('');
+
+            const viewButtons = eodArchivesList.querySelectorAll('button[data-archive-id]');
+            viewButtons.forEach((button) => {
+              button.addEventListener('click', async () => {
+                const archivedId = button.dataset.archiveId;
+                await openArchivedReport(archivedId);
+              });
+            });
+            return;
           }
         }
       } catch (err) {
         console.warn('Failed to load remote EOD reports:', err);
-        remoteArchives = [];
       }
 
-      // Merge remote and local archives, preferring remote entries when duplicates exist
-      const merged = [];
-      const seenIds = new Set();
-      remoteArchives.forEach((a) => {
-        if (a.reportId) seenIds.add(String(a.reportId));
-        else if (a.id) seenIds.add(String(a.id));
-        merged.push(a);
-      });
-      localArchives.forEach((a) => {
-        const idToCheck = a.reportId || a.id;
-        if (!idToCheck || !seenIds.has(String(idToCheck))) {
-          merged.push(a);
-          if (idToCheck) seenIds.add(String(idToCheck));
-        }
-      });
-
-      const archives = merged;
-
-      if (!eodArchivesList) return;
-      if (!archives.length) {
-        eodArchivesList.innerHTML = `
-          <div id="eod-archives-empty" style="padding: 20px; text-align: center; color: #9ca3af; grid-column: 1 / -1;">No archived reports yet.</div>
-        `;
-        return;
-      }
-
-      eodArchivesList.innerHTML = archives.map((entry) => {
-        const topProducts = entry.data?.topProducts || entry.summary?.topProducts || (entry.data?.itemsArray || []).slice(0, 3).map(([product, data]) => ({ product, qty: data.qty }));
-        const paymentEntries = entry.data?.paymentEntries || entry.data?.paymentBreakdown || entry.summary?.paymentBreakdown || [];
-        const topWaiterEntry = (entry.data?.topWaiters || entry.data?.staffPerformance?.waiters || entry.summary?.staffPerformance?.waiters || [])[0];
-        const topCashierEntry = (entry.data?.topCashiers || entry.data?.staffPerformance?.cashiers || entry.summary?.staffPerformance?.cashiers || [])[0];
-        const topWaiter = topWaiterEntry ? `${topWaiterEntry.name} - ₦${formatCurrency(topWaiterEntry.revenue)}` : 'No waiter';
-        const topCashier = topCashierEntry ? `${topCashierEntry.name} - ₦${formatCurrency(topCashierEntry.revenue)}` : 'No cashier';
-        const itemsCount = entry.data?.itemsCount ?? entry.summary?.itemsCount ?? (entry.data?.itemsArray || []).length;
-        const categoriesCount = entry.data?.categoriesCount ?? entry.summary?.categoriesCount ?? (entry.data?.categoriesArray || []).length;
-        const subcategoriesCount = entry.data?.subcategoriesCount ?? entry.summary?.subcategoriesCount ?? (entry.data?.subcategoriesArray || []).length;
-        const voidedCount = entry.data?.voidedCount ?? entry.summary?.voidedCount ?? (entry.data?.voidedItems || []).length;
-        const voidedTotalValue = entry.data?.voidedTotalValue ?? entry.summary?.voidedTotalValue ?? (entry.data?.voidedItems || []).reduce((sum, item) => sum + (item.total || 0), 0);
-
-        return `
-          <article class="card" style="display:flex;flex-direction:column;gap:16px;min-height:240px;">
-            <div>
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
-                <div>
-                  <div style="font-size:0.9rem;color:#6b7280;margin-bottom:4px;">${entry.title || 'End of Day Report'}</div>
-                  <div style="font-size:0.85rem;color:#475569;">${entry.dateDisplay || entry.date || 'Unknown date'}</div>
-                </div>
-                <div style="font-weight:700;font-size:1rem;">₦${formatCurrency(entry.totalValue)}</div>
-              </div>
-
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px;">
-                <div style="padding:12px;border-radius:12px;background:#f8fafc;">
-                  <div style="font-size:0.82rem;color:#475569;">Top product</div>
-                  <div style="font-weight:700;margin-top:6px;">${topProducts[0]?.product || 'N/A'}</div>
-                  <div style="font-size:0.82rem;color:#6b7280;">${topProducts[0] ? `${topProducts[0].qty} sold` : 'No sales'}</div>
-                </div>
-                <div style="padding:12px;border-radius:12px;background:#f8fafc;">
-                  <div style="font-size:0.82rem;color:#475569;">Payment method</div>
-                  <div style="font-weight:700;margin-top:6px;">${paymentEntries[0]?.label || 'N/A'}</div>
-                  <div style="font-size:0.82rem;color:#6b7280;">${paymentEntries[0] ? `${paymentEntries[0].count} orders` : 'No data'}</div>
-                </div>
-                <div style="padding:12px;border-radius:12px;background:#f8fafc;">
-                  <div style="font-size:0.82rem;color:#475569;">Top staff</div>
-                  <div style="font-weight:700;margin-top:6px;">${topWaiter || 'No waiter'}</div>
-                  <div style="font-size:0.82rem;color:#6b7280;">${topCashier || 'No cashier'}</div>
-                </div>
-              </div>
-
-              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-                <div style="padding:12px;border-radius:12px;background:#eef2ff;">
-                  <div style="font-size:0.82rem;color:#475569;">Categories</div>
-                  <div style="margin-top:6px;font-weight:700;">${categoriesCount}</div>
-                </div>
-                <div style="padding:12px;border-radius:12px;background:#eef2ff;">
-                  <div style="font-size:0.82rem;color:#475569;">Voided items</div>
-                  <div style="margin-top:6px;font-weight:700;">${voidedCount}</div>
-                  <div style="font-size:0.82rem;color:#6b7280;">₦${formatCurrency(voidedTotalValue)}</div>
-                </div>
-              </div>
-            </div>
-
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-              <div style="font-size:0.85rem;color:#475569;">${topProducts.length} top products</div>
-              <button type="button" class="btn btn-ghost" data-archive-id="${entry.id}" style="padding:10px 14px;">View report</button>
-            </div>
-          </article>
-        `;
-      }).join('');
-
-      const viewButtons = eodArchivesList.querySelectorAll('button[data-archive-id]');
-      viewButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          const archivedId = button.dataset.archiveId;
-          openArchivedReport(archivedId);
-        });
-      });
+      eodArchivesList.innerHTML = `
+        <div id="eod-archives-empty" style="padding: 20px; text-align: center; color: #9ca3af; grid-column: 1 / -1;">No archived reports yet.</div>
+      `;
+      return;
     }
 
     async function saveEodArchive(reportData) {
-      if (!reportData) return;
-      let archives = [];
-      try {
-        const raw = localStorage.getItem(EOD_ARCHIVES_KEY);
-        archives = raw ? JSON.parse(raw) : [];
-      } catch (error) {
-        console.error('Error reading existing archive data:', error);
-        archives = [];
-      }
+      if (!reportData) return null;
 
-      const entry = {
-        id: String(Date.now()),
+      // Build basic payload
+      const payload = {
+        terminalId: (Auth.getSession && Auth.getSession()?.username) || ('admin-' + String(Date.now())),
         title: `${reportData.eventName} End of Day Report`,
-        dateDisplay: `${reportData.dateStr} ${reportData.timeStr}`,
-        date: reportData.dateStr,
-        time: reportData.timeStr,
         totalValue: reportData.itemsTotalAmount || 0,
-        data: reportData,
-        summary: {
-          topProducts: reportData.topProducts || [],
-          paymentBreakdown: reportData.paymentEntries || reportData.paymentBreakdown || [],
-          staffPerformance: {
-            waiters: reportData.topWaiters || reportData.staffPerformance?.waiters || [],
-            cashiers: reportData.topCashiers || reportData.staffPerformance?.cashiers || []
-          }
-        }
+        reportData: reportData
       };
-      archives.unshift(entry);
-      try {
-        localStorage.setItem(EOD_ARCHIVES_KEY, JSON.stringify(archives.slice(0, 20)));
-      } catch (error) {
-        console.error('Error saving archive entry:', error);
-      }
 
-      // Also attempt to persist the report to the backend for centralized storage
       try {
         if (typeof fetchBackend === 'function' && typeof BACKEND_AVAILABLE !== 'undefined' && BACKEND_AVAILABLE) {
-          const session = Auth.getSession ? Auth.getSession() : null;
-          const terminalId = session?.username || session?.id || 'admin-' + String(Date.now());
           const resp = await fetchBackend('/api/reports/eod', {
             method: 'POST',
-            body: JSON.stringify({ terminalId, title: entry.title, totalValue: entry.totalValue, reportData: entry.data })
+            body: JSON.stringify(payload)
           });
-          if (resp && resp.success && resp.reportId) {
-            // persist backend id locally for reference
-            entry.reportId = resp.reportId;
-            archives[0] = entry;
-            try { localStorage.setItem(EOD_ARCHIVES_KEY, JSON.stringify(archives.slice(0,20))); } catch (err) { /* ignore */ }
+          if (resp && resp.success) {
+            return resp;
           }
+        } else {
+          throw new Error('backend_unavailable');
         }
-      } catch (error) {
-        console.error('Error saving archive entry:', error);
+      } catch (err) {
+        console.error('Error saving archive entry to backend:', err);
+        throw err;
       }
     }
 
-    function openArchivedReport(archiveId) {
-      let archives = [];
-      try {
-        const raw = localStorage.getItem(EOD_ARCHIVES_KEY);
-        archives = raw ? JSON.parse(raw) : [];
-      } catch (error) {
-        console.error('Error reading archives for view:', error);
-        archives = [];
-      }
 
-      const entry = archives.find(item => item.id === archiveId);
-      if (!entry || !entry.data) {
-        alert('Unable to load archived report.');
+    async function openArchivedReport(archiveId) {
+      if (!archiveId) {
+        alert('Invalid report id');
         return;
       }
 
-      window.eodReportData = entry.data;
-      const eodContent = document.getElementById('eod-content');
-      const eodModal = document.getElementById('end-of-day-modal');
-      if (eodContent) eodContent.innerHTML = entry.data.html || '<p>No content available.</p>';
-      if (eodModal) {
-        eodModal.setAttribute('aria-hidden', 'false');
-        eodModal.style.display = 'flex';
+      try {
+        if (typeof fetchBackend === 'function' && typeof BACKEND_AVAILABLE !== 'undefined' && BACKEND_AVAILABLE) {
+          const resp = await fetchBackend(`/api/reports/eod/${encodeURIComponent(String(archiveId))}`);
+          if (resp && resp.success && resp.report) {
+            const found = resp.report;
+            window.eodReportData = found.reportData || {};
+            const eodContent = document.getElementById('eod-content');
+            const eodModal = document.getElementById('end-of-day-modal');
+            if (eodContent) eodContent.innerHTML = (found.reportData && found.reportData.html) || '<p>No content available.</p>';
+            if (eodModal) {
+              eodModal.setAttribute('aria-hidden', 'false');
+              eodModal.style.display = 'flex';
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch archived report:', err);
       }
+
+      alert('Unable to load archived report.');
     }
 
     if (btnSaveEod) {
@@ -4953,7 +4900,7 @@ function showToast(message, type = 'success', duration = 3000) {
           btnSaveEod.innerHTML = '<span class="spinner" aria-hidden="true"></span> Saving...';
 
           await saveEodArchive(window.eodReportData);
-          loadEodArchives();
+          await loadEodArchives();
           alert('Report saved to archives.');
         } catch (err) {
           console.error('Failed to save EOD report:', err);
@@ -4981,7 +4928,6 @@ function showToast(message, type = 'success', duration = 3000) {
     loadItemsSummaryReport();
     loadSubcategorySummaryReport();
     loadCategorySummaryReport();
-    loadEodArchives();
     loadTransactionHistory();
     await renderRecentSalesTable();
   })();
