@@ -599,6 +599,25 @@ main, .overview-hero, .quick-actions-grid, .stats-grid, .dashboard-grid, .overvi
   .order-card-badge.badge-original{background:linear-gradient(90deg,#8b5cf6,#7c3aed);color:#fff;padding:4px 8px;border-radius:6px;font-size:.75rem;font-weight:700}
   .order-card-detail{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(226,232,240,0.5)}
   .order-card-detail:last-child{border-bottom:none}
+  /* Merged badge styling */
+  .merged-badge {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .merged-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(245,158,11,0.12);
+  }
   .order-card-label{color:var(--muted);font-size:.8rem}
   .order-card-value{font-weight:600;color:var(--text);font-size:.86rem}
   .order-card-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;justify-content:center}

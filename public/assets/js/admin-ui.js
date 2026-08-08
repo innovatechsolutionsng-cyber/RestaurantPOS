@@ -4849,6 +4849,26 @@ function showToast(message, type = 'success', duration = 3000) {
       } catch (error) {
         console.error('Error saving archive entry:', error);
       }
+
+      // Also attempt to persist the report to the backend for centralized storage
+      try {
+        if (typeof fetchBackend === 'function' && typeof BACKEND_AVAILABLE !== 'undefined' && BACKEND_AVAILABLE) {
+          const session = Auth.getSession ? Auth.getSession() : null;
+          const terminalId = session?.username || session?.id || 'admin-' + String(Date.now());
+          const resp = await fetchBackend('/api/reports/eod', {
+            method: 'POST',
+            body: JSON.stringify({ terminalId, title: entry.title, totalValue: entry.totalValue, reportData: entry.data })
+          });
+          if (resp && resp.success && resp.reportId) {
+            // persist backend id locally for reference
+            entry.reportId = resp.reportId;
+            archives[0] = entry;
+            try { localStorage.setItem(EOD_ARCHIVES_KEY, JSON.stringify(archives.slice(0,20))); } catch (err) { /* ignore */ }
+          }
+        }
+      } catch (error) {
+        console.error('Error saving archive entry:', error);
+      }
     }
 
     function openArchivedReport(archiveId) {

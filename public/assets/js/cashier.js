@@ -554,6 +554,22 @@ function showToast(message, type = 'success', duration = 3000) {
     });
 
     const updates = resp && Array.isArray(resp.updates) ? resp.updates : [];
+    // Ensure mergedTables are preserved if backend omits them by merging with local cache
+    try {
+      if (Array.isArray(updates) && updates.length > 0 && Array.isArray(allOrdersCache)) {
+        updates.forEach((u) => {
+          if ((!u.mergedTables || !u.mergedTables.length)) {
+            const existing = allOrdersCache.find(o => String(o.id) === String(u.id));
+            if (existing && existing.mergedTables && existing.mergedTables.length > 0) {
+              u.mergedTables = existing.mergedTables;
+            }
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to preserve mergedTables from local cache:', err);
+    }
+
     await mergeBackendOrderUpdates(updates, normalizedOrders[0]);
     return updates;
   }

@@ -173,6 +173,17 @@ async function ensureMySQLSchema(connection) {
   `);
 
   await connection.query(`
+    CREATE TABLE IF NOT EXISTS eod_reports (
+      id VARCHAR(80) PRIMARY KEY,
+      terminal_id VARCHAR(255),
+      title VARCHAR(255),
+      total_value DECIMAL(12,2),
+      report_data LONGTEXT,
+      timestamp DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await connection.query(`
     CREATE TABLE IF NOT EXISTS categories (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -1693,6 +1704,63 @@ async function startAdminServer(port = 3000) {
       });
     } catch (err) {
       console.error('Error saving cash report:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/reports/eod
+   * Admin posts an end-of-day report to be stored centrally
+   */
+  app.post('/api/reports/eod', async (req, res) => {
+    try {
+      const { terminalId, title, totalValue, reportData } = req.body;
+      const report = {
+        id: generateId(),
+        terminalId,
+        title: title || 'End of Day Report',
+        totalValue: Number(totalValue) || 0,
+        reportData: reportData || {},
+        timestamp: new Date().toISOString()
+      };
+
+      if (!useMySQL || !dbPool) { return res.status(500).json({ success: false, error: 'database_unavailable' }); }
+      const connection = await dbPool.getConnection();
+      try {
+        await connection.query(
+          'INSERT INTO eod_reports (id, terminal_id, title, total_value, report_data, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+          [report.id, report.terminalId, report.title, report.totalValue, JSON.stringify(report.reportData), new Date(report.timestamp)]
+        );
+      } finally {
+        connection.release();
+      }
+
+      res.json({ success: true, message: 'EOD report saved', reportId: report.id });
+    } catch (err) {
+      console.error('Error saving EOD report:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/reports/eod
+   * Retrieve stored end-of-day reports
+   */
+  app.get('/api/reports/eod', async (req, res) => {
+    try {
+      if (!useMySQL || !dbPool) { return res.status(500).json({ success: false, error: 'database_unavailable' }); }
+      const connection = await dbPool.getConnection();
+      let rows = [];
+      try {
+        const [resultRows] = await connection.query('SELECT id, terminal_id, title, total_value, report_data, timestamp FROM eod_reports ORDER BY timestamp DESC LIMIT 100');
+        rows = resultRows.map(r => ({ id: r.id, terminalId: r.terminal_id, title: r.title, totalValue: Number(r.total_value || 0), reportData: JSON.parse(r.report_data || '{}'), timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : r.timestamp }));
+      } finally {
+        connection.release();
+      }
+
+      res.json({ success: true, reports: rows });
+    } catch (err) {
+      console.error('Error fetching EOD reports:', err);
       res.status(500).json({ success: false, error: err.message });
     }
   });

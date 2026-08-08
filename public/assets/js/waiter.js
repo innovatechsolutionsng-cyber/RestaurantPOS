@@ -1216,12 +1216,27 @@
       const actionButton = canEdit
         ? `<button type="button" class="btn btn-accent btn-update-order" data-order-id="${order.id}" style="border:none;">Update Order</button>`
         : `<button type="button" class="btn btn-update-order" data-order-id="${order.id}" style="border:none; background:#e5e7eb; color:#6b7280; cursor:not-allowed; opacity:0.7;" disabled>Update Order</button>`;
+
+      // Render merged badge if this order has mergedTables metadata (match cashier UI)
+      const latestMergedTable = Array.isArray(order.mergedTables) && order.mergedTables.length > 0
+        ? order.mergedTables[order.mergedTables.length - 1]
+        : null;
+      const mergedBadgeText = latestMergedTable
+        ? `Merged from ${latestMergedTable.tableName || 'Unknown'} • ${latestMergedTable.waiterName || 'Waiter'}`
+        : '';
+
       return `
         <div class="order-card">
           <div class="order-card-header">
             <h4 class="order-card-title">Table ${order.tableName || 'N/A'}</h4>
             <span class="order-card-badge" style="${badgeStyle}">${statusLabel}</span>
           </div>
+          ${mergedBadgeText ? `
+          <div style="margin-top: 6px; padding: 6px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; width: fit-content;">
+            <span>🔀</span>
+            <span>${mergedBadgeText}</span>
+          </div>
+          ` : ''}
           <div class="order-card-detail">
             <span class="order-card-label">Waiter:</span>
             <span class="order-card-value">${getOrderWaiterName(order) || 'N/A'}</span>
@@ -1740,10 +1755,34 @@
     }
 
     const terminalId = `waiter-${String(session?.username || 'waiter')}`;
-    await fetchBackend('/api/orders/sync', {
+    const resp = await fetchBackend('/api/orders/sync', {
       method: 'POST',
       body: JSON.stringify({ terminalId, orders: [orderPayload], lastSyncTime: new Date(0).toISOString() })
     });
+
+    // Backend may return updated order(s). If the response omits mergedTables,
+    // preserve any local mergedTables from cache to avoid losing the badge.
+    try {
+      const returned = resp && Array.isArray(resp.updates) && resp.updates[0] ? resp.updates[0] : null;
+      if (returned) {
+        // if backend returned an order object, ensure mergedTables exist
+        if ((!returned.mergedTables || !returned.mergedTables.length) && typeof allOrdersCache !== 'undefined' && Array.isArray(allOrdersCache)) {
+          const existing = allOrdersCache.find(o => String(o.id) === String(returned.id || orderPayload.id));
+          if (existing && existing.mergedTables && existing.mergedTables.length > 0) {
+            returned.mergedTables = existing.mergedTables;
+          }
+        }
+        // update local cache with returned order
+        if (typeof allOrdersCache !== 'undefined' && Array.isArray(allOrdersCache)) {
+          const idx = allOrdersCache.findIndex(o => String(o.id) === String(returned.id || orderPayload.id));
+          if (idx !== -1) allOrdersCache[idx] = { ...allOrdersCache[idx], ...returned };
+          else allOrdersCache.push(returned);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to merge backend response for mergedTables fallback:', err);
+    }
+
     return orderPayload;
   }
 
