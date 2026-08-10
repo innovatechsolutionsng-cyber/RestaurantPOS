@@ -1749,16 +1749,35 @@ async function startAdminServer(port = 3000) {
   app.get('/api/reports/eod', async (req, res) => {
     try {
       if (!useMySQL || !dbPool) { return res.status(500).json({ success: false, error: 'database_unavailable' }); }
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.max(1, Math.min(100, Number(req.query.pageSize) || 20));
+      const offset = (page - 1) * pageSize;
+
       const connection = await dbPool.getConnection();
       let rows = [];
+      let totalCount = 0;
       try {
-        const [resultRows] = await connection.query('SELECT id, terminal_id, title, total_value, report_data, timestamp FROM eod_reports ORDER BY timestamp DESC LIMIT 100');
-        rows = resultRows.map(r => ({ id: r.id, terminalId: r.terminal_id, title: r.title, totalValue: Number(r.total_value || 0), reportData: JSON.parse(r.report_data || '{}'), timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : r.timestamp }));
+        const [countRows] = await connection.query('SELECT COUNT(*) AS count FROM eod_reports');
+        totalCount = countRows && countRows[0] ? Number(countRows[0].count || 0) : 0;
+
+        const [resultRows] = await connection.query(
+          'SELECT id, terminal_id, title, total_value, report_data, timestamp FROM eod_reports ORDER BY timestamp DESC LIMIT ? OFFSET ?',
+          [pageSize, offset]
+        );
+
+        rows = resultRows.map(r => ({
+          id: r.id,
+          terminalId: r.terminal_id,
+          title: r.title,
+          totalValue: Number(r.total_value || 0),
+          reportData: JSON.parse(r.report_data || '{}'),
+          timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : r.timestamp
+        }));
       } finally {
         connection.release();
       }
 
-      res.json({ success: true, reports: rows });
+      res.json({ success: true, reports: rows, totalCount });
     } catch (err) {
       console.error('Error fetching EOD reports:', err);
       res.status(500).json({ success: false, error: err.message });

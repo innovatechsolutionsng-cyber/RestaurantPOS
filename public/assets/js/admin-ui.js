@@ -4723,15 +4723,55 @@ function showToast(message, type = 'success', duration = 3000) {
     const btnSaveEod = document.getElementById('btn-save-eod');
     const btnRefreshArchives = document.getElementById('btn-refresh-archives');
     const eodArchivesList = document.getElementById('eod-archives-list');
+    const eodArchivesPagination = document.getElementById('eod-archives-pagination');
+    let eodArchivesCurrentPage = 1;
+    const EOD_ARCHIVES_PAGE_SIZE = 20;
 
-    async function loadEodArchives() {
-      // Fetch archives directly from backend only
+    function renderEodArchivesPagination(totalCount, currentPage) {
+      if (!eodArchivesPagination) return;
+      const totalPages = Math.max(1, Math.ceil(totalCount / EOD_ARCHIVES_PAGE_SIZE));
+      const pageButtons = [];
+      let startPage = Math.max(1, currentPage - 2);
+      let endPage = Math.min(totalPages, startPage + 4);
+      if (endPage - startPage < 4) {
+        startPage = Math.max(1, endPage - 4);
+      }
+      for (let page = startPage; page <= endPage; page += 1) {
+        pageButtons.push(`
+          <button type="button" data-page="${page}" style="padding:8px 12px;border-radius:8px;border:1px solid ${page === currentPage ? '#1d4ed8' : '#d1d5db'};background:${page === currentPage ? '#eff6ff' : '#ffffff'};color:${page === currentPage ? '#1d4ed8' : '#111827'};cursor:pointer;" ${page === currentPage ? 'disabled' : ''}>${page}</button>
+        `);
+      }
+      eodArchivesPagination.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;">
+          <button type="button" data-page="${Math.max(currentPage - 1, 1)}" style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#ffffff;color:#111827;cursor:pointer;" ${currentPage === 1 ? 'disabled' : ''}>Prev</button>
+          ${pageButtons.join('')}
+          <button type="button" data-page="${Math.min(currentPage + 1, totalPages)}" style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#ffffff;color:#111827;cursor:pointer;" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+          <span style="color:#6b7280;font-size:0.95rem;">Page ${currentPage} of ${totalPages}</span>
+        </div>
+      `;
+      eodArchivesPagination.querySelectorAll('button[data-page]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const page = Number(button.dataset.page);
+          if (!Number.isInteger(page) || page < 1 || page === eodArchivesCurrentPage) return;
+          await loadEodArchives(page);
+        });
+      });
+    }
+
+    async function loadEodArchives(page = 1) {
       if (!eodArchivesList) return;
+      eodArchivesCurrentPage = Number(page) || 1;
+      if (eodArchivesPagination) {
+        eodArchivesPagination.innerHTML = '';
+      }
+      eodArchivesList.innerHTML = `
+        <div style="padding: 32px 20px; text-align: center; color: #6b7280; grid-column: 1 / -1;">Loading archived reports...</div>
+      `;
 
       try {
         if (typeof BACKEND_AVAILABLE !== 'undefined' && BACKEND_AVAILABLE && typeof fetchBackend === 'function') {
-          const resp = await fetchBackend('/api/reports/eod');
-          if (resp && resp.success && Array.isArray(resp.reports) && resp.reports.length > 0) {
+          const resp = await fetchBackend(`/api/reports/eod?page=${eodArchivesCurrentPage}&pageSize=${EOD_ARCHIVES_PAGE_SIZE}`);
+          if (resp && resp.success && Array.isArray(resp.reports)) {
             const archives = resp.reports.map(r => ({
               id: r.id,
               reportId: r.id,
@@ -4744,76 +4784,86 @@ function showToast(message, type = 'success', duration = 3000) {
               summary: {}
             }));
 
-            eodArchivesList.innerHTML = archives.map((entry) => {
-              const topProducts = entry.data?.topProducts || entry.summary?.topProducts || (entry.data?.itemsArray || []).slice(0, 3).map(([product, data]) => ({ product, qty: data.qty }));
-              const paymentEntries = entry.data?.paymentEntries || entry.data?.paymentBreakdown || entry.summary?.paymentBreakdown || [];
-              const topWaiterEntry = (entry.data?.topWaiters || entry.data?.staffPerformance?.waiters || entry.summary?.staffPerformance?.waiters || [])[0];
-              const topCashierEntry = (entry.data?.topCashiers || entry.data?.staffPerformance?.cashiers || entry.summary?.staffPerformance?.cashiers || [])[0];
-              const topWaiter = topWaiterEntry ? `${topWaiterEntry.name} - ₦${formatCurrency(topWaiterEntry.revenue)}` : 'No waiter';
-              const topCashier = topCashierEntry ? `${topCashierEntry.name} - ₦${formatCurrency(topCashierEntry.revenue)}` : 'No cashier';
-              const itemsCount = entry.data?.itemsCount ?? entry.summary?.itemsCount ?? (entry.data?.itemsArray || []).length;
-              const categoriesCount = entry.data?.categoriesCount ?? entry.summary?.categoriesCount ?? (entry.data?.categoriesArray || []).length;
-              const subcategoriesCount = entry.data?.subcategoriesCount ?? entry.summary?.subcategoriesCount ?? (entry.data?.subcategoriesArray || []).length;
-              const voidedCount = entry.data?.voidedCount ?? entry.summary?.voidedCount ?? (entry.data?.voidedItems || []).length;
-              const voidedTotalValue = entry.data?.voidedTotalValue ?? entry.summary?.voidedTotalValue ?? (entry.data?.voidedItems || []).reduce((sum, item) => sum + (item.total || 0), 0);
-
-              return `
-                <article class="card" style="display:flex;flex-direction:column;gap:16px;min-height:240px;">
-                  <div>
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
-                      <div>
-                        <div style="font-size:0.9rem;color:#6b7280;margin-bottom:4px;">${entry.title || 'End of Day Report'}</div>
-                        <div style="font-size:0.85rem;color:#475569;">${entry.dateDisplay || entry.date || 'Unknown date'}</div>
-                      </div>
-                      <div style="font-weight:700;font-size:1rem;">₦${formatCurrency(entry.totalValue)}</div>
-                    </div>
-
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px;">
-                      <div style="padding:12px;border-radius:12px;background:#f8fafc;">
-                        <div style="font-size:0.82rem;color:#475569;">Top product</div>
-                        <div style="font-weight:700;margin-top:6px;">${topProducts[0]?.product || 'N/A'}</div>
-                        <div style="font-size:0.82rem;color:#6b7280;">${topProducts[0] ? `${topProducts[0].qty} sold` : 'No sales'}</div>
-                      </div>
-                      <div style="padding:12px;border-radius:12px;background:#f8fafc;">
-                        <div style="font-size:0.82rem;color:#475569;">Payment method</div>
-                        <div style="font-weight:700;margin-top:6px;">${paymentEntries[0]?.label || 'N/A'}</div>
-                        <div style="font-size:0.82rem;color:#6b7280;">${paymentEntries[0] ? `${paymentEntries[0].count} orders` : 'No data'}</div>
-                      </div>
-                      <div style="padding:12px;border-radius:12px;background:#f8fafc;">
-                        <div style="font-size:0.82rem;color:#475569;">Top staff</div>
-                        <div style="font-weight:700;margin-top:6px;">${topWaiter || 'No waiter'}</div>
-                        <div style="font-size:0.82rem;color:#6b7280;">${topCashier || 'No cashier'}</div>
-                      </div>
-                    </div>
-
-                    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-                      <div style="padding:12px;border-radius:12px;background:#eef2ff;">
-                        <div style="font-size:0.82rem;color:#475569;">Categories</div>
-                        <div style="margin-top:6px;font-weight:700;">${categoriesCount}</div>
-                      </div>
-                      <div style="padding:12px;border-radius:12px;background:#eef2ff;">
-                        <div style="font-size:0.82rem;color:#475569;">Voided items</div>
-                        <div style="margin-top:6px;font-weight:700;">${voidedCount}</div>
-                        <div style="font-size:0.82rem;color:#6b7280;">₦${formatCurrency(voidedTotalValue)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <div style="font-size:0.85rem;color:#475569;">${topProducts.length} top products</div>
-                    <button type="button" class="btn btn-ghost" data-archive-id="${entry.id}" style="padding:10px 14px;">View report</button>
-                  </div>
-                </article>
+            if (archives.length === 0) {
+              eodArchivesList.innerHTML = `
+                <div id="eod-archives-empty" style="padding: 20px; text-align: center; color: #9ca3af; grid-column: 1 / -1;">No archived reports yet.</div>
               `;
-            }).join('');
+            } else {
+              eodArchivesList.innerHTML = archives.map((entry) => {
+                const topProducts = entry.data?.topProducts || entry.summary?.topProducts || (entry.data?.itemsArray || []).slice(0, 10).map(([product, data]) => ({ product, qty: data.qty, amount: data.amount || data.total || 0 }));
+                const topProductsSummary = topProducts.slice(0, 3).map((item) => `${item.product} (${item.qty || 0})`).join(', ') || 'No products';
+                const paymentEntries = entry.data?.paymentEntries || entry.data?.paymentBreakdown || entry.summary?.paymentBreakdown || [];
+                const paymentSummary = paymentEntries.slice(0, 2).map(entry => `${entry.label}: ₦${formatCurrency(entry.revenue || 0)}`).join(' · ') || 'No payment data';
+                const topWaiterEntry = (entry.data?.topWaiters || entry.data?.staffPerformance?.waiters || entry.summary?.staffPerformance?.waiters || [])[0];
+                const topCashierEntry = (entry.data?.topCashiers || entry.data?.staffPerformance?.cashiers || entry.summary?.staffPerformance?.cashiers || [])[0];
+                const topWaiter = topWaiterEntry ? `${topWaiterEntry.name} - ₦${formatCurrency(topWaiterEntry.revenue)}` : 'No waiter';
+                const topCashier = topCashierEntry ? `${topCashierEntry.name} - ₦${formatCurrency(topCashierEntry.revenue)}` : 'No cashier';
+                const itemsCount = entry.data?.itemsCount ?? entry.summary?.itemsCount ?? (entry.data?.itemsArray || []).length;
+                const categoriesCount = entry.data?.categoriesCount ?? entry.summary?.categoriesCount ?? (entry.data?.categoriesArray || []).length;
+                const subcategoriesCount = entry.data?.subcategoriesCount ?? entry.summary?.subcategoriesCount ?? (entry.data?.subcategoriesArray || []).length;
+                const voidedCount = entry.data?.voidedCount ?? entry.summary?.voidedCount ?? (entry.data?.voidedItems || []).length;
+                const voidedTotalValue = entry.data?.voidedTotalValue ?? entry.summary?.voidedTotalValue ?? (entry.data?.voidedItems || []).reduce((sum, item) => sum + (item.total || 0), 0);
 
-            const viewButtons = eodArchivesList.querySelectorAll('button[data-archive-id]');
-            viewButtons.forEach((button) => {
-              button.addEventListener('click', async () => {
-                const archivedId = button.dataset.archiveId;
-                await openArchivedReport(archivedId);
+                return `
+                  <article class="card" style="display:flex;flex-direction:column;gap:16px;min-height:240px;">
+                    <div>
+                      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                        <div>
+                          <div style="font-size:0.9rem;color:#6b7280;margin-bottom:4px;">${entry.title || 'End of Day Report'}</div>
+                          <div style="font-size:0.85rem;color:#475569;">${entry.dateDisplay || entry.date || 'Unknown date'}</div>
+                        </div>
+                        <div style="font-weight:700;font-size:1rem;">₦${formatCurrency(entry.totalValue)}</div>
+                      </div>
+
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px;">
+                        <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                          <div style="font-size:0.82rem;color:#475569;">Items sold</div>
+                          <div style="font-weight:700;margin-top:6px;">${itemsCount}</div>
+                          <div style="font-size:0.82rem;color:#6b7280;">${topProductsSummary}</div>
+                        </div>
+                        <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                          <div style="font-size:0.82rem;color:#475569;">Payment mix</div>
+                          <div style="font-weight:700;margin-top:6px;">${paymentEntries[0]?.label || 'N/A'}</div>
+                          <div style="font-size:0.82rem;color:#6b7280;">${paymentSummary}</div>
+                        </div>
+                        <div style="padding:12px;border-radius:12px;background:#f8fafc;">
+                          <div style="font-size:0.82rem;color:#475569;">Top staff</div>
+                          <div style="font-weight:700;margin-top:6px;">${topWaiterEntry?.name || 'No waiter'}</div>
+                          <div style="font-size:0.82rem;color:#6b7280;">${topCashierEntry?.name || 'No cashier'}</div>
+                        </div>
+                      </div>
+
+                      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                        <div style="padding:12px;border-radius:12px;background:#eef2ff;">
+                          <div style="font-size:0.82rem;color:#475569;">Categories</div>
+                          <div style="margin-top:6px;font-weight:700;">${categoriesCount}</div>
+                        </div>
+                        <div style="padding:12px;border-radius:12px;background:#eef2ff;">
+                          <div style="font-size:0.82rem;color:#475569;">Voided items</div>
+                          <div style="margin-top:6px;font-weight:700;">${voidedCount}</div>
+                          <div style="font-size:0.82rem;color:#6b7280;">₦${formatCurrency(voidedTotalValue)}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                      <div style="font-size:0.85rem;color:#475569;">${topProducts.length} top product${topProducts.length === 1 ? '' : 's'}</div>
+                      <button type="button" class="btn btn-ghost" data-archive-id="${entry.id}" style="padding:10px 14px;">View report</button>
+                    </div>
+                  </article>
+                `;
+              }).join('');
+
+              renderEodArchivesPagination(Number(resp.totalCount || resp.reports.length), eodArchivesCurrentPage);
+
+              const viewButtons = eodArchivesList.querySelectorAll('button[data-archive-id]');
+              viewButtons.forEach((button) => {
+                button.addEventListener('click', async () => {
+                  const archivedId = button.dataset.archiveId;
+                  await openArchivedReport(archivedId);
+                });
               });
-            });
+            }
             return;
           }
         }
@@ -4824,6 +4874,9 @@ function showToast(message, type = 'success', duration = 3000) {
       eodArchivesList.innerHTML = `
         <div id="eod-archives-empty" style="padding: 20px; text-align: center; color: #9ca3af; grid-column: 1 / -1;">No archived reports yet.</div>
       `;
+      if (eodArchivesPagination) {
+        eodArchivesPagination.innerHTML = '';
+      }
       return;
     }
 
@@ -4913,7 +4966,7 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     if (btnRefreshArchives) {
-      btnRefreshArchives.addEventListener('click', async () => await loadEodArchives());
+      btnRefreshArchives.addEventListener('click', async () => await loadEodArchives(eodArchivesCurrentPage));
     }
 
     await loadEodArchives();
