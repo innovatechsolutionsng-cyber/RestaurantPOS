@@ -1385,7 +1385,6 @@ function showToast(message, type = 'success', duration = 3000) {
           <div class="info-row"><span class="info-label">Table:</span><span class="info-value">${tableName}</span></div>
           <div class="info-row"><span class="info-label">Waiter:</span><span class="info-value">${waiterName}</span></div>
           ${cashierName ? `<div class="info-row"><span class="info-label">Cashier:</span><span class="info-value">${cashierName}</span></div>` : ''}
-          ${paymentMethod ? `<div class="info-row"><span class="info-label">Payment:</span><span class="info-value">${paymentMethod}</span></div>` : ''}
           ${clientName ? `<div class="info-row"><span class="info-label">Client:</span><span class="info-value">${clientName}</span></div>` : ''}
         </div>
         ${splitReference && typeof splitReference === 'string' ? `<div class="split-warning">⚠ SPLIT BILL #${splitReference}</div>` : ''}
@@ -1405,6 +1404,7 @@ function showToast(message, type = 'success', duration = 3000) {
           ${currentBreakdown.serviceCharge > 0 ? `<div class="summary-row"><span class="summary-label">Service (${currentBreakdown.serviceChargePercentage}%)</span><span class="summary-value">+${formatCurrency(currentBreakdown.serviceCharge)}</span></div>` : ''}
           <div class="grand-total-row"><span>TOTAL DUE</span><span>${formatCurrency(currentBreakdown.total)}</span></div>
         </div>
+        ${paymentMethod ? `<div class="payment-method-summary"><div class="summary-title">Payment Method</div><div class="summary-row"><span class="summary-label">${paymentMethod}</span><span class="summary-value">${formatCurrency(currentBreakdown.totalPaid || currentBreakdown.total)}</span></div></div>` : ''}
         <div class="receipt-footer"><div class="thank-you">Thank You!</div><div class="footer-text">${footerMessage}</div></div>
       </body>
       </html>
@@ -2547,13 +2547,11 @@ function showToast(message, type = 'success', duration = 3000) {
     }
     
     // Check if table has an assigned waiter (not unassigned) - for new orders
-    if (!editingOrderId) {
-      const waiterName = waiterInput?.value?.trim() || '';
-      if (waiterName === '(No assigned waiter)' || waiterName === 'Unassigned' || !waiterName) {
-        showToast('❌ Invalid table number! Please enter a table that has an assigned waiter.', 'error');
-        tableInput.focus();
-        return false;
-      }
+    const waiterName = waiterInput?.value?.trim() || '';
+    if (waiterName === '(No assigned waiter)' || waiterName === 'Unassigned' || !waiterName) {
+      showToast('❌ Invalid table number! Please enter a table that has an assigned waiter.', 'error');
+      waiterInput?.focus();
+      return false;
     }
 
     if (tableAlreadyHasOrder(tableName, editingOrderId)) {
@@ -5021,7 +5019,8 @@ function showToast(message, type = 'success', duration = 3000) {
       tableName,
       waiterName,
       clientName,
-      splitReference
+      splitReference,
+      paymentMethod: editingOrder?.paymentMethod || (Array.isArray(editingOrder?.payments) ? editingOrder.payments.map(p => p.method).join(', ') : '')
     }, {
       businessName: receiptBusinessName,
       address: receiptAddress,
@@ -5256,6 +5255,16 @@ function showToast(message, type = 'success', duration = 3000) {
             min-width: 60px;
           }
           
+          .payment-method-summary {
+            margin: 10px 0 0;
+            padding: 10px 0 0;
+            border-top: 1px solid #000;
+          }
+          
+          .payment-method-summary .summary-row {
+            margin: 4px 0;
+          }
+          
           /* Footer */
           .receipt-footer {
             text-align: center;
@@ -5293,6 +5302,12 @@ function showToast(message, type = 'success', duration = 3000) {
             <span class="info-label">Waiter:</span>
             <span class="info-value">${waiterName}</span>
           </div>
+          ${paymentMethod ? `
+          <div class="info-row">
+            <span class="info-label">Payment:</span>
+            <span class="info-value">${paymentMethod}</span>
+          </div>
+          ` : ''}
           ${clientName ? `
           <div class="info-row">
             <span class="info-label">Client:</span>
@@ -5361,6 +5376,15 @@ function showToast(message, type = 'success', duration = 3000) {
         </div>
         
         <!-- Footer -->
+        ${paymentMethod ? `
+        <div class="billing-summary payment-method-summary" style="border-top: none; padding-top: 0; margin-top: 8px;">
+          <div class="summary-title">Payment Method</div>
+          <div class="summary-row">
+            <span class="summary-label">${paymentMethod}</span>
+            <span class="summary-value">${formatCurrency(breakdown.total)}</span>
+          </div>
+        </div>
+        ` : ''}
         <div class="receipt-footer">
           <div class="thank-you">Thank You!</div>
           <div class="footer-text">${receiptFooterMessage}</div>
@@ -5370,17 +5394,7 @@ function showToast(message, type = 'success', duration = 3000) {
     `;
 
     // Use safePrint to handle pop-up blocking and fallback to iframe
-    printCategoryReceipts(order, {
-      businessName: receiptBusinessName,
-      address: receiptAddress,
-      phone: receiptPhone,
-      email: receiptEmail,
-      footerMessage: receiptFooterMessage,
-      receiptDate,
-      receiptTime,
-      cashierName,
-      paymentMethod
-    });
+    safePrint(billHTML);
   }
 
   // Split bill (enhanced version with read-only fields and proper UI)
@@ -6377,6 +6391,7 @@ function showToast(message, type = 'success', duration = 3000) {
           ...editingOrder,
           status: 'completed',
           payments,
+          paymentMethod: payments.map(p => p.method).join(', '),
           cashierName: getCurrentCashierName(),
           cashier: getCurrentCashierName(),
           createdBy: editingOrder.createdBy || getCurrentCashierName(),
