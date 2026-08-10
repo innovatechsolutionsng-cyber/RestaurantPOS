@@ -1225,11 +1225,28 @@
         ? `Merged from ${latestMergedTable.tableName || 'Unknown'} • ${latestMergedTable.waiterName || 'Waiter'}`
         : '';
 
+      const splitBadge = (() => {
+        if (order.splitFromBillId) {
+          const placeInfo = order.splitPlace && order.splitTotal ? ` (${order.splitPlace}/${order.splitTotal})` : '';
+          return { style: 'background: linear-gradient(90deg, #f97316, #ea580c); color: white;', text: `🔀 Split${placeInfo}` };
+        }
+        if (order.splitReference && order.splitPlace && order.splitTotal) {
+          return { style: 'background: linear-gradient(90deg, #8b5cf6, #7c3aed); color: white;', text: `◆ Original (${order.splitTotal})` };
+        }
+        if (order.splitReference) {
+          return { style: 'background: linear-gradient(90deg, #8b5cf6, #7c3aed); color: white;', text: '◆ Original' };
+        }
+        return null;
+      })();
+
       return `
         <div class="order-card">
           <div class="order-card-header">
             <h4 class="order-card-title">Table ${order.tableName || 'N/A'}</h4>
-            <span class="order-card-badge" style="${badgeStyle}">${statusLabel}</span>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <span class="order-card-badge" style="${badgeStyle}">${statusLabel}</span>
+              ${splitBadge ? `<span class="order-card-badge" style="${splitBadge.style}">${splitBadge.text}</span>` : ''}
+            </div>
           </div>
           ${mergedBadgeText ? `
           <div style="margin-top: 6px; padding: 6px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; width: fit-content;">
@@ -1747,6 +1764,10 @@
         if (existing.mergeTargetWaiterName) orderPayload.mergeTargetWaiterName = existing.mergeTargetWaiterName;
         if (existing.mergeSourceTableName) orderPayload.mergeSourceTableName = existing.mergeSourceTableName;
         if (existing.mergeSourceWaiterName) orderPayload.mergeSourceWaiterName = existing.mergeSourceWaiterName;
+        if (existing.splitFromBillId) orderPayload.splitFromBillId = existing.splitFromBillId;
+        if (existing.splitReference) orderPayload.splitReference = existing.splitReference;
+        if (existing.splitPlace != null) orderPayload.splitPlace = Number(existing.splitPlace);
+        if (existing.splitTotal != null) orderPayload.splitTotal = Number(existing.splitTotal);
       }
     }
 
@@ -1766,10 +1787,17 @@
       const returned = resp && Array.isArray(resp.updates) && resp.updates[0] ? resp.updates[0] : null;
       if (returned) {
         // if backend returned an order object, ensure mergedTables exist
-        if ((!returned.mergedTables || !returned.mergedTables.length) && typeof allOrdersCache !== 'undefined' && Array.isArray(allOrdersCache)) {
+        if (typeof allOrdersCache !== 'undefined' && Array.isArray(allOrdersCache)) {
           const existing = allOrdersCache.find(o => String(o.id) === String(returned.id || orderPayload.id));
-          if (existing && existing.mergedTables && existing.mergedTables.length > 0) {
-            returned.mergedTables = existing.mergedTables;
+          if (existing) {
+            if ((!returned.mergedTables || !returned.mergedTables.length) && existing.mergedTables && existing.mergedTables.length > 0) {
+              returned.mergedTables = existing.mergedTables;
+            }
+            ['splitReference', 'splitFromBillId', 'splitPlace', 'splitTotal'].forEach((field) => {
+              if ((returned[field] === undefined || returned[field] === null) && existing[field] != null) {
+                returned[field] = existing[field];
+              }
+            });
           }
         }
         // update local cache with returned order

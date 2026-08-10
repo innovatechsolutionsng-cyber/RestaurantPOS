@@ -558,12 +558,16 @@ function showToast(message, type = 'success', duration = 3000) {
     try {
       if (Array.isArray(updates) && updates.length > 0 && Array.isArray(allOrdersCache)) {
         updates.forEach((u) => {
-          if ((!u.mergedTables || !u.mergedTables.length)) {
-            const existing = allOrdersCache.find(o => String(o.id) === String(u.id));
-            if (existing && existing.mergedTables && existing.mergedTables.length > 0) {
-              u.mergedTables = existing.mergedTables;
-            }
+          const existing = allOrdersCache.find(o => String(o.id) === String(u.id));
+          if (!existing) return;
+          if ((!u.mergedTables || !u.mergedTables.length) && existing.mergedTables && existing.mergedTables.length > 0) {
+            u.mergedTables = existing.mergedTables;
           }
+          ['splitReference', 'splitFromBillId', 'splitPlace', 'splitTotal'].forEach((field) => {
+            if ((u[field] === undefined || u[field] === null) && existing[field] != null) {
+              u[field] = existing[field];
+            }
+          });
         });
       }
     } catch (err) {
