@@ -1783,6 +1783,22 @@ function showToast(message, type = 'success', duration = 3000) {
     });
   }
 
+  const userManagementPanel = document.getElementById('directories');
+  if (userManagementPanel) {
+    const showUsersPanel = () => {
+      if (document.getElementById('users-management-table')) {
+        refreshUsers().catch(err => console.error('Failed to load users', err));
+      }
+    };
+    const observer = new MutationObserver(() => {
+      if (!userManagementPanel.getAttribute('aria-hidden') || userManagementPanel.getAttribute('aria-hidden') === 'false') {
+        showUsersPanel();
+      }
+    });
+    observer.observe(userManagementPanel, { attributes: true, attributeFilter: ['aria-hidden'] });
+    showUsersPanel();
+  }
+
   if(userRole) userRole.addEventListener('change', toggleWaiterTableSection);
   if(userShowPassword && userPassword){
     userShowPassword.addEventListener('change', ()=>{
