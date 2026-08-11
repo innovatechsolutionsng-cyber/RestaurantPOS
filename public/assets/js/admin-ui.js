@@ -980,6 +980,22 @@ function showToast(message, type = 'success', duration = 3000) {
     return { start, end };
   }
 
+  function formatReportDateLabel(date) {
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+
+  function updateEndOfDayButtonLabel() {
+    const reportsDateInput = document.getElementById('reports-date-filter');
+    const btnEndOfDayReport = document.getElementById('btn-end-of-day-report');
+    if (!btnEndOfDayReport || !reportsDateInput) return;
+    const date = reportsDateInput.value ? new Date(reportsDateInput.value) : new Date();
+    btnEndOfDayReport.textContent = `End of Day Report — ${formatReportDateLabel(date)}`;
+  }
+
   function isOrderInReportDate(order, range) {
     const createdAt = getOrderCreatedAt(order);
     return !Number.isNaN(createdAt.getTime()) && createdAt >= range.start && createdAt < range.end;
@@ -1205,7 +1221,11 @@ function showToast(message, type = 'success', duration = 3000) {
     if (!reportsDateFilter.value) {
       reportsDateFilter.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     }
-    reportsDateFilter.addEventListener('change', refreshReportSummaries);
+    updateEndOfDayButtonLabel();
+    reportsDateFilter.addEventListener('change', () => {
+      updateEndOfDayButtonLabel();
+      refreshReportSummaries();
+    });
   }
 
   async function isBackendAvailable() {
@@ -3142,25 +3162,33 @@ function showToast(message, type = 'success', duration = 3000) {
     }
 
     function getItemCategoryInfo(item, productDetailsMap = {}, categoryNameMap = {}, subcategoryDetailsMap = {}, productCatalog = []) {
-      const explicitCategory = String(item?.categoryName || item?.category || item?.category_name || item?.product?.categoryName || item?.product?.category || '').trim();
-      const explicitSubcategory = String(item?.subcategoryName || item?.subcategory || item?.subcategory_name || item?.product?.subcategoryName || item?.product?.subcategory || '').trim();
       const product = item?.product || item?.productDetails || null;
       const productName = getItemProductName(item);
       const normalizedProductName = normalizeLookupValue(productName);
-      const productId = String(item?.productId ?? item?.product_id ?? product?.id ?? item?.id ?? '').trim();
+      const productId = String(item?.productId ?? item?.product_id ?? product?.id ?? product?.productId ?? item?.id ?? '').trim();
 
+      const resolveCategoryName = (candidate) => {
+        if (candidate == null || candidate === '') return '';
+        if (typeof candidate === 'object') {
+          return String(candidate.name || candidate.title || '').trim();
+        }
+        const key = String(candidate).trim();
+        return categoryNameMap[key] || key;
+      };
+
+      const resolveSubcategoryName = (candidate) => {
+        if (candidate == null || candidate === '') return '';
+        if (typeof candidate === 'object') {
+          return String(candidate.name || candidate.title || '').trim();
+        }
+        const key = String(candidate).trim();
+        return subcategoryDetailsMap[key]?.name || key;
+      };
+
+      const explicitCategory = resolveCategoryName(item?.categoryName ?? item?.category ?? item?.category_name ?? item?.product?.categoryName ?? item?.product?.category ?? item?.product?.category?.name ?? '');
+      const explicitSubcategory = resolveSubcategoryName(item?.subcategoryName ?? item?.subcategory ?? item?.subcategory_name ?? item?.product?.subcategoryName ?? item?.product?.subcategory ?? item?.product?.subcategory?.name ?? '');
       let category = explicitCategory || '';
       let subcategory = explicitSubcategory || '';
-
-      const resolveCategoryName = (candidateId) => {
-        if (candidateId == null || candidateId === '') return '';
-        return categoryNameMap[String(candidateId)] || '';
-      };
-
-      const resolveSubcategoryName = (candidateId) => {
-        if (candidateId == null || candidateId === '') return '';
-        return subcategoryDetailsMap[String(candidateId)]?.name || '';
-      };
 
       if (!category) {
         const explicitProductCategory = String(product?.category || product?.categoryName || product?.category_name || '').trim();
@@ -3194,15 +3222,26 @@ function showToast(message, type = 'success', duration = 3000) {
         const matchedProduct = productCatalog.find((catalogProduct) => {
           if (!catalogProduct) return false;
           if (productId && String(catalogProduct.id) === String(productId)) return true;
-          const catalogName = normalizeLookupValue(catalogProduct.name || catalogProduct.productName || catalogProduct.title || '');
+          if (productId && String(catalogProduct.productId || catalogProduct.id) === String(productId)) return true;
+          const catalogName = normalizeLookupValue(catalogProduct.name || catalogProduct.productName || catalogProduct.title || catalogProduct.label || '');
           return catalogName && itemLookupName && catalogName === itemLookupName;
         });
 
         if (matchedProduct) {
-          const matchedCategoryId = matchedProduct.cat ?? matchedProduct.categoryId ?? matchedProduct.category_id ?? matchedProduct.category?.id ?? matchedProduct.category ?? null;
-          const matchedSubcategoryId = matchedProduct.sub ?? matchedProduct.subcategoryId ?? matchedProduct.subcategory_id ?? matchedProduct.subcategory?.id ?? matchedProduct.subcategory ?? null;
-          const matchedCategoryName = String(matchedProduct.category || '').trim() || resolveCategoryName(matchedCategoryId);
-          const matchedSubcategoryName = String(matchedProduct.subcategory || '').trim() || resolveSubcategoryName(matchedSubcategoryId);
+          const matchedCategoryCandidate = matchedProduct.category ?? matchedProduct.categoryName ?? matchedProduct.category_name ?? matchedProduct.cat ?? '';
+          const matchedSubcategoryCandidate = matchedProduct.subcategory ?? matchedProduct.subcategoryName ?? matchedProduct.subcategory_name ?? matchedProduct.sub ?? '';
+          const matchedCategoryId = matchedProduct.cat ?? matchedProduct.categoryId ?? matchedProduct.category_id ?? matchedProduct.category?.id ?? matchedCategoryCandidate;
+          const matchedSubcategoryId = matchedProduct.sub ?? matchedProduct.subcategoryId ?? matchedProduct.subcategory_id ?? matchedProduct.subcategory?.id ?? matchedSubcategoryCandidate;
+
+          let matchedCategoryName = resolveCategoryName(matchedCategoryCandidate);
+          if (!matchedCategoryName && matchedCategoryId != null && matchedCategoryId !== '') {
+            matchedCategoryName = resolveCategoryName(matchedCategoryId);
+          }
+
+          let matchedSubcategoryName = resolveSubcategoryName(matchedSubcategoryCandidate);
+          if (!matchedSubcategoryName && matchedSubcategoryId != null && matchedSubcategoryId !== '') {
+            matchedSubcategoryName = resolveSubcategoryName(matchedSubcategoryId);
+          }
 
           if (!category && matchedCategoryName) {
             category = matchedCategoryName;
@@ -3211,7 +3250,7 @@ function showToast(message, type = 'success', duration = 3000) {
             subcategory = matchedSubcategoryName;
           }
 
-          if (!category && !subcategory && matchedSubcategoryId != null && matchedSubcategoryId !== '' && subcategoryDetailsMap[String(matchedSubcategoryId)]?.parentCategoryName) {
+          if (!category && subcategory && matchedSubcategoryId != null && matchedSubcategoryId !== '' && subcategoryDetailsMap[String(matchedSubcategoryId)]?.parentCategoryName) {
             category = subcategoryDetailsMap[String(matchedSubcategoryId)].parentCategoryName;
           }
         }
@@ -3480,22 +3519,29 @@ function showToast(message, type = 'success', duration = 3000) {
         
         const productDetailsMap = {};
         allProducts.forEach(product => {
-          if (product.name) {
-            const categoryName = categoryNameMap[String(product.cat)] || 'Uncategorized';
-            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || 'Uncategorized';
+          const productName = String(product.name || product.productName || product.title || product.label || '').trim();
+          if (productName) {
+            const categoryName = categoryNameMap[String(product.cat)] || String(product.category || product.categoryName || product.category_name || product.category?.name || '').trim() || 'Uncategorized';
+            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || String(product.subcategory || product.subcategoryName || product.subcategory_name || product.subcategory?.name || '').trim() || 'Uncategorized';
             const details = {
               price: product.price || 0,
               category: categoryName,
               subcategory: subcategoryName
             };
-            const normalizedProductName = normalizeLookupValue(product.name);
+            const normalizedProductName = normalizeLookupValue(productName);
             if (normalizedProductName) {
               productDetailsMap[normalizedProductName] = details;
             }
-            productDetailsMap[String(product.name).toLowerCase()] = details;
-            productDetailsMap[String(product.name)] = details;
+            productDetailsMap[String(productName).toLowerCase()] = details;
+            productDetailsMap[String(productName)] = details;
             if (product.id != null) {
               productDetailsMap[String(product.id)] = details;
+            }
+            if (product.productId != null) {
+              productDetailsMap[String(product.productId)] = details;
+            }
+            if (product.sku != null) {
+              productDetailsMap[String(product.sku)] = details;
             }
           }
         });
@@ -3598,22 +3644,29 @@ function showToast(message, type = 'success', duration = 3000) {
         
         const productDetailsMap = {};
         allProducts.forEach(product => {
-          if (product.name) {
-            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || 'Uncategorized';
-            const categoryName = categoryNameMap[String(product.cat)] || 'Uncategorized';
+          const productName = String(product.name || product.productName || product.title || product.label || '').trim();
+          if (productName) {
+            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || String(product.subcategory || product.subcategoryName || product.subcategory_name || product.subcategory?.name || '').trim() || 'Uncategorized';
+            const categoryName = categoryNameMap[String(product.cat)] || String(product.category || product.categoryName || product.category_name || product.category?.name || '').trim() || 'Uncategorized';
             const details = {
               price: product.price || 0,
               category: categoryName,
               subcategory: subcategoryName
             };
-            const normalizedProductName = normalizeLookupValue(product.name);
+            const normalizedProductName = normalizeLookupValue(productName);
             if (normalizedProductName) {
               productDetailsMap[normalizedProductName] = details;
             }
-            productDetailsMap[String(product.name).toLowerCase()] = details;
-            productDetailsMap[String(product.name)] = details;
+            productDetailsMap[String(productName).toLowerCase()] = details;
+            productDetailsMap[String(productName)] = details;
             if (product.id != null) {
               productDetailsMap[String(product.id)] = details;
+            }
+            if (product.productId != null) {
+              productDetailsMap[String(product.productId)] = details;
+            }
+            if (product.sku != null) {
+              productDetailsMap[String(product.sku)] = details;
             }
           }
         });
@@ -4318,7 +4371,8 @@ function showToast(message, type = 'success', duration = 3000) {
           }
         });
 
-        // Generate items summary
+        const reportRange = getReportDateRange();
+    // Generate items summary
         const itemsSummary = {};
         const categorySummary = {};
         const subcategorySummary = {};
@@ -4326,6 +4380,7 @@ function showToast(message, type = 'success', duration = 3000) {
         
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
+          if (!isOrderInReportDate(order, reportRange)) return;
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const productName = getItemProductName(item);
@@ -4373,9 +4428,10 @@ function showToast(message, type = 'success', duration = 3000) {
         });
 
         // Create report content
+        const reportDate = getReportDateRange().start;
         const now = new Date();
-        const dateStr = now.toLocaleDateString();
-        const timeStr = now.toLocaleTimeString();
+        const dateStr = formatReportDateLabel(reportDate);
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         
         const itemsArray = Object.entries(itemsSummary).sort((a, b) => b[1].amount - a[1].amount);
         const categoriesArray = Object.entries(categorySummary).sort((a, b) => b[1] - a[1]);
@@ -4386,6 +4442,7 @@ function showToast(message, type = 'success', duration = 3000) {
         
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
+          if (!isOrderInReportDate(order, reportRange)) return;
           const orderAmount = getOrderAmount(order);
           const paymentMethod = String(getOrderPaymentMethod(order) || 'N/A').trim() || 'N/A';
           if (!paymentBreakdown[paymentMethod]) {
