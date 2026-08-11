@@ -1569,6 +1569,14 @@ function showToast(message, type = 'success', duration = 3000) {
     });
   }
 
+  if (userSearchInput) {
+    userSearchInput.addEventListener('input', () => {
+      usersCurrentPage = 1;
+      usersSearchTerm = userSearchInput.value;
+      refreshUsers();
+    });
+  }
+
   function renderUserPagination(totalItems){
     if(!userTablePagination) return;
     const totalPages = Math.max(1, Math.ceil(totalItems / USERS_PAGE_SIZE));
@@ -1594,7 +1602,7 @@ function showToast(message, type = 'success', duration = 3000) {
   }
 
   async function refreshUsers(){
-    const tbl = document.getElementById('users-table');
+    const tbl = document.getElementById('users-management-table');
     if(!tbl) return;
     const tbody = tbl.querySelector('tbody');
     if(!tbody) return;
