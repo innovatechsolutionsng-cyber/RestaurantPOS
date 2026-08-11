@@ -1354,6 +1354,9 @@ function showToast(message, type = 'success', duration = 3000) {
     if (panelId === 'bi-report') {
       renderBIReport();
     }
+    if (panelId === 'directories') {
+      refreshUsers().catch(err => console.error('Failed to load users', err));
+    }
   };
 
   document.querySelectorAll('.nav-link[data-panel]').forEach((a) => a.addEventListener('click', (e) => {
