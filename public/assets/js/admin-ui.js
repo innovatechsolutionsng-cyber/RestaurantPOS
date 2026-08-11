@@ -3100,30 +3100,48 @@ function showToast(message, type = 'success', duration = 3000) {
       const explicitCategory = String(item?.categoryName || item?.category || item?.category_name || item?.product?.categoryName || item?.product?.category || '').trim();
       const explicitSubcategory = String(item?.subcategoryName || item?.subcategory || item?.subcategory_name || item?.product?.subcategoryName || item?.product?.subcategory || '').trim();
       const product = item?.product || item?.productDetails || null;
-      const productName = getItemProductName(item).toLowerCase();
+      const productName = getItemProductName(item).trim();
+      const normalizedProductName = normalizeLookupValue(productName);
       const productId = String(item?.productId ?? item?.product_id ?? product?.id ?? item?.id ?? '').trim();
 
       let category = explicitCategory || '';
       let subcategory = explicitSubcategory || '';
 
-      const resolveCategoryName = (candidateId) => {
-        if (candidateId == null || candidateId === '') return '';
-        return categoryNameMap[String(candidateId)] || '';
+      const extractLookupValue = (value) => {
+        if (value == null || value === '') return '';
+        if (typeof value === 'object') {
+          if (value.id != null) return String(value.id);
+          if (value._id != null) return String(value._id);
+          if (value.name) return String(value.name);
+          if (value.categoryId != null) return String(value.categoryId);
+          if (value.subcategoryId != null) return String(value.subcategoryId);
+          return JSON.stringify(value);
+        }
+        return String(value).trim();
       };
 
-      const resolveSubcategoryName = (candidateId) => {
-        if (candidateId == null || candidateId === '') return '';
-        return subcategoryDetailsMap[String(candidateId)]?.name || '';
+      const resolveCategoryName = (candidate) => {
+        const lookupKey = extractLookupValue(candidate);
+        if (!lookupKey) return '';
+        if (categoryNameMap[lookupKey]) return categoryNameMap[lookupKey];
+        return String(candidate).trim();
+      };
+
+      const resolveSubcategoryName = (candidate) => {
+        const lookupKey = extractLookupValue(candidate);
+        if (!lookupKey) return '';
+        if (subcategoryDetailsMap[lookupKey]?.name) return subcategoryDetailsMap[lookupKey].name;
+        return String(candidate).trim();
       };
 
       if (!category) {
-        const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? product?.categoryId ?? null;
+        const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? product?.categoryId ?? product?.category?.id ?? product?.category ?? null;
         const resolvedCategory = resolveCategoryName(categoryId);
         if (resolvedCategory) category = resolvedCategory;
       }
 
       if (!subcategory) {
-        const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? product?.subcategoryId ?? null;
+        const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? product?.subcategoryId ?? product?.subcategory?.id ?? product?.subcategory ?? null;
         const resolvedSubcategory = resolveSubcategoryName(subcategoryId);
         if (resolvedSubcategory) {
           subcategory = resolvedSubcategory;
@@ -3131,17 +3149,17 @@ function showToast(message, type = 'success', duration = 3000) {
       }
 
       if ((!category || !subcategory) && Array.isArray(productCatalog)) {
+        const itemLookupName = normalizeLookupValue(productName || product?.name || item?.name || item?.productName);
         const matchedProduct = productCatalog.find((catalogProduct) => {
           if (!catalogProduct) return false;
           if (productId && String(catalogProduct.id) === String(productId)) return true;
-          const catalogName = normalizeLookupValue(catalogProduct.name);
-          const itemLookupName = normalizeLookupValue(productName || product?.name || item?.name || item?.productName);
+          const catalogName = normalizeLookupValue(catalogProduct.name || catalogProduct.productName || catalogProduct.title || '');
           return catalogName && itemLookupName && catalogName === itemLookupName;
         });
 
         if (matchedProduct) {
-          const matchedCategoryId = matchedProduct.cat ?? matchedProduct.categoryId ?? matchedProduct.category_id ?? matchedProduct.category?.id ?? null;
-          const matchedSubcategoryId = matchedProduct.sub ?? matchedProduct.subcategoryId ?? matchedProduct.subcategory_id ?? matchedProduct.subcategory?.id ?? null;
+          const matchedCategoryId = extractLookupValue(matchedProduct.cat ?? matchedProduct.categoryId ?? matchedProduct.category_id ?? matchedProduct.category?.id ?? matchedProduct.category ?? null);
+          const matchedSubcategoryId = extractLookupValue(matchedProduct.sub ?? matchedProduct.subcategoryId ?? matchedProduct.subcategory_id ?? matchedProduct.subcategory?.id ?? matchedProduct.subcategory ?? null);
 
           if (!category) {
             const resolvedCategory = resolveCategoryName(matchedCategoryId);
@@ -3152,19 +3170,26 @@ function showToast(message, type = 'success', duration = 3000) {
             const resolvedSubcategory = resolveSubcategoryName(matchedSubcategoryId);
             if (resolvedSubcategory) {
               subcategory = resolvedSubcategory;
-            } else if (matchedSubcategoryId != null && matchedSubcategoryId !== '' && subcategoryDetailsMap[String(matchedSubcategoryId)]?.parentCategoryName) {
-              category = subcategoryDetailsMap[String(matchedSubcategoryId)].parentCategoryName;
             }
           }
         }
       }
 
-      const details = productDetailsMap[productName] || productDetailsMap[productId] || productDetailsMap[String(product?.name)] || {};
+      const details = productDetailsMap[normalizedProductName]
+        || productDetailsMap[productName]
+        || productDetailsMap[productId]
+        || productDetailsMap[String(product?.name)]
+        || productDetailsMap[normalizeLookupValue(product?.name)]
+        || {};
+
       if (!category) category = details.category || 'Uncategorized';
       if (!subcategory) subcategory = details.subcategory || 'Uncategorized';
 
-      if (!category && subcategory && subcategoryDetailsMap[String(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '')]?.parentCategoryName) {
-        category = subcategoryDetailsMap[String(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '')].parentCategoryName;
+      if (!category && subcategory) {
+        const subKey = extractLookupValue(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '');
+        if (subKey && subcategoryDetailsMap[subKey]?.parentCategoryName) {
+          category = subcategoryDetailsMap[subKey].parentCategoryName;
+        }
       }
 
       return {
