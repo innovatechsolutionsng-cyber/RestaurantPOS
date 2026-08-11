@@ -3172,7 +3172,7 @@ function showToast(message, type = 'success', duration = 3000) {
       const resolveCategoryName = (candidate) => {
         if (candidate == null || candidate === '') return '';
         if (typeof candidate === 'object') {
-          return String(candidate.name || candidate.title || '').trim();
+          return String(candidate.name || candidate.title || candidate.label || '').trim();
         }
         const key = String(candidate).trim();
         if (!key) return '';
@@ -3182,7 +3182,7 @@ function showToast(message, type = 'success', duration = 3000) {
       const resolveSubcategoryName = (candidate) => {
         if (candidate == null || candidate === '') return '';
         if (typeof candidate === 'object') {
-          return String(candidate.name || candidate.title || '').trim();
+          return String(candidate.name || candidate.title || candidate.label || '').trim();
         }
         const key = String(candidate).trim();
         if (!key) return '';
@@ -3193,6 +3193,7 @@ function showToast(message, type = 'success', duration = 3000) {
         item?.categoryName,
         item?.category,
         item?.category_name,
+        item?.productCategory,
         item?.product?.categoryName,
         item?.product?.category,
         item?.product?.category?.name,
@@ -3205,6 +3206,8 @@ function showToast(message, type = 'success', duration = 3000) {
         item?.subcategoryName,
         item?.subcategory,
         item?.subcategory_name,
+        item?.subCategoryName,
+        item?.subCategory,
         item?.product?.subcategoryName,
         item?.product?.subcategory,
         item?.product?.subcategory?.name,
