@@ -5177,6 +5177,8 @@ function showToast(message, type = 'success', duration = 3000) {
           </div>
         </div>
 
+        <div style="border-top: 1px solid #000; margin: 8px 0 6px 0;"></div>
+
         <!-- Section 2: Items -->
         <div class="items-table">
           <div class="section-title">Items</div>
