@@ -5109,7 +5109,10 @@ function showToast(message, type = 'success', duration = 3000) {
           }
 
           .receipt-header { text-align: center; margin-bottom: 6px; border-bottom: 1px solid #000; padding-bottom: 6px; }
-          .business-name { font-weight: 900; font-size: 14px; text-transform: uppercase; }
+          .business-name { font-weight: 900; font-size: 14px; text-transform: uppercase; display: block; }
+          .business-contact { font-size: 11px; color: #374151; margin-top: 2px; }
+          .receipt-label { font-weight: 800; font-size: 12px; text-transform: uppercase; margin-top: 4px; }
+          .datetime { font-size: 11px; color: #374151; margin-top: 2px; }
 
           /* Section 1: Table / Waiter / Cashier */
           .order-info { margin: 8px 0; padding: 6px 0; }
