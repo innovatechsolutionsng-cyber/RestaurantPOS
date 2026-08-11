@@ -501,22 +501,20 @@
           <section id="reports" class="panel" role="region" aria-hidden="true">
             <h2 class="page-title">Reports</h2>
             <div class="section-subtitle muted">Inspect sales, voids, and product performance with clear summaries.</div>
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;">
-              <label style="display:flex;flex-direction:column;gap:6px;font-size:0.9rem;color:#475569;">
-                <span>Date</span>
-                <input id="reports-date-filter" type="date" style="padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;min-width:180px;" />
-              </label>
-              <div class="muted" style="font-size:0.9rem;">Select a date to view daily report summaries and save that day's report to archives.</div>
-            </div>
 
-            <!-- End of Day Report Button -->
-            <div class="card">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="card report-summary-card">
+              <div class="report-card-head">
                 <div>
-                  <h3 style="margin: 0 0 12px 0; font-size: 1.1rem; font-weight: 600;">Daily Summary</h3>
-                  <div class="muted">Generate a comprehensive end of day report</div>
+                  <h3 class="report-title">Daily Summary</h3>
+                  <div class="muted">Generate a comprehensive end of day report.</div>
                 </div>
-                <button id="btn-end-of-day-report" class="btn btn-accent" style="background: #8b5cf6; color: white; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">End of Day Report</button>
+                <div class="report-actions">
+                  <label class="report-filter-label">
+                    <span>Date</span>
+                    <input id="reports-date-filter" type="date" class="input report-date-picker" />
+                  </label>
+                  <button id="btn-end-of-day-report" class="btn btn-accent">End of Day Report</button>
+                </div>
               </div>
             </div>
 

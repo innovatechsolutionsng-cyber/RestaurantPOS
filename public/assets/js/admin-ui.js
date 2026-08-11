@@ -1201,6 +1201,10 @@ function showToast(message, type = 'success', duration = 3000) {
     biReportDateFilter.addEventListener('change', renderBIReport);
   }
   if (reportsDateFilter) {
+    const today = new Date();
+    if (!reportsDateFilter.value) {
+      reportsDateFilter.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
     reportsDateFilter.addEventListener('change', refreshReportSummaries);
   }
 
