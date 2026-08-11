@@ -3645,6 +3645,7 @@ function showToast(message, type = 'success', duration = 3000) {
         });
         
         const categorySummary = {};
+        const uncategorizedCategoryItems = [];
         
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
@@ -3670,12 +3671,29 @@ function showToast(message, type = 'success', duration = 3000) {
               categorySummary[category].itemCount += 1;
               categorySummary[category].totalQuantity += quantity;
               categorySummary[category].totalValue += itemTotal;
+              if (category === 'Uncategorized' && uncategorizedCategoryItems.length < 10) {
+                try {
+                  uncategorizedCategoryItems.push({
+                    orderId: getOrderIdValue(order),
+                    productName: getItemProductName(item),
+                    productId: item?.productId ?? item?.product_id ?? item?.id ?? item?.product?.id ?? null,
+                    rawItem: item,
+                    categoryInfo
+                  });
+                } catch (e) {
+                  // ignore logging errors
+                }
+              }
             });
           }
         });
         
         // Convert to array and sort by total value (descending)
         let summaryArray = Object.values(categorySummary).sort((a, b) => b.totalValue - a.totalValue);
+
+        if (uncategorizedCategoryItems.length > 0) {
+          console.warn('Category summary: uncategorized items (up to 10):', uncategorizedCategoryItems);
+        }
         
         // Apply search filter if provided
         const searchTerm = (categorySummarySearch?.value || '').toLowerCase();
@@ -3773,6 +3791,7 @@ function showToast(message, type = 'success', duration = 3000) {
         });
         
         const subcategorySummary = {};
+        const uncategorizedSubcategoryItems = [];
         
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
@@ -3798,12 +3817,27 @@ function showToast(message, type = 'success', duration = 3000) {
               subcategorySummary[subcategory].itemCount += 1;
               subcategorySummary[subcategory].totalQuantity += quantity;
               subcategorySummary[subcategory].totalValue += itemTotal;
+              if (subcategory === 'Uncategorized' && uncategorizedSubcategoryItems.length < 10) {
+                try {
+                  uncategorizedSubcategoryItems.push({
+                    orderId: getOrderIdValue(order),
+                    productName: getItemProductName(item),
+                    productId: item?.productId ?? item?.product_id ?? item?.id ?? item?.product?.id ?? null,
+                    rawItem: item,
+                    categoryInfo
+                  });
+                } catch (e) { }
+              }
             });
           }
         });
         
         // Convert to array and sort by total value (descending)
         let summaryArray = Object.values(subcategorySummary).sort((a, b) => b.totalValue - a.totalValue);
+
+        if (uncategorizedSubcategoryItems.length > 0) {
+          console.warn('Subcategory summary: uncategorized items (up to 10):', uncategorizedSubcategoryItems);
+        }
         
         // Apply search filter if provided
         const searchTerm = (subcategorySummarySearch?.value || '').toLowerCase();
