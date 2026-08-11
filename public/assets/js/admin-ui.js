@@ -1,4 +1,5 @@
 // Toast notification system
+console.info('admin-ui.js loaded:', new Date().toISOString());
 function showToast(message, type = 'success', duration = 3000) {
   const toast = document.createElement('div');
   toast.style.cssText = `
