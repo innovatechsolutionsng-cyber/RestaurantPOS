@@ -1581,25 +1581,26 @@ function showToast(message, type = 'success', duration = 3000) {
   }
 
   function renderUserPagination(totalItems){
-    if(!userTablePagination) return;
+    const container = userTablePagination || document.getElementById('users-table-pagination');
+    if(!container) return;
     const totalPages = Math.max(1, Math.ceil(totalItems / USERS_PAGE_SIZE));
     if(usersCurrentPage > totalPages) usersCurrentPage = totalPages;
 
-    userTablePagination.style.display = 'flex';
-    userTablePagination.style.alignItems = 'center';
-    userTablePagination.style.justifyContent = 'flex-end';
-    userTablePagination.style.gap = '8px';
-    userTablePagination.style.flexWrap = 'wrap';
-    userTablePagination.style.minHeight = '38px';
+    container.style.display = 'flex';
+    container.style.alignItems = 'center';
+    container.style.justifyContent = 'flex-end';
+    container.style.gap = '8px';
+    container.style.flexWrap = 'wrap';
+    container.style.minHeight = '38px';
 
-    userTablePagination.innerHTML = `
+    container.innerHTML = `
       <span id="users-page-info" class="muted" style="margin-right:8px;">Page ${usersCurrentPage} of ${totalPages}</span>
       <button id="users-page-prev" class="btn btn-ghost" type="button" ${usersCurrentPage === 1 ? 'disabled' : ''}>Prev</button>
       <button id="users-page-next" class="btn btn-ghost" type="button" ${usersCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
     `;
 
-    const prevBtn = userTablePagination.querySelector('#users-page-prev');
-    const nextBtn = userTablePagination.querySelector('#users-page-next');
+    const prevBtn = container.querySelector('#users-page-prev');
+    const nextBtn = container.querySelector('#users-page-next');
     if(prevBtn){ prevBtn.addEventListener('click', () => { if(usersCurrentPage > 1){ usersCurrentPage -= 1; refreshUsers(); } }); }
     if(nextBtn){ nextBtn.addEventListener('click', () => { if(usersCurrentPage < totalPages){ usersCurrentPage += 1; refreshUsers(); } }); }
   }
@@ -1909,7 +1910,15 @@ function showToast(message, type = 'success', duration = 3000) {
   // Inventory wiring: hierarchical tree-based product management
   (async function(){
     const $ = id => document.getElementById(id);
-    
+    let productTable = null;
+    let productTablePagination = null;
+    let productsCurrentPage = 1;
+    const PRODUCTS_PAGE_SIZE = 10;
+    let inventorySearch = null;
+    let inventoryCategories = [];
+    let inventorySubcategories = [];
+    let inventoryProducts = [];
+
     // Helper functions
     function closeModal(modalId) {
       const modal = $(modalId);
@@ -2049,6 +2058,90 @@ function showToast(message, type = 'success', duration = 3000) {
     async function findBackendProductById(id){
       const prods = await getBackendProducts();
       return prods.find(p => String(p.id) === String(id)) || null;
+    }
+
+    function getCategoryNameForProduct(product) {
+      if (!product) return 'Uncategorized';
+      const category = inventoryCategories.find(c => String(c.id) === String(product.cat));
+      return category ? category.name || 'Uncategorized' : 'Uncategorized';
+    }
+
+    function getSubcategoryNameForProduct(product) {
+      if (!product) return 'Uncategorized';
+      const subcategory = inventorySubcategories.find(s => String(s.id) === String(product.sub));
+      return subcategory ? subcategory.name || 'Uncategorized' : 'Uncategorized';
+    }
+
+    function renderProductPagination(totalItems) {
+      const container = productTablePagination || $('products-table-pagination');
+      if (!container) return;
+      const totalPages = Math.max(1, Math.ceil(totalItems / PRODUCTS_PAGE_SIZE));
+      if (productsCurrentPage > totalPages) productsCurrentPage = totalPages;
+
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.justifyContent = 'flex-end';
+      container.style.gap = '8px';
+      container.style.flexWrap = 'wrap';
+      container.style.minHeight = '38px';
+
+      container.innerHTML = `
+        <span id="products-page-info" class="muted" style="margin-right:8px;">Page ${productsCurrentPage} of ${totalPages}</span>
+        <button id="products-page-prev" class="btn btn-ghost" type="button" ${productsCurrentPage === 1 ? 'disabled' : ''}>Prev</button>
+        <button id="products-page-next" class="btn btn-ghost" type="button" ${productsCurrentPage === totalPages ? 'disabled' : ''}>Next</button>
+      `;
+
+      const prevBtn = container.querySelector('#products-page-prev');
+      const nextBtn = container.querySelector('#products-page-next');
+      if (prevBtn) { prevBtn.addEventListener('click', () => { if (productsCurrentPage > 1) { productsCurrentPage -= 1; refreshProductList(); } }); }
+      if (nextBtn) { nextBtn.addEventListener('click', () => { if (productsCurrentPage < totalPages) { productsCurrentPage += 1; refreshProductList(); } }); }
+    }
+
+    function refreshProductList() {
+      if (!productTable) return;
+      const tbody = productTable.querySelector('tbody');
+      if (!tbody) return;
+      const searchTerm = (inventorySearch?.value || '').toLowerCase().trim();
+      const filtered = inventoryProducts.filter((prod) => {
+        if (!searchTerm) return true;
+        const name = String(prod.name || prod.productName || '').toLowerCase();
+        const barcode = String(prod.barcode || '').toLowerCase();
+        const category = getCategoryNameForProduct(prod).toLowerCase();
+        const subcategory = getSubcategoryNameForProduct(prod).toLowerCase();
+        return [name, barcode, category, subcategory].some(value => value.includes(searchTerm));
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="muted" style="padding:8px">No products match your search.</td></tr>`;
+        renderProductPagination(0);
+        return;
+      }
+
+      filtered.sort((a, b) => String((a.name || '')).localeCompare(String((b.name || ''))));
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PRODUCTS_PAGE_SIZE));
+      if (productsCurrentPage > totalPages) productsCurrentPage = totalPages;
+      const startIndex = (productsCurrentPage - 1) * PRODUCTS_PAGE_SIZE;
+      const pageProducts = filtered.slice(startIndex, startIndex + PRODUCTS_PAGE_SIZE);
+
+      tbody.innerHTML = '';
+      pageProducts.forEach((prod) => {
+        const price = prod.price !== undefined && prod.price !== null ? `₦${new Intl.NumberFormat('en-NG').format(Number(prod.price))}` : '—';
+        const stock = prod.quantity !== undefined && prod.quantity !== null ? String(prod.quantity) : '—';
+        const categoryName = getCategoryNameForProduct(prod);
+        const subcategoryName = getSubcategoryNameForProduct(prod);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding:8px;border-bottom:1px solid var(--border)">${prod.name || prod.productName || 'Unnamed product'}</td>
+          <td style="padding:8px;border-bottom:1px solid var(--border)">${categoryName}</td>
+          <td style="padding:8px;border-bottom:1px solid var(--border)">${subcategoryName}</td>
+          <td style="padding:8px;border-bottom:1px solid var(--border);text-align:right;">${price}</td>
+          <td style="padding:8px;border-bottom:1px solid var(--border);text-align:right;">${stock}</td>
+          <td style="padding:8px;border-bottom:1px solid var(--border);text-align:right;">—</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderProductPagination(filtered.length);
     }
 
     // Render hierarchical inventory tree
@@ -2510,7 +2603,7 @@ function showToast(message, type = 'success', duration = 3000) {
       });
     }
 
-    const inventorySearch = $('inventory-search');
+    inventorySearch = $('inventory-search');
     if (inventorySearch) {
       inventorySearch.addEventListener('input', () => refreshInventory());
     }
