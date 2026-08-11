@@ -5083,6 +5083,12 @@ function showToast(message, type = 'success', duration = 3000) {
       hour12: true 
     });
 
+    let payments = Array.isArray(order.payments) ? order.payments : [];
+    // Build payment breakdown HTML
+    const paymentBreakdownHTML = payments.length > 0
+      ? payments.map(p => `<div style="display:flex;justify-content:space-between;margin:4px 0;'><span style="font-weight:700;">${(p.method||'Unknown').toUpperCase()}</span><span style="font-weight:700;">${formatCurrency(p.amount||0)}</span></div>`).join('')
+      : '';
+
     let billHTML = `
       <html>
       <head>
@@ -5091,196 +5097,51 @@ function showToast(message, type = 'success', duration = 3000) {
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
             font-family: Arial, Helvetica, sans-serif; 
-            padding: 6px;
+            padding: 8px;
             max-width: 80mm;
             width: 100%;
             background-color: white;
             color: #000;
-            line-height: 1.3;
-            font-size: 13px;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-          }
-          
-          /* Header Section */
-          .receipt-header {
-            text-align: center;
-            margin-bottom: 8px;
-            border-bottom: 1px solid #000;
-            padding-bottom: 6px;
-          }
-          
-          .event-name {
-            font-weight: bold;
-            font-size: 16px;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-          }
-          
-          .receipt-label {
-            font-weight: bold;
-            font-size: 14px;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-          }
-          
-          .datetime {
-            font-size: 11px;
-            color: #333;
-          }
-          
-          /* Order Info Section */
-          .order-info {
-            margin: 8px 0;
-            padding: 8px 0;
-            border-top: 1px solid #000;
-            border-bottom: 1px solid #000;
-          }
-          
-          .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 3px 0;
-            font-size: 13px;
-          }
-          
-          .info-label {
-            font-weight: bold;
-            min-width: 50px;
-          }
-          
-          .info-value {
-            flex: 1;
-            text-align: right;
-            padding-left: 10px;
-          }
-          
-          /* Items Section */
-          .item-header-row {
-            display: grid;
-            grid-template-columns: 1fr 30px 75px;
-            gap: 3px;
-            padding: 4px 0;
-            border-bottom: 1px dotted #999;
-            font-weight: bold;
-            font-size: 11px;
-          }
-          
-          .item-header-row span:nth-child(2),
-          .item-header-row span:nth-child(3) {
-            text-align: right;
-          }
-          
-          .items-body {
-            margin-bottom: 8px;
-          }
-          
-          .item-row {
-            display: grid;
-            grid-template-columns: 1fr 30px 75px;
-            gap: 3px;
-            padding: 3px 0;
-            border-bottom: 1px dotted #999;
-            font-size: 11px;
-            align-items: center;
-            word-break: break-word;
-          }
-          
-          .item-name {
-            font-weight: bold;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-          }
-          
-          .item-qty {
-            text-align: center;
-            width: 30px;
-            font-weight: bold;
-          }
-          
-          .item-total {
-            text-align: right;
-            width: 75px;
-            font-weight: bold;
-          }
-          
-          /* Billing Summary */
-          .billing-summary {
-            margin: 8px 0;
-            padding: 8px 0;
-            border-top: 1px solid #000;
-            border-bottom: 1px solid #000;
-          }
-          
-          .summary-title {
-            font-weight: bold;
-            margin-bottom: 4px;
+            line-height: 1.35;
             font-size: 12px;
+            word-break: break-word;
+            overflow-wrap: anywhere;
           }
-          
-          .summary-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            margin: 2px 0;
-          }
-          
-          .summary-label {
-            flex: 1;
-          }
-          
-          .summary-value {
-            text-align: right;
-            min-width: 50px;
-          }
-          
-          .subtotal-row {
-            font-weight: bold;
-          }
-          
-          .grand-total-row {
-            font-weight: bold;
-            font-size: 13px;
-            margin-top: 4px;
-            padding-top: 4px;
-            border-top: 1px dashed #000;
-          }
-          
-          .grand-total-row span:first-child {
-            flex: 1;
-          }
-          
-          .grand-total-row span:last-child {
-            text-align: right;
-            min-width: 60px;
-          }
-          
-          .payment-method-summary {
-            margin: 10px 0 0;
-            padding: 10px 0 0;
-            border-top: 1px solid #000;
-          }
-          
-          .payment-method-summary .summary-row {
-            margin: 4px 0;
-          }
-          
+
+          .receipt-header { text-align: center; margin-bottom: 6px; border-bottom: 1px solid #000; padding-bottom: 6px; }
+
+          /* Section 1: Table / Waiter / Cashier */
+          .order-info { margin: 8px 0; padding: 6px 0; }
+          .order-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; font-size: 12px; }
+          .order-cell { display:flex; flex-direction:column; }
+          .order-cell .label { font-weight:700; color:#111827; font-size:11px; }
+          .order-cell .value { text-align:right; font-weight:600; color:#374151; }
+
+          /* Section 2: Items table */
+          .items-table { margin-top:8px; }
+          .item-header { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; font-weight:700; border-bottom:1px solid #ddd; padding:6px 0; font-size:11px; }
+          .items-body { margin:4px 0 8px 0; }
+          .item-row { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; padding:6px 0; font-size:11px; align-items:center; }
+          .item-name { font-weight:600; }
+          .item-qty { text-align:center; }
+          .item-unit, .item-line-total { text-align:right; }
+
+          /* Section 3: Billing summary */
+          .billing-summary { margin-top:8px; padding-top:6px; border-top:1px solid #000; }
+          .summary-row { display:flex; justify-content:space-between; padding:4px 0; font-size:12px; }
+          .summary-row.small { font-size:11px; color:#374151; }
+          .grand-total { display:flex; justify-content:space-between; font-weight:900; font-size:16px; padding-top:8px; border-top:1px dashed #000; }
+
+          /* Section 4: Payment method */
+          .payment-section { margin-top:10px; padding-top:8px; border-top:1px solid #e6e6e6; }
+          .payment-title { font-weight:800; margin-bottom:6px; }
+
           /* Footer */
-          .receipt-footer {
-            text-align: center;
-            margin-top: 8px;
-            font-size: 11px;
-          }
-          
-          .thank-you {
-            font-weight: bold;
-            margin-bottom: 3px;
-          }
-          
-          .footer-text {
-            color: #333;
-            font-size: 10px;
-          }
+          .receipt-footer { text-align:center; margin-top:10px; font-size:11px; }
+          .thank-you { font-weight:700; margin-bottom:4px; }
+          .footer-text { color:#333; font-size:10px; }
+
+          @media print { body { padding:4px; max-width:80mm; width:80mm; } }
         </style>
       </head>
       <body>
@@ -5292,99 +5153,69 @@ function showToast(message, type = 'success', duration = 3000) {
           <div class="receipt-label">Receipt</div>
           <div class="datetime">${receiptDate} ${receiptTime}</div>
         </div>
-        
+
+        <!-- Section 1: Table / Waiter / Cashier -->
         <div class="order-info">
-          <div class="info-row">
-            <span class="info-label">Table:</span>
-            <span class="info-value">${tableName}</span>
+          <div class="order-grid">
+            <div class="order-cell">
+              <span class="label">TABLE</span>
+              <span class="value">${tableName}</span>
+            </div>
+            <div class="order-cell">
+              <span class="label">WAITER</span>
+              <span class="value">${waiterName}</span>
+            </div>
+            <div class="order-cell">
+              <span class="label">CASHIER</span>
+              <span class="value">${cashierName}</span>
+            </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">Waiter:</span>
-            <span class="info-value">${waiterName}</span>
-          </div>
-          ${paymentMethod ? `
-          <div class="info-row">
-            <span class="info-label">Payment:</span>
-            <span class="info-value">${paymentMethod}</span>
-          </div>
-          ` : ''}
-          ${clientName ? `
-          <div class="info-row">
-            <span class="info-label">Client:</span>
-            <span class="info-value">${clientName}</span>
-          </div>
-          ` : ''}
         </div>
-        
-        <div class="item-header-row">
-          <span>Product</span>
-          <span>Qty</span>
-          <span>Total</span>
-        </div>
-        
-        <div class="items-body">
+
+        <!-- Section 2: Items -->
+        <div class="items-table">
+          <div class="item-header">
+            <div>Product</div>
+            <div>Qty</div>
+            <div>Unit</div>
+            <div>Total</div>
+          </div>
+          <div class="items-body">
     `;
 
     items.forEach(item => {
+      const unit = item.unitPrice || item.price || 0;
       const itemTotal = (item.price || item.unitPrice) * item.quantity;
       billHTML += `
         <div class="item-row">
-          <span class="item-name">${item.productName}</span>
-          <span class="item-qty">x${item.quantity}</span>
-          <span class="item-total">${formatCurrency(itemTotal)}</span>
+          <div class="item-name">${escapeHtml(item.productName || item.name || 'Item')}</div>
+          <div class="item-qty">${item.quantity}</div>
+          <div class="item-unit">${formatCurrency(unit)}</div>
+          <div class="item-line-total">${formatCurrency(itemTotal)}</div>
         </div>
       `;
     });
 
     billHTML += `
+          </div>
         </div>
-        
-        <!-- Billing Summary -->
+
+        <!-- Section 3: Billing Summary -->
         <div class="billing-summary">
-          <div class="summary-title">Billing Summary</div>
-          
-          <div class="summary-row subtotal-row">
-            <span class="summary-label">Subtotal</span>
-            <span class="summary-value">${formatCurrency(breakdown.subtotal)}</span>
-          </div>
-          
-          ${breakdown.discount > 0 ? `
-          <div class="summary-row">
-            <span class="summary-label">Discount</span>
-            <span class="summary-value">-${formatCurrency(breakdown.discount)}</span>
-          </div>
-          ` : ''}
-          
-          ${breakdown.tax > 0 ? `
-          <div class="summary-row">
-            <span class="summary-label">Tax (${breakdown.taxPercentage}%)</span>
-            <span class="summary-value">+${formatCurrency(breakdown.tax)}</span>
-          </div>
-          ` : ''}
-          
-          ${breakdown.serviceCharge > 0 ? `
-          <div class="summary-row">
-            <span class="summary-label">Service (${breakdown.serviceChargePercentage}%)</span>
-            <span class="summary-value">+${formatCurrency(breakdown.serviceCharge)}</span>
-          </div>
-          ` : ''}
-          
-          <div class="grand-total-row">
-            <span>TOTAL DUE</span>
-            <span>${formatCurrency(breakdown.total)}</span>
-          </div>
+          <div class="summary-row small"><div>Subtotal</div><div>${formatCurrency(breakdown.subtotal)}</div></div>
+          ${breakdown.discount > 0 ? `<div class="summary-row small"><div>Discount (${breakdown.discountPercentage || 0}%)</div><div>-${formatCurrency(breakdown.discount)}</div></div>` : ''}
+          ${breakdown.tax > 0 ? `<div class="summary-row small"><div>Tax (${breakdown.taxPercentage || 0}%)</div><div>+${formatCurrency(breakdown.tax)}</div></div>` : ''}
+          ${breakdown.serviceCharge > 0 ? `<div class="summary-row small"><div>Service (${breakdown.serviceChargePercentage || 0}%)</div><div>+${formatCurrency(breakdown.serviceCharge)}</div></div>` : ''}
+          <div class="grand-total"><div>TOTAL</div><div>${formatCurrency(breakdown.total)}</div></div>
         </div>
-        
+
+        <!-- Section 4: Payment Method -->
+        <div class="payment-section">
+          <div class="payment-title">Payment Method</div>
+          ${paymentBreakdownHTML || (paymentMethod ? `<div style="font-weight:700;display:flex;justify-content:space-between;"><span>${escapeHtml(paymentMethod)}</span><span>${formatCurrency(breakdown.total)}</span></div>` : '<div style="color:#6b7280;font-size:11px;">No payment info</div>')}
+        </div>
+
         <!-- Footer -->
-        ${paymentMethod ? `
-        <div class="billing-summary payment-method-summary" style="border-top: none; padding-top: 0; margin-top: 8px;">
-          <div class="summary-title">Payment Method</div>
-          <div class="summary-row">
-            <span class="summary-label">${paymentMethod}</span>
-            <span class="summary-value">${formatCurrency(breakdown.total)}</span>
-          </div>
-        </div>
-        ` : ''}
         <div class="receipt-footer">
           <div class="thank-you">Thank You!</div>
           <div class="footer-text">${receiptFooterMessage}</div>
@@ -5393,7 +5224,7 @@ function showToast(message, type = 'success', duration = 3000) {
       </html>
     `;
 
-    // Use safePrint to handle pop-up blocking and fallback to iframe
+    // Print safely
     safePrint(billHTML);
   }
 
