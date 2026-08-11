@@ -1222,10 +1222,12 @@ function showToast(message, type = 'success', duration = 3000) {
       reportsDateFilter.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     }
     updateEndOfDayButtonLabel();
-    reportsDateFilter.addEventListener('change', () => {
+    const refreshReports = () => {
       updateEndOfDayButtonLabel();
       refreshReportSummaries();
-    });
+    };
+    reportsDateFilter.addEventListener('change', refreshReports);
+    reportsDateFilter.addEventListener('input', refreshReports);
   }
 
   async function isBackendAvailable() {
@@ -3165,7 +3167,7 @@ function showToast(message, type = 'success', duration = 3000) {
       const product = item?.product || item?.productDetails || null;
       const productName = getItemProductName(item);
       const normalizedProductName = normalizeLookupValue(productName);
-      const productId = String(item?.productId ?? item?.product_id ?? product?.id ?? product?.productId ?? item?.id ?? '').trim();
+      const productId = String(item?.productId ?? item?.product_id ?? item?.id ?? product?.id ?? product?.productId ?? '').trim();
 
       const resolveCategoryName = (candidate) => {
         if (candidate == null || candidate === '') return '';
@@ -3173,6 +3175,7 @@ function showToast(message, type = 'success', duration = 3000) {
           return String(candidate.name || candidate.title || '').trim();
         }
         const key = String(candidate).trim();
+        if (!key) return '';
         return categoryNameMap[key] || key;
       };
 
@@ -3182,38 +3185,94 @@ function showToast(message, type = 'success', duration = 3000) {
           return String(candidate.name || candidate.title || '').trim();
         }
         const key = String(candidate).trim();
+        if (!key) return '';
         return subcategoryDetailsMap[key]?.name || key;
       };
 
-      const explicitCategory = resolveCategoryName(item?.categoryName ?? item?.category ?? item?.category_name ?? item?.product?.categoryName ?? item?.product?.category ?? item?.product?.category?.name ?? '');
-      const explicitSubcategory = resolveSubcategoryName(item?.subcategoryName ?? item?.subcategory ?? item?.subcategory_name ?? item?.product?.subcategoryName ?? item?.product?.subcategory ?? item?.product?.subcategory?.name ?? '');
-      let category = explicitCategory || '';
-      let subcategory = explicitSubcategory || '';
+      const categoryCandidates = [
+        item?.categoryName,
+        item?.category,
+        item?.category_name,
+        item?.product?.categoryName,
+        item?.product?.category,
+        item?.product?.category?.name,
+        item?.productDetails?.categoryName,
+        item?.productDetails?.category,
+        item?.productDetails?.category?.name
+      ];
 
-      if (!category) {
-        const explicitProductCategory = String(product?.category || product?.categoryName || product?.category_name || '').trim();
-        if (explicitProductCategory) {
-          category = explicitProductCategory;
+      const subcategoryCandidates = [
+        item?.subcategoryName,
+        item?.subcategory,
+        item?.subcategory_name,
+        item?.product?.subcategoryName,
+        item?.product?.subcategory,
+        item?.product?.subcategory?.name,
+        item?.productDetails?.subcategoryName,
+        item?.productDetails?.subcategory,
+        item?.productDetails?.subcategory?.name
+      ];
+
+      const categoryIdCandidates = [
+        item?.cat,
+        item?.categoryId,
+        item?.category_id,
+        product?.cat,
+        product?.categoryId,
+        product?.category_id,
+        item?.product?.cat,
+        item?.product?.categoryId,
+        item?.product?.category_id
+      ];
+
+      const subcategoryIdCandidates = [
+        item?.sub,
+        item?.subcategoryId,
+        item?.subcategory_id,
+        product?.sub,
+        product?.subcategoryId,
+        product?.subcategory_id,
+        item?.product?.sub,
+        item?.product?.subcategoryId,
+        item?.product?.subcategory_id
+      ];
+
+      let category = '';
+      let subcategory = '';
+
+      for (const candidate of categoryCandidates) {
+        const resolved = resolveCategoryName(candidate);
+        if (resolved) {
+          category = resolved;
+          break;
         }
       }
-      if (!subcategory) {
-        const explicitProductSubcategory = String(product?.subcategory || product?.subcategoryName || product?.subcategory_name || '').trim();
-        if (explicitProductSubcategory) {
-          subcategory = explicitProductSubcategory;
+
+      for (const candidate of subcategoryCandidates) {
+        const resolved = resolveSubcategoryName(candidate);
+        if (resolved) {
+          subcategory = resolved;
+          break;
         }
       }
 
       if (!category) {
-        const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? product?.categoryId ?? null;
-        const resolvedCategory = resolveCategoryName(categoryId);
-        if (resolvedCategory) category = resolvedCategory;
+        for (const candidate of categoryIdCandidates) {
+          const resolved = resolveCategoryName(candidate);
+          if (resolved) {
+            category = resolved;
+            break;
+          }
+        }
       }
 
       if (!subcategory) {
-        const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? product?.subcategoryId ?? null;
-        const resolvedSubcategory = resolveSubcategoryName(subcategoryId);
-        if (resolvedSubcategory) {
-          subcategory = resolvedSubcategory;
+        for (const candidate of subcategoryIdCandidates) {
+          const resolved = resolveSubcategoryName(candidate);
+          if (resolved) {
+            subcategory = resolved;
+            break;
+          }
         }
       }
 
@@ -3257,8 +3316,8 @@ function showToast(message, type = 'success', duration = 3000) {
       }
 
       const details = productDetailsMap[normalizedProductName] || productDetailsMap[productId] || productDetailsMap[normalizeLookupValue(String(product?.name || ''))] || {};
-      if (!category) category = details.category || 'Uncategorized';
-      if (!subcategory) subcategory = details.subcategory || 'Uncategorized';
+      if (!category) category = details.category || '';
+      if (!subcategory) subcategory = details.subcategory || '';
 
       if (!category && subcategory) {
         const resolvedParent = subcategoryDetailsMap[String(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '')]?.parentCategoryName;
