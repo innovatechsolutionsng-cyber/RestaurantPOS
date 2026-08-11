@@ -960,6 +960,40 @@ function showToast(message, type = 'success', duration = 3000) {
     return new Date();
   }
 
+  function getReportDateRange() {
+    const reportsDateInput = document.getElementById('reports-date-filter');
+    const today = new Date();
+    let selectedDate = today;
+    if (reportsDateInput) {
+      if (reportsDateInput.value) {
+        const [year, month, day] = reportsDateInput.value.split('-').map(Number);
+        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+          selectedDate = new Date(year, month - 1, day);
+        }
+      } else {
+        reportsDateInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      }
+    }
+    const start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+
+  function isOrderInReportDate(order, range) {
+    const createdAt = getOrderCreatedAt(order);
+    return !Number.isNaN(createdAt.getTime()) && createdAt >= range.start && createdAt < range.end;
+  }
+
+  async function refreshReportSummaries() {
+    await Promise.all([
+      loadVoidedItemsReport(),
+      loadItemsSummaryReport(),
+      loadSubcategorySummaryReport(),
+      loadCategorySummaryReport()
+    ]).catch((err) => console.error('Failed to refresh report summaries:', err));
+  }
+
   async function renderBIReport() {
     const bestSellerNameEl = document.getElementById('bi-best-seller-name');
     const todayRevenueEl = document.getElementById('bi-today-revenue');
@@ -1159,11 +1193,15 @@ function showToast(message, type = 'success', duration = 3000) {
 
   const btnRefreshBIReport = document.getElementById('btn-refresh-bi-report');
   const biReportDateFilter = document.getElementById('bi-report-date-filter');
+  const reportsDateFilter = document.getElementById('reports-date-filter');
   if (btnRefreshBIReport) {
     btnRefreshBIReport.addEventListener('click', renderBIReport);
   }
   if (biReportDateFilter) {
     biReportDateFilter.addEventListener('change', renderBIReport);
+  }
+  if (reportsDateFilter) {
+    reportsDateFilter.addEventListener('change', refreshReportSummaries);
   }
 
   async function isBackendAvailable() {
@@ -1353,6 +1391,9 @@ function showToast(message, type = 'success', duration = 3000) {
     }
     if (panelId === 'bi-report') {
       renderBIReport();
+    }
+    if (panelId === 'reports') {
+      refreshReportSummaries();
     }
     if (panelId === 'directories') {
       refreshUsers().catch(err => console.error('Failed to load users', err));
@@ -3100,48 +3141,44 @@ function showToast(message, type = 'success', duration = 3000) {
       const explicitCategory = String(item?.categoryName || item?.category || item?.category_name || item?.product?.categoryName || item?.product?.category || '').trim();
       const explicitSubcategory = String(item?.subcategoryName || item?.subcategory || item?.subcategory_name || item?.product?.subcategoryName || item?.product?.subcategory || '').trim();
       const product = item?.product || item?.productDetails || null;
-      const productName = getItemProductName(item).trim();
+      const productName = getItemProductName(item);
       const normalizedProductName = normalizeLookupValue(productName);
       const productId = String(item?.productId ?? item?.product_id ?? product?.id ?? item?.id ?? '').trim();
 
       let category = explicitCategory || '';
       let subcategory = explicitSubcategory || '';
 
-      const extractLookupValue = (value) => {
-        if (value == null || value === '') return '';
-        if (typeof value === 'object') {
-          if (value.id != null) return String(value.id);
-          if (value._id != null) return String(value._id);
-          if (value.name) return String(value.name);
-          if (value.categoryId != null) return String(value.categoryId);
-          if (value.subcategoryId != null) return String(value.subcategoryId);
-          return JSON.stringify(value);
-        }
-        return String(value).trim();
+      const resolveCategoryName = (candidateId) => {
+        if (candidateId == null || candidateId === '') return '';
+        return categoryNameMap[String(candidateId)] || '';
       };
 
-      const resolveCategoryName = (candidate) => {
-        const lookupKey = extractLookupValue(candidate);
-        if (!lookupKey) return '';
-        if (categoryNameMap[lookupKey]) return categoryNameMap[lookupKey];
-        return String(candidate).trim();
-      };
-
-      const resolveSubcategoryName = (candidate) => {
-        const lookupKey = extractLookupValue(candidate);
-        if (!lookupKey) return '';
-        if (subcategoryDetailsMap[lookupKey]?.name) return subcategoryDetailsMap[lookupKey].name;
-        return String(candidate).trim();
+      const resolveSubcategoryName = (candidateId) => {
+        if (candidateId == null || candidateId === '') return '';
+        return subcategoryDetailsMap[String(candidateId)]?.name || '';
       };
 
       if (!category) {
-        const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? product?.categoryId ?? product?.category?.id ?? product?.category ?? null;
+        const explicitProductCategory = String(product?.category || product?.categoryName || product?.category_name || '').trim();
+        if (explicitProductCategory) {
+          category = explicitProductCategory;
+        }
+      }
+      if (!subcategory) {
+        const explicitProductSubcategory = String(product?.subcategory || product?.subcategoryName || product?.subcategory_name || '').trim();
+        if (explicitProductSubcategory) {
+          subcategory = explicitProductSubcategory;
+        }
+      }
+
+      if (!category) {
+        const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? product?.categoryId ?? null;
         const resolvedCategory = resolveCategoryName(categoryId);
         if (resolvedCategory) category = resolvedCategory;
       }
 
       if (!subcategory) {
-        const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? product?.subcategoryId ?? product?.subcategory?.id ?? product?.subcategory ?? null;
+        const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? product?.subcategoryId ?? null;
         const resolvedSubcategory = resolveSubcategoryName(subcategoryId);
         if (resolvedSubcategory) {
           subcategory = resolvedSubcategory;
@@ -3149,7 +3186,7 @@ function showToast(message, type = 'success', duration = 3000) {
       }
 
       if ((!category || !subcategory) && Array.isArray(productCatalog)) {
-        const itemLookupName = normalizeLookupValue(productName || product?.name || item?.name || item?.productName);
+        const itemLookupName = normalizeLookupValue(productName || product?.name || item?.name || item?.productName || '');
         const matchedProduct = productCatalog.find((catalogProduct) => {
           if (!catalogProduct) return false;
           if (productId && String(catalogProduct.id) === String(productId)) return true;
@@ -3158,38 +3195,31 @@ function showToast(message, type = 'success', duration = 3000) {
         });
 
         if (matchedProduct) {
-          const matchedCategoryId = extractLookupValue(matchedProduct.cat ?? matchedProduct.categoryId ?? matchedProduct.category_id ?? matchedProduct.category?.id ?? matchedProduct.category ?? null);
-          const matchedSubcategoryId = extractLookupValue(matchedProduct.sub ?? matchedProduct.subcategoryId ?? matchedProduct.subcategory_id ?? matchedProduct.subcategory?.id ?? matchedProduct.subcategory ?? null);
+          const matchedCategoryId = matchedProduct.cat ?? matchedProduct.categoryId ?? matchedProduct.category_id ?? matchedProduct.category?.id ?? matchedProduct.category ?? null;
+          const matchedSubcategoryId = matchedProduct.sub ?? matchedProduct.subcategoryId ?? matchedProduct.subcategory_id ?? matchedProduct.subcategory?.id ?? matchedProduct.subcategory ?? null;
+          const matchedCategoryName = String(matchedProduct.category || '').trim() || resolveCategoryName(matchedCategoryId);
+          const matchedSubcategoryName = String(matchedProduct.subcategory || '').trim() || resolveSubcategoryName(matchedSubcategoryId);
 
-          if (!category) {
-            const resolvedCategory = resolveCategoryName(matchedCategoryId);
-            if (resolvedCategory) category = resolvedCategory;
+          if (!category && matchedCategoryName) {
+            category = matchedCategoryName;
+          }
+          if (!subcategory && matchedSubcategoryName) {
+            subcategory = matchedSubcategoryName;
           }
 
-          if (!subcategory) {
-            const resolvedSubcategory = resolveSubcategoryName(matchedSubcategoryId);
-            if (resolvedSubcategory) {
-              subcategory = resolvedSubcategory;
-            }
+          if (!category && !subcategory && matchedSubcategoryId != null && matchedSubcategoryId !== '' && subcategoryDetailsMap[String(matchedSubcategoryId)]?.parentCategoryName) {
+            category = subcategoryDetailsMap[String(matchedSubcategoryId)].parentCategoryName;
           }
         }
       }
 
-      const details = productDetailsMap[normalizedProductName]
-        || productDetailsMap[productName]
-        || productDetailsMap[productId]
-        || productDetailsMap[String(product?.name)]
-        || productDetailsMap[normalizeLookupValue(product?.name)]
-        || {};
-
+      const details = productDetailsMap[normalizedProductName] || productDetailsMap[productId] || productDetailsMap[normalizeLookupValue(String(product?.name || ''))] || {};
       if (!category) category = details.category || 'Uncategorized';
       if (!subcategory) subcategory = details.subcategory || 'Uncategorized';
 
       if (!category && subcategory) {
-        const subKey = extractLookupValue(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '');
-        if (subKey && subcategoryDetailsMap[subKey]?.parentCategoryName) {
-          category = subcategoryDetailsMap[subKey].parentCategoryName;
-        }
+        const resolvedParent = subcategoryDetailsMap[String(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '')]?.parentCategoryName;
+        if (resolvedParent) category = resolvedParent;
       }
 
       return {
@@ -3209,6 +3239,7 @@ function showToast(message, type = 'success', duration = 3000) {
     async function loadVoidedItemsReport() {
       try {
         const orders = await getOrdersForReports();
+        const reportRange = getReportDateRange();
         const searchTerm = (voidedSearchInput?.value || '').toLowerCase();
         
         let allVoidedItems = [];
@@ -3217,6 +3248,7 @@ function showToast(message, type = 'success', duration = 3000) {
         
         orders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
+          if (!isOrderInReportDate(order, reportRange)) return;
           if (!Array.isArray(order?.voidedItems) || order.voidedItems.length === 0) return;
           
           order.voidedItems.forEach(voidedItem => {
@@ -3333,6 +3365,7 @@ function showToast(message, type = 'success', duration = 3000) {
       try {
         const allOrders = await getOrdersForReports();
         const allProducts = await getProductsForReports();
+        const reportRange = getReportDateRange();
         
         const productPriceMap = {};
         allProducts.forEach(product => {
@@ -3345,6 +3378,7 @@ function showToast(message, type = 'success', duration = 3000) {
         
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
+          if (!isOrderInReportDate(order, reportRange)) return;
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const productName = getItemProductName(item);
@@ -3426,6 +3460,7 @@ function showToast(message, type = 'success', duration = 3000) {
       try {
         const allOrders = await getOrdersForReports();
         const allProducts = await getProductsForReports();
+        const reportRange = getReportDateRange();
         
         const allCategories = await RestaurantDB.getAllCategories();
         const categoryNameMap = Object.fromEntries((allCategories || []).map(category => [String(category.id), category.name || 'Uncategorized']));
@@ -3449,6 +3484,10 @@ function showToast(message, type = 'success', duration = 3000) {
               category: categoryName,
               subcategory: subcategoryName
             };
+            const normalizedProductName = normalizeLookupValue(product.name);
+            if (normalizedProductName) {
+              productDetailsMap[normalizedProductName] = details;
+            }
             productDetailsMap[String(product.name).toLowerCase()] = details;
             productDetailsMap[String(product.name)] = details;
             if (product.id != null) {
@@ -3461,6 +3500,7 @@ function showToast(message, type = 'success', duration = 3000) {
         
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
+          if (!isOrderInReportDate(order, reportRange)) return;
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const quantity = getItemQuantity(item);
@@ -3538,6 +3578,7 @@ function showToast(message, type = 'success', duration = 3000) {
       try {
         const allOrders = await getOrdersForReports();
         const allProducts = await getProductsForReports();
+        const reportRange = getReportDateRange();
         
         const allCategories = await RestaurantDB.getAllCategories();
         const categoryNameMap = Object.fromEntries((allCategories || []).map(category => [String(category.id), category.name || 'Uncategorized']));
@@ -3561,6 +3602,10 @@ function showToast(message, type = 'success', duration = 3000) {
               category: categoryName,
               subcategory: subcategoryName
             };
+            const normalizedProductName = normalizeLookupValue(product.name);
+            if (normalizedProductName) {
+              productDetailsMap[normalizedProductName] = details;
+            }
             productDetailsMap[String(product.name).toLowerCase()] = details;
             productDetailsMap[String(product.name)] = details;
             if (product.id != null) {
@@ -3573,6 +3618,7 @@ function showToast(message, type = 'success', duration = 3000) {
         
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
+          if (!isOrderInReportDate(order, reportRange)) return;
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const quantity = getItemQuantity(item);
