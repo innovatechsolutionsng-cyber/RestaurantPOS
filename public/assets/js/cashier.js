@@ -5119,14 +5119,14 @@ function showToast(message, type = 'success', duration = 3000) {
           .order-value { font-weight:600; color:#374151; text-align: right; flex: 1; }
 
           /* Section 2: Items table */
-          .items-table { margin-top:8px; }
+          .items-table { margin-top:8px; padding-top:8px; border-top:1px solid #000; }
           .section-title { font-weight: 900; font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
-          .item-header { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; font-weight:700; border-bottom:1px solid #ddd; padding:6px 0; font-size:11px; }
+          .item-header { display: grid; grid-template-columns: 1fr 34px 54px 62px; gap:6px; font-weight:700; border-bottom:1px solid #ddd; padding:6px 0; font-size:11px; }
           .items-body { margin:4px 0 8px 0; }
-          .item-row { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; padding:6px 0; font-size:11px; align-items:center; }
-          .item-name { font-weight:600; }
-          .item-qty { text-align:center; }
-          .item-unit, .item-line-total { text-align:right; }
+          .item-row { display: grid; grid-template-columns: 1fr 34px 54px 62px; gap:6px; padding:5px 0; font-size:11px; align-items:center; }
+          .item-name { font-weight:600; overflow-wrap:anywhere; }
+          .item-qty { text-align:center; font-variant-numeric: tabular-nums; }
+          .item-unit, .item-line-total { text-align:right; font-variant-numeric: tabular-nums; }
 
           /* Section 3: Billing summary */
           .billing-summary { margin-top:8px; padding-top:6px; border-top:1px solid #000; }
@@ -5179,9 +5179,9 @@ function showToast(message, type = 'success', duration = 3000) {
           <div class="section-title">Items</div>
           <div class="item-header">
             <div>Product</div>
-            <div>Qty</div>
-            <div>Unit</div>
-            <div>Total</div>
+            <div style="text-align:center;">Qty</div>
+            <div style="text-align:right;">Unit</div>
+            <div style="text-align:right;">Total</div>
           </div>
           <div class="items-body">
     `;
