@@ -1658,6 +1658,8 @@ function showToast(message, type = 'success', duration = 3000) {
       tbody.appendChild(tr);
     });
 
+    renderUserPagination(filteredUsers.length);
+
     tbody.querySelectorAll('[data-edit-user]').forEach((btn)=>{
       btn.addEventListener('click', async (ev)=>{
         const id = ev.currentTarget.getAttribute('data-edit-user');
