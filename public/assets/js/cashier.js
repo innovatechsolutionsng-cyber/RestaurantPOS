@@ -5101,51 +5101,47 @@ function showToast(message, type = 'success', duration = 3000) {
             max-width: 80mm;
             width: 100%;
             background-color: white;
-            color: #111827;
+            color: #000;
             line-height: 1.35;
             font-size: 12px;
             word-break: break-word;
             overflow-wrap: anywhere;
           }
 
-          .receipt-header { text-align: center; margin-bottom: 8px; border-bottom: 1px solid #111827; padding-bottom: 7px; }
-          .business-name { font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; }
-          .business-contact { font-size: 10px; color: #374151; margin-top: 1px; }
-          .receipt-label { font-weight: 700; font-size: 12px; text-transform: uppercase; margin-top: 3px; }
-          .datetime { font-size: 10px; color: #4b5563; margin-top: 2px; }
+          .receipt-header { text-align: center; margin-bottom: 6px; border-bottom: 1px solid #000; padding-bottom: 6px; }
+          .business-name { font-weight: 900; font-size: 14px; text-transform: uppercase; }
 
           /* Section 1: Table / Waiter / Cashier */
-          .order-info { margin: 8px 0 10px; padding: 6px 0; border-bottom: 1px solid #e5e7eb; }
+          .order-info { margin: 8px 0; padding: 6px 0; }
           .order-stack { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
           .order-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
           .order-label { font-weight:700; color:#111827; min-width: 58px; }
           .order-value { font-weight:600; color:#374151; text-align: right; flex: 1; }
 
           /* Section 2: Items table */
-          .items-table { margin-top: 4px; }
-          .section-title { font-weight: 900; font-size: 12px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
-          .item-header { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; font-weight:700; border-bottom:1px solid #d1d5db; padding:6px 0 4px; font-size:11px; color:#111827; }
-          .items-body { margin: 2px 0 8px; }
-          .item-row { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; padding:5px 0; font-size:11px; align-items:center; border-bottom: 1px dotted #e5e7eb; }
-          .item-name { font-weight:600; color:#111827; }
-          .item-qty { text-align:center; color:#374151; }
-          .item-unit, .item-line-total { text-align:right; color:#374151; }
+          .items-table { margin-top:8px; }
+          .section-title { font-weight: 900; font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
+          .item-header { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; font-weight:700; border-bottom:1px solid #ddd; padding:6px 0; font-size:11px; }
+          .items-body { margin:4px 0 8px 0; }
+          .item-row { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; padding:6px 0; font-size:11px; align-items:center; }
+          .item-name { font-weight:600; }
+          .item-qty { text-align:center; }
+          .item-unit, .item-line-total { text-align:right; }
 
           /* Section 3: Billing summary */
-          .billing-summary { margin-top: 6px; padding-top: 6px; border-top: 1px solid #111827; }
+          .billing-summary { margin-top:8px; padding-top:6px; border-top:1px solid #000; }
           .summary-row { display:flex; justify-content:space-between; padding:4px 0; font-size:12px; }
           .summary-row.small { font-size:11px; color:#374151; }
-          .grand-total { display:flex; justify-content:space-between; font-weight:900; font-size:15px; padding-top:8px; margin-top:4px; border-top:1px dashed #111827; }
+          .grand-total { display:flex; justify-content:space-between; font-weight:900; font-size:16px; padding-top:8px; border-top:1px dashed #000; }
 
           /* Section 4: Payment method */
-          .payment-section { margin-top:10px; padding-top:8px; border-top:1px solid #e5e7eb; }
-          .payment-title { font-weight:800; margin-bottom:6px; text-transform: uppercase; font-size:12px; }
-          .payment-row { display:flex; justify-content:space-between; padding:3px 0; font-size:11px; font-weight:700; }
+          .payment-section { margin-top:10px; padding-top:8px; border-top:1px solid #e6e6e6; }
+          .payment-title { font-weight:800; margin-bottom:6px; }
 
           /* Footer */
-          .receipt-footer { text-align:center; margin-top:10px; font-size:11px; padding-top:6px; border-top:1px solid #e5e7eb; }
-          .thank-you { font-weight:700; margin-bottom:4px; text-transform: uppercase; }
-          .footer-text { color:#4b5563; font-size:10px; }
+          .receipt-footer { text-align:center; margin-top:10px; font-size:11px; }
+          .thank-you { font-weight:700; margin-bottom:4px; }
+          .footer-text { color:#333; font-size:10px; }
 
           @media print { body { padding:4px; max-width:80mm; width:80mm; } }
         </style>
@@ -5220,7 +5216,7 @@ function showToast(message, type = 'success', duration = 3000) {
         <!-- Section 4: Payment Method -->
         <div class="payment-section">
           <div class="payment-title">Payment Method</div>
-          ${paymentBreakdownHTML || (paymentMethod ? `<div class="payment-row"><span>${escapeHtml(paymentMethod)}</span><span>${formatCurrency(breakdown.total)}</span></div>` : '<div style="color:#6b7280;font-size:11px;">No payment info</div>')}
+          ${paymentBreakdownHTML || (paymentMethod ? `<div style="font-weight:700;display:flex;justify-content:space-between;"><span>${escapeHtml(paymentMethod)}</span><span>${formatCurrency(breakdown.total)}</span></div>` : '<div style="color:#6b7280;font-size:11px;">No payment info</div>')}
         </div>
 
         <!-- Footer -->
