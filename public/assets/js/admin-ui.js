@@ -3029,60 +3029,10 @@ function showToast(message, type = 'success', duration = 3000) {
 
     async function getProductsForReports() {
       try {
-        const response = await fetchBackend('/api/products');
-        const products = Array.isArray(response?.products) ? response.products : [];
-        if (products.length) {
-          return products;
-        }
-      } catch (err) {
-        console.warn('Could not load products for reports from backend, falling back to local data:', err);
-      }
-
-      try {
         const products = await RestaurantDB.getAllProducts();
         return Array.isArray(products) ? products : [];
       } catch (err) {
         console.warn('Could not load products for reports:', err);
-        return [];
-      }
-    }
-
-    async function getCategoriesForReports() {
-      try {
-        const response = await fetchBackend('/api/categories');
-        const categories = Array.isArray(response?.categories) ? response.categories : [];
-        if (categories.length) {
-          return categories;
-        }
-      } catch (err) {
-        console.warn('Could not load categories for reports from backend, falling back to local data:', err);
-      }
-
-      try {
-        const categories = await RestaurantDB.getAllCategories();
-        return Array.isArray(categories) ? categories : [];
-      } catch (err) {
-        console.warn('Could not load categories for reports:', err);
-        return [];
-      }
-    }
-
-    async function getSubcategoriesForReports() {
-      try {
-        const response = await fetchBackend('/api/subcategories');
-        const subcategories = Array.isArray(response?.subcategories) ? response.subcategories : [];
-        if (subcategories.length) {
-          return subcategories;
-        }
-      } catch (err) {
-        console.warn('Could not load subcategories for reports from backend, falling back to local data:', err);
-      }
-
-      try {
-        const subcategories = await RestaurantDB.getAllSubcategories();
-        return Array.isArray(subcategories) ? subcategories : [];
-      } catch (err) {
-        console.warn('Could not load subcategories for reports:', err);
         return [];
       }
     }
@@ -3113,44 +3063,79 @@ function showToast(message, type = 'success', duration = 3000) {
       return explicitPrice;
     }
 
-    function getItemCategoryInfo(item, productDetailsMap = {}, categoryNameMap = {}, subcategoryDetailsMap = {}) {
+    function normalizeLookupValue(value) {
+      return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    function getItemCategoryInfo(item, productDetailsMap = {}, categoryNameMap = {}, subcategoryDetailsMap = {}, productCatalog = []) {
       const explicitCategory = String(item?.categoryName || item?.category || item?.category_name || item?.product?.categoryName || item?.product?.category || '').trim();
       const explicitSubcategory = String(item?.subcategoryName || item?.subcategory || item?.subcategory_name || item?.product?.subcategoryName || item?.product?.subcategory || '').trim();
       const product = item?.product || item?.productDetails || null;
-      const productName = getItemProductName(item).trim().toLowerCase();
+      const productName = getItemProductName(item).toLowerCase();
       const productId = String(item?.productId ?? item?.product_id ?? product?.id ?? item?.id ?? '').trim();
 
       let category = explicitCategory || '';
       let subcategory = explicitSubcategory || '';
 
+      const resolveCategoryName = (candidateId) => {
+        if (candidateId == null || candidateId === '') return '';
+        return categoryNameMap[String(candidateId)] || '';
+      };
+
+      const resolveSubcategoryName = (candidateId) => {
+        if (candidateId == null || candidateId === '') return '';
+        return subcategoryDetailsMap[String(candidateId)]?.name || '';
+      };
+
       if (!category) {
         const categoryId = item?.cat ?? product?.cat ?? item?.categoryId ?? item?.category_id ?? product?.categoryId ?? null;
-        if (categoryId != null && categoryId !== '' && categoryNameMap[String(categoryId)]) {
-          category = categoryNameMap[String(categoryId)];
-        }
+        const resolvedCategory = resolveCategoryName(categoryId);
+        if (resolvedCategory) category = resolvedCategory;
       }
 
       if (!subcategory) {
         const subcategoryId = item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? product?.subcategoryId ?? null;
-        const subcategoryDetails = subcategoryDetailsMap[String(subcategoryId)] || null;
-        if (subcategoryDetails?.name) {
-          subcategory = subcategoryDetails.name;
-          if (!category && subcategoryDetails.parentCategoryName) {
-            category = subcategoryDetails.parentCategoryName;
+        const resolvedSubcategory = resolveSubcategoryName(subcategoryId);
+        if (resolvedSubcategory) {
+          subcategory = resolvedSubcategory;
+        }
+      }
+
+      if ((!category || !subcategory) && Array.isArray(productCatalog)) {
+        const matchedProduct = productCatalog.find((catalogProduct) => {
+          if (!catalogProduct) return false;
+          if (productId && String(catalogProduct.id) === String(productId)) return true;
+          const catalogName = normalizeLookupValue(catalogProduct.name);
+          const itemLookupName = normalizeLookupValue(productName || product?.name || item?.name || item?.productName);
+          return catalogName && itemLookupName && catalogName === itemLookupName;
+        });
+
+        if (matchedProduct) {
+          const matchedCategoryId = matchedProduct.cat ?? matchedProduct.categoryId ?? matchedProduct.category_id ?? matchedProduct.category?.id ?? null;
+          const matchedSubcategoryId = matchedProduct.sub ?? matchedProduct.subcategoryId ?? matchedProduct.subcategory_id ?? matchedProduct.subcategory?.id ?? null;
+
+          if (!category) {
+            const resolvedCategory = resolveCategoryName(matchedCategoryId);
+            if (resolvedCategory) category = resolvedCategory;
+          }
+
+          if (!subcategory) {
+            const resolvedSubcategory = resolveSubcategoryName(matchedSubcategoryId);
+            if (resolvedSubcategory) {
+              subcategory = resolvedSubcategory;
+            } else if (matchedSubcategoryId != null && matchedSubcategoryId !== '' && subcategoryDetailsMap[String(matchedSubcategoryId)]?.parentCategoryName) {
+              category = subcategoryDetailsMap[String(matchedSubcategoryId)].parentCategoryName;
+            }
           }
         }
       }
 
-      const details = productDetailsMap[productName] || productDetailsMap[productId] || productDetailsMap[String(product?.name)] || productDetailsMap[String(product?.name).toLowerCase()] || {};
-      if (!category && details.category) {
-        category = details.category;
-      }
-      if (!subcategory && details.subcategory) {
-        subcategory = details.subcategory;
-      }
+      const details = productDetailsMap[productName] || productDetailsMap[productId] || productDetailsMap[String(product?.name)] || {};
+      if (!category) category = details.category || 'Uncategorized';
+      if (!subcategory) subcategory = details.subcategory || 'Uncategorized';
 
-      if (!category && details.parentCategoryName) {
-        category = details.parentCategoryName;
+      if (!category && subcategory && subcategoryDetailsMap[String(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '')]?.parentCategoryName) {
+        category = subcategoryDetailsMap[String(item?.sub ?? product?.sub ?? item?.subcategoryId ?? item?.subcategory_id ?? '')].parentCategoryName;
       }
 
       return {
@@ -3388,10 +3373,10 @@ function showToast(message, type = 'success', duration = 3000) {
         const allOrders = await getOrdersForReports();
         const allProducts = await getProductsForReports();
         
-        const allCategories = await getCategoriesForReports();
+        const allCategories = await RestaurantDB.getAllCategories();
         const categoryNameMap = Object.fromEntries((allCategories || []).map(category => [String(category.id), category.name || 'Uncategorized']));
         
-        const allSubcategories = await getSubcategoriesForReports();
+        const allSubcategories = await RestaurantDB.getAllSubcategories();
         const subcategoryDetailsMap = Object.fromEntries((allSubcategories || []).map(subcategory => [
           String(subcategory.id),
           {
@@ -3402,21 +3387,19 @@ function showToast(message, type = 'success', duration = 3000) {
         
         const productDetailsMap = {};
         allProducts.forEach(product => {
-          if (!product) return;
-          const categoryName = categoryNameMap[String(product.cat ?? product.categoryId ?? product.category_id)] || String(product.categoryName || product.category || '').trim() || 'Uncategorized';
-          const subcategoryName = subcategoryDetailsMap[String(product.sub ?? product.subcategoryId ?? product.subcategory_id)]?.name || String(product.subcategoryName || product.subcategory || '').trim() || 'Uncategorized';
-          const details = {
-            price: product.price || 0,
-            category: categoryName,
-            subcategory: subcategoryName,
-            parentCategoryName: categoryName
-          };
           if (product.name) {
+            const categoryName = categoryNameMap[String(product.cat)] || 'Uncategorized';
+            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || 'Uncategorized';
+            const details = {
+              price: product.price || 0,
+              category: categoryName,
+              subcategory: subcategoryName
+            };
             productDetailsMap[String(product.name).toLowerCase()] = details;
             productDetailsMap[String(product.name)] = details;
-          }
-          if (product.id != null) {
-            productDetailsMap[String(product.id)] = details;
+            if (product.id != null) {
+              productDetailsMap[String(product.id)] = details;
+            }
           }
         });
         
@@ -3427,7 +3410,7 @@ function showToast(message, type = 'success', duration = 3000) {
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const quantity = getItemQuantity(item);
-              const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap);
+              const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap, allProducts);
               const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
               const itemTotal = quantity * unitPrice;
               const category = categoryInfo.category || 'Uncategorized';
@@ -3502,10 +3485,10 @@ function showToast(message, type = 'success', duration = 3000) {
         const allOrders = await getOrdersForReports();
         const allProducts = await getProductsForReports();
         
-        const allCategories = await getCategoriesForReports();
+        const allCategories = await RestaurantDB.getAllCategories();
         const categoryNameMap = Object.fromEntries((allCategories || []).map(category => [String(category.id), category.name || 'Uncategorized']));
 
-        const allSubcategories = await getSubcategoriesForReports();
+        const allSubcategories = await RestaurantDB.getAllSubcategories();
         const subcategoryDetailsMap = Object.fromEntries((allSubcategories || []).map(subcategory => [
           String(subcategory.id),
           {
@@ -3516,21 +3499,19 @@ function showToast(message, type = 'success', duration = 3000) {
         
         const productDetailsMap = {};
         allProducts.forEach(product => {
-          if (!product) return;
-          const subcategoryName = subcategoryDetailsMap[String(product.sub ?? product.subcategoryId ?? product.subcategory_id)]?.name || String(product.subcategoryName || product.subcategory || '').trim() || 'Uncategorized';
-          const categoryName = categoryNameMap[String(product.cat ?? product.categoryId ?? product.category_id)] || String(product.categoryName || product.category || '').trim() || 'Uncategorized';
-          const details = {
-            price: product.price || 0,
-            category: categoryName,
-            subcategory: subcategoryName,
-            parentCategoryName: categoryName
-          };
           if (product.name) {
+            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || 'Uncategorized';
+            const categoryName = categoryNameMap[String(product.cat)] || 'Uncategorized';
+            const details = {
+              price: product.price || 0,
+              category: categoryName,
+              subcategory: subcategoryName
+            };
             productDetailsMap[String(product.name).toLowerCase()] = details;
             productDetailsMap[String(product.name)] = details;
-          }
-          if (product.id != null) {
-            productDetailsMap[String(product.id)] = details;
+            if (product.id != null) {
+              productDetailsMap[String(product.id)] = details;
+            }
           }
         });
         
@@ -3541,7 +3522,7 @@ function showToast(message, type = 'success', duration = 3000) {
           if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
               const quantity = getItemQuantity(item);
-              const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap);
+              const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap, allProducts);
               const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
               const itemTotal = quantity * unitPrice;
               const subcategory = categoryInfo.subcategory || 'Uncategorized';
