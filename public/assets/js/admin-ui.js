@@ -3163,6 +3163,14 @@ function showToast(message, type = 'success', duration = 3000) {
       return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
     }
 
+    function extractName(candidate) {
+      if (candidate == null || candidate === '') return '';
+      if (typeof candidate === 'object') {
+        return String(candidate.name || candidate.title || candidate.label || '').trim();
+      }
+      return String(candidate).trim();
+    }
+
     function getItemCategoryInfo(item, productDetailsMap = {}, categoryNameMap = {}, subcategoryDetailsMap = {}, productCatalog = []) {
       const product = item?.product || item?.productDetails || null;
       const productName = getItemProductName(item);
@@ -3172,6 +3180,13 @@ function showToast(message, type = 'success', duration = 3000) {
       const resolveCategoryName = (candidate) => {
         if (candidate == null || candidate === '') return '';
         if (typeof candidate === 'object') {
+          const idValue = candidate.id ?? candidate.categoryId ?? candidate.category_id ?? candidate.cat;
+          if (idValue != null && idValue !== '') {
+            const key = String(idValue).trim();
+            if (key) {
+              return categoryNameMap[key] || '';
+            }
+          }
           return String(candidate.name || candidate.title || candidate.label || '').trim();
         }
         const key = String(candidate).trim();
@@ -3182,6 +3197,13 @@ function showToast(message, type = 'success', duration = 3000) {
       const resolveSubcategoryName = (candidate) => {
         if (candidate == null || candidate === '') return '';
         if (typeof candidate === 'object') {
+          const idValue = candidate.id ?? candidate.subcategoryId ?? candidate.subcategory_id ?? candidate.sub;
+          if (idValue != null && idValue !== '') {
+            const key = String(idValue).trim();
+            if (key) {
+              return subcategoryDetailsMap[key]?.name || '';
+            }
+          }
           return String(candidate.name || candidate.title || candidate.label || '').trim();
         }
         const key = String(candidate).trim();
@@ -3595,8 +3617,10 @@ function showToast(message, type = 'success', duration = 3000) {
         allProducts.forEach(product => {
           const productName = String(product.name || product.productName || product.title || product.label || '').trim();
           if (productName) {
-            const categoryName = categoryNameMap[String(product.cat)] || String(product.category || product.categoryName || product.category_name || product.category?.name || '').trim() || 'Uncategorized';
-            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || String(product.subcategory || product.subcategoryName || product.subcategory_name || product.subcategory?.name || '').trim() || 'Uncategorized';
+            const productCategoryId = product.cat ?? product.categoryId ?? product.category_id ?? product.category?.id ?? null;
+            const productSubcategoryId = product.sub ?? product.subcategoryId ?? product.subcategory_id ?? product.subcategory?.id ?? null;
+            const categoryName = categoryNameMap[String(productCategoryId)] || extractName(product.category) || extractName(product.categoryName) || extractName(product.category_name) || 'Uncategorized';
+            const subcategoryName = subcategoryDetailsMap[String(productSubcategoryId)]?.name || extractName(product.subcategory) || extractName(product.subcategoryName) || extractName(product.subcategory_name) || 'Uncategorized';
             const details = {
               price: product.price || 0,
               category: categoryName,
@@ -3625,8 +3649,9 @@ function showToast(message, type = 'success', duration = 3000) {
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
           if (!isOrderInReportDate(order, reportRange)) return;
-          if (order.items && Array.isArray(order.items)) {
-            order.items.forEach(item => {
+          const items = getOrderItems(order);
+          if (items.length) {
+            items.forEach(item => {
               const quantity = getItemQuantity(item);
               const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap, allProducts);
               const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
@@ -3720,8 +3745,10 @@ function showToast(message, type = 'success', duration = 3000) {
         allProducts.forEach(product => {
           const productName = String(product.name || product.productName || product.title || product.label || '').trim();
           if (productName) {
-            const subcategoryName = subcategoryDetailsMap[String(product.sub)]?.name || String(product.subcategory || product.subcategoryName || product.subcategory_name || product.subcategory?.name || '').trim() || 'Uncategorized';
-            const categoryName = categoryNameMap[String(product.cat)] || String(product.category || product.categoryName || product.category_name || product.category?.name || '').trim() || 'Uncategorized';
+            const productCategoryId = product.cat ?? product.categoryId ?? product.category_id ?? product.category?.id ?? null;
+            const productSubcategoryId = product.sub ?? product.subcategoryId ?? product.subcategory_id ?? product.subcategory?.id ?? null;
+            const subcategoryName = subcategoryDetailsMap[String(productSubcategoryId)]?.name || extractName(product.subcategory) || extractName(product.subcategoryName) || extractName(product.subcategory_name) || 'Uncategorized';
+            const categoryName = categoryNameMap[String(productCategoryId)] || extractName(product.category) || extractName(product.categoryName) || extractName(product.category_name) || 'Uncategorized';
             const details = {
               price: product.price || 0,
               category: categoryName,
@@ -3750,8 +3777,9 @@ function showToast(message, type = 'success', duration = 3000) {
         allOrders.forEach(order => {
           if (!shouldIncludeOrderInReports(order)) return;
           if (!isOrderInReportDate(order, reportRange)) return;
-          if (order.items && Array.isArray(order.items)) {
-            order.items.forEach(item => {
+          const items = getOrderItems(order);
+          if (items.length) {
+            items.forEach(item => {
               const quantity = getItemQuantity(item);
               const categoryInfo = getItemCategoryInfo(item, productDetailsMap, categoryNameMap, subcategoryDetailsMap, allProducts);
               const unitPrice = getItemPrice(item, Object.fromEntries(allProducts.map(product => [String(product.name).toLowerCase(), Number(product.price || 0)])));
