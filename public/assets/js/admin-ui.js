@@ -3199,6 +3199,9 @@ function showToast(message, type = 'success', duration = 3000) {
         item?.product?.category?.name,
         item?.productDetails?.categoryName,
         item?.productDetails?.category,
+        item?.productDetails?.category?.name,
+        item?.category?.name,
+        item?.product?.category?.name,
         item?.productDetails?.category?.name
       ];
 
@@ -3213,6 +3216,9 @@ function showToast(message, type = 'success', duration = 3000) {
         item?.product?.subcategory?.name,
         item?.productDetails?.subcategoryName,
         item?.productDetails?.subcategory,
+        item?.productDetails?.subcategory?.name,
+        item?.subcategory?.name,
+        item?.product?.subcategory?.name,
         item?.productDetails?.subcategory?.name
       ];
 
@@ -3220,24 +3226,30 @@ function showToast(message, type = 'success', duration = 3000) {
         item?.cat,
         item?.categoryId,
         item?.category_id,
+        item?.category?.id,
         product?.cat,
         product?.categoryId,
         product?.category_id,
+        product?.category?.id,
         item?.product?.cat,
         item?.product?.categoryId,
-        item?.product?.category_id
+        item?.product?.category_id,
+        item?.product?.category?.id
       ];
 
       const subcategoryIdCandidates = [
         item?.sub,
         item?.subcategoryId,
         item?.subcategory_id,
+        item?.subcategory?.id,
         product?.sub,
         product?.subcategoryId,
         product?.subcategory_id,
+        product?.subcategory?.id,
         item?.product?.sub,
         item?.product?.subcategoryId,
-        item?.product?.subcategory_id
+        item?.product?.subcategory_id,
+        item?.product?.subcategory?.id
       ];
 
       let category = '';
