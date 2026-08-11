@@ -5109,16 +5109,18 @@ function showToast(message, type = 'success', duration = 3000) {
           }
 
           .receipt-header { text-align: center; margin-bottom: 6px; border-bottom: 1px solid #000; padding-bottom: 6px; }
+          .business-name { font-weight: 900; font-size: 14px; text-transform: uppercase; }
 
           /* Section 1: Table / Waiter / Cashier */
           .order-info { margin: 8px 0; padding: 6px 0; }
-          .order-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; font-size: 12px; }
-          .order-cell { display:flex; flex-direction:column; }
-          .order-cell .label { font-weight:700; color:#111827; font-size:11px; }
-          .order-cell .value { text-align:right; font-weight:600; color:#374151; }
+          .order-stack { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+          .order-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 0; }
+          .order-label { font-weight:700; color:#111827; min-width: 58px; }
+          .order-value { font-weight:600; color:#374151; text-align: right; flex: 1; }
 
           /* Section 2: Items table */
           .items-table { margin-top:8px; }
+          .section-title { font-weight: 900; font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
           .item-header { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; font-weight:700; border-bottom:1px solid #ddd; padding:6px 0; font-size:11px; }
           .items-body { margin:4px 0 8px 0; }
           .item-row { display: grid; grid-template-columns: 1fr 36px 56px 64px; gap:6px; padding:6px 0; font-size:11px; align-items:center; }
@@ -5156,24 +5158,25 @@ function showToast(message, type = 'success', duration = 3000) {
 
         <!-- Section 1: Table / Waiter / Cashier -->
         <div class="order-info">
-          <div class="order-grid">
-            <div class="order-cell">
-              <span class="label">TABLE</span>
-              <span class="value">${tableName}</span>
+          <div class="order-stack">
+            <div class="order-row">
+              <span class="order-label">TABLE</span>
+              <span class="order-value">${tableName}</span>
             </div>
-            <div class="order-cell">
-              <span class="label">WAITER</span>
-              <span class="value">${waiterName}</span>
+            <div class="order-row">
+              <span class="order-label">WAITER</span>
+              <span class="order-value">${waiterName}</span>
             </div>
-            <div class="order-cell">
-              <span class="label">CASHIER</span>
-              <span class="value">${cashierName}</span>
+            <div class="order-row">
+              <span class="order-label">CASHIER</span>
+              <span class="order-value">${cashierName}</span>
             </div>
           </div>
         </div>
 
         <!-- Section 2: Items -->
         <div class="items-table">
+          <div class="section-title">Items</div>
           <div class="item-header">
             <div>Product</div>
             <div>Qty</div>
@@ -5202,6 +5205,7 @@ function showToast(message, type = 'success', duration = 3000) {
 
         <!-- Section 3: Billing Summary -->
         <div class="billing-summary">
+          <div class="section-title">Billing Summary</div>
           <div class="summary-row small"><div>Subtotal</div><div>${formatCurrency(breakdown.subtotal)}</div></div>
           ${breakdown.discount > 0 ? `<div class="summary-row small"><div>Discount (${breakdown.discountPercentage || 0}%)</div><div>-${formatCurrency(breakdown.discount)}</div></div>` : ''}
           ${breakdown.tax > 0 ? `<div class="summary-row small"><div>Tax (${breakdown.taxPercentage || 0}%)</div><div>+${formatCurrency(breakdown.tax)}</div></div>` : ''}
